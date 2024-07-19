@@ -1,0 +1,49 @@
+SET(GENIE_XSEC_VERSION 3.10.4)
+project(GENIE_XSEC VERSION ${GENIE_XSEC_VERSION} LANGUAGES CXX C)
+
+#Changes default install path to be a subdirectory of the build dir.
+#Can set build dir at configure time with -DCMAKE_INSTALL_PREFIX=/install/path
+if(CMAKE_INSTALL_PREFIX STREQUAL "" OR CMAKE_INSTALL_PREFIX STREQUAL
+  "/usr/local")
+  set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/${CMAKE_SYSTEM_NAME}")
+elseif(NOT DEFINED CMAKE_INSTALL_PREFIX)
+  set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}/${CMAKE_SYSTEM_NAME}")
+endif()
+
+if(CMAKE_BUILD_TYPE STREQUAL "")
+  set(CMAKE_BUILD_TYPE RELWITHDEBINFO)
+elseif(NOT DEFINED CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE RELWITHDEBINFO)
+endif()
+
+SET(HEADERS genie_xsec.h)
+
+SET(SOURCE genie_xsec.cxx)
+
+add_library(GENIE_XSEC SHARED ${SOURCE})
+
+target_link_libraries(
+  GENIE_XSEC PUBLIC 
+  ROOT::Core
+)
+
+set_target_properties(GENIE_XSEC PROPERTIES 
+	PUBLIC_HEADER "${HEADERS}"
+	EXPORT_NAME GENIE_XSEC)
+
+target_include_directories(
+  GENIE_XSEC PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>
+                       $<INSTALL_INTERFACE:include>
+)
+
+install(TARGETS GENIE_XSEC 
+		EXPORT GENIE_XSEC-target
+		LIBRARY DESTINATION lib/
+		PUBLIC_HEADER DESTINATION include/)
+
+install(EXPORT GENIE_XSEC-target
+  FILE GENIE_XSECTargets.cmake
+  NAMESPACE GENIE_XSEC::
+  DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/cmake/GENIE_XSEC
+)
+
