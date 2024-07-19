@@ -1,0 +1,3 @@
+[submodule "external/Prob3plusplus"]
+	path = external/Prob3plusplus
+	url = https://github.com/rogerwendell/Prob3plusplus.git
