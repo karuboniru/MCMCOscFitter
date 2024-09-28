@@ -1,6 +1,8 @@
 #pragma once
 #include "StateI.h"
 #include <concepts>
+// #include <iostream>
+
 // class DataSet;
 
 class ModelDataLLH : virtual public StateI {
@@ -12,19 +14,29 @@ template <std::derived_from<ModelDataLLH> Model, std::derived_from<StateI> Data>
 class ModelAndData : virtual public StateI {
 public:
   ModelAndData(Model model_, Data data_) : model(model_), data(data_) {}
+  ModelAndData(const ModelAndData &) = default;
+  ModelAndData(ModelAndData &&) = default;
+  ModelAndData &operator=(const ModelAndData &) = default;
+  ModelAndData &operator=(ModelAndData &&) = default;
+  ~ModelAndData() = default;
 
-  virtual void proposeStep() override {
+  void proposeStep() override {
     model.proposeStep();
     data.proposeStep();
   }
 
-  virtual double GetLogLikelihood() const override {
-    return model.GetLogLikelihoodAgainstData(data) + model.GetLogLikelihood() +
-           data.GetLogLikelihood();
+  double GetLogLikelihood() const override {
+    auto modeldata = model.GetLogLikelihoodAgainstData(data);
+    auto modelonly = model.GetLogLikelihood();
+    auto dataonly = data.GetLogLikelihood();
+    // std::cout << std::format("modeldata: {:.2f}\tmodelonly: {:.2f}\tdataonly:
+    // {:.2f}\n",
+    //                          modeldata, modelonly, dataonly);
+    return modeldata + modelonly + dataonly;
   }
 
-  Model & GetModel() { return model; }
-  Data & GetData() { return data; }
+  Model &GetModel() { return model; }
+  Data &GetData() { return data; }
 
 private:
   Model model;

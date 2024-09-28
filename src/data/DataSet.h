@@ -8,6 +8,7 @@
 template <std::derived_from<StateI> T>
 class DataSet : virtual public StateI, public std::vector<T> {
 public:
+  using std::vector<T>::vector;
   virtual void proposeStep() override {
     // std::ranges::for_each(*this, [](T &point) { point.proposeStep(); });
     std::for_each(this->begin(), this->end(),

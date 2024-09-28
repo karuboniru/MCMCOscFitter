@@ -23,12 +23,27 @@ target_link_libraries(
 
 add_library(
   SimpleInteraction
-  SHARED
+  STATIC
   SimpleInteraction.cxx
 )
 
 target_link_libraries(
   SimpleInteraction
+  ModelDataLLH
+  state
+  HondaFlux
+  GENIE_XSEC
+  OscillationParameters
+)
+
+add_library(
+  BinnedInteraction
+  STATIC
+  BinnedInteraction.cxx
+)
+
+target_link_libraries(
+  BinnedInteraction
   ModelDataLLH
   state
   HondaFlux

@@ -4,7 +4,7 @@ include_directories(
 
 add_library(
   walker
-  SHARED
+  STATIC
   walker.cxx
 )
 

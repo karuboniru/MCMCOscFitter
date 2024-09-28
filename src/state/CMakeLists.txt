@@ -15,7 +15,7 @@ target_include_directories(
 
 add_library(
   OscillationParameters
-  SHARED
+  STATIC
   OscillationParameters.cxx
 )
 

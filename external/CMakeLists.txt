@@ -9,3 +9,5 @@ add_subdirectory(hondaflux)
 # xsec
 add_subdirectory(xsec_genie_tune)
 
+
+add_subdirectory(toyfit_tools)

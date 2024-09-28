@@ -1,9 +1,15 @@
 #include "BargerPropagator.h"
+#include "NeutrinoState.h"
+#include "OscillationParameters.h"
+#include "SimpleDataPoint.h"
+#include "SimpleInteraction.h"
 #include "StateI.h"
 #include "genie_xsec.h"
 #include "hondaflux.h"
+#include "to_plots.h"
 #include "walker.h"
 
+#include "root/Math/IntegratorOptions.h"
 #include <ROOT/RDF/InterfaceUtils.hxx>
 #include <ROOT/RDF/RInterface.hxx>
 #include <ROOT/RDFHelpers.hxx>
@@ -13,73 +19,7 @@
 #include <TRandom.h>
 #include <cmath>
 #include <functional>
-
-// some default input to Prob3...
-namespace {
-double dcp_in = 0.;
-double h_in = 1.0;
-// int v_in = 1.0;
-bool kSquared = true; // are we using sin^2(x) variables?
-
-// int kNuBar = 1 * v_in;
-double DM2 = h_in * 2.5e-3;
-double Theta23 = 0.5;
-double Theta13 = 0.0215;
-double dm2 = 7.6e-5;
-double Theta12 = 0.302;
-// double delta   = 270.0 * (3.1415926/180.0);
-double delta = dcp_in * (3.1415926 / 180.0);
-} // namespace
-
-namespace {
-constexpr double Emin = 3, Emax = 10;
-}
-
-class NeutrinoState : virtual public StateI {
-public:
-  ~NeutrinoState() = default;
-
-  NeutrinoState(std::function<double(double, double, double, int)> m_w)
-      : weight_calculator(m_w) {};
-
-  NeutrinoState(const NeutrinoState &) = default;
-  NeutrinoState(NeutrinoState &&) = default;
-  NeutrinoState &operator=(const NeutrinoState &) = default;
-  NeutrinoState &operator=(NeutrinoState &&) = default;
-
-  // default constructor, should not be used
-  NeutrinoState() = default;
-
-  double E, costheta, phi;
-  int flavor;
-  double weight;
-
-  std::function<double(double, double, double, int)> weight_calculator;
-
-  virtual void proposeStep() override {
-    // E = TMath::Power(10, gRandom->Uniform(-1, 2));
-    E = gRandom->Uniform(Emin, Emax);
-    costheta = gRandom->Uniform(-1, 1);
-    phi = gRandom->Uniform(0, 2 * TMath::Pi());
-    switch (gRandom->Integer(4)) {
-    case 0:
-      flavor = -14;
-      break;
-    case 1:
-      flavor = 14;
-      break;
-    case 2:
-      flavor = 12;
-      break;
-    case 3:
-      flavor = -12;
-      break;
-    }
-
-    weight = weight_calculator(E, costheta, phi, flavor);
-  }
-  virtual double GetLogLikelihood() const override { return log(weight); }
-};
+#include <memory>
 
 class TimeCount {
 public:
@@ -99,68 +39,68 @@ private:
 };
 
 int main() {
-  // load flux
-  HondaFlux honda{"/var/home/yan/neutrino/honda-3d.txt"};
-  // honda.LoadFluxFile();
-  // load cross section
-  genie_xsec spline(
-      "/var/home/yan/neutrino/spline/full/genie_spline_3_0_2/G18_02b_02_11b/"
-      "3.04.02-routine_validation_01-xsec_vA/total_xsec.root");
-  // spline.LoadSplineFile(
-  //     );
-
-  // // load BargerPropagator
-  // BargerPropagator b;
-  auto weight = [&](double E, double costheta, double phi, int flavor) {
-    int symbol = flavor > 0 ? 1 : -1;
-    double flux_numu = honda.GetFlux(E, costheta, phi, symbol * 14);
-    double flux_nue = honda.GetFlux(E, costheta, phi, symbol * 12);
-    double xsec = spline.GetXsec(E, flavor, 1000060120);
-
-    BargerPropagator b;
-    b.SetMNS(Theta12, Theta13, Theta23, dm2, DM2, delta, E, kSquared, flavor);
-    b.DefinePath(costheta, 25);
-    b.propagate(flavor);
-    int prob3_flavor = symbol * (abs(flavor) == 14 ? 1 : 2);
-    return (flux_numu * b.GetProb(symbol * 2, prob3_flavor) +
-            flux_nue * b.GetProb(symbol * 1, prob3_flavor)) *
-           xsec;
-  };
-
-  NeutrinoState init_state{weight};
+  TH1::AddDirectory(false);
+  ROOT::Math::IntegratorMultiDimOptions::SetDefaultIntegrator("MISER");
+  const SimpleInteraction interaction;
   size_t e_count{};
   {
     TimeCount tc("weight_int");
     TF3 weight_func(
         "weight_func",
-        [&weight](double *x, double *) {
-          double E = x[0];
+        [&](double *x, double *) {
+          double E = exp(x[0]);
           double costh = x[1];
           double phi = x[2];
-          return weight(E, costh, phi, 14) + weight(E, costh, phi, -14) +
-                 weight(E, costh, phi, -12) + weight(E, costh, phi, 12);
+          NeutrinoState this_state_nue{E, costh, phi, 12};      // nue
+          NeutrinoState this_state_nuebar{E, costh, phi, -12};  // nuebar
+          NeutrinoState this_state_numu{E, costh, phi, 14};     // numu
+          NeutrinoState this_state_numubar{E, costh, phi, -14}; // numubar
+          // double logw =
+          // interaction.GetLogLikelihoodAgainstData(SimpleDataSet{this_state_nue});
+          return E * (exp(interaction.GetLogLikelihoodAgainstData(
+                          SimpleDataSet{this_state_nue})) +
+                      exp(interaction.GetLogLikelihoodAgainstData(
+                          SimpleDataSet{this_state_nuebar})) +
+                      exp(interaction.GetLogLikelihoodAgainstData(
+                          SimpleDataSet{this_state_numu})) +
+                      exp(interaction.GetLogLikelihoodAgainstData(
+                          SimpleDataSet{this_state_numubar})));
+          // return (weight(E, costh, phi, 14) + weight(E, costh, phi, -14) +
+          //         weight(E, costh, phi, -12) + weight(E, costh, phi, 12)) *
+          //        E;
         },
-        Emin, Emax, -1, 1, 0, 2 * TMath::Pi(), 0);
-    // weight_func.SetNpx(500);
-    // weight_func.SetNpy(50);
-    // weight_func.SetNpz(30);
-    double weight_int =
-        weight_func.Integral(Emin, Emax, -1, 1, 0, 2 * TMath::Pi(), 0.01);
-    e_count = weight_int / 100;
+        log(Emin), log(Emax), -1, 1, 0, 2 * TMath::Pi(), 0);
+    weight_func.SetNpx(50);
+    weight_func.SetNpy(50);
+    weight_func.SetNpz(30);
+    double weight_int = weight_func.Integral(log(Emin), log(Emax), -1, 1, 0,
+                                             2 * TMath::Pi(), 0.01);
+    e_count = weight_int;
     std::cout << "weight_int: " << weight_int << std::endl;
   }
 
+  // ROOT::EnableImplicitMT();
+  NeutrinoState init_state;
   init_state.proposeStep();
-
   auto df =
       ROOT::RDataFrame{e_count}
           .Define("state",
                   [&]() {
-                    for (size_t i{}; i < 5000; i++) {
+                    for (size_t i{}; i < 200; i++) {
                       NeutrinoState newState = init_state;
                       newState.proposeStep();
-                      if (MCMCAcceptState(init_state, newState)) {
+                      double logw = interaction.GetLogLikelihoodAgainstData(
+                          SimpleDataSet{newState});
+                      double logw0 = interaction.GetLogLikelihoodAgainstData(
+                          SimpleDataSet{init_state});
+                      double delta = logw - logw0;
+                      if (delta > 0) {
                         init_state = newState;
+                      } else {
+                        auto rand = gRandom->Rndm();
+                        if (rand < exp(delta)) {
+                          init_state = newState;
+                        }
                       }
                     }
                     return init_state;
@@ -170,14 +110,26 @@ int main() {
                   {"state"})
           .Define("phi", [](const NeutrinoState &s) { return s.phi; },
                   {"state"})
-          .Define("w", [](const NeutrinoState &s) { return s.weight; },
+          .Define("w",
+                  [&](const NeutrinoState &s) {
+                    return exp(interaction.GetLogLikelihoodAgainstData(
+                        SimpleDataSet{s}));
+                  },
                   {"state"})
           .Define("flavor", [](const NeutrinoState &s) { return s.flavor; },
                   {"state"})
-      // .Snapshot("testevent", "testsample.root",
-      //           {"E", "costheta", "phi", "flavor", "w"});
-      ;
+          .Define("weight", []() { return 1.; }, {});
   ROOT::RDF::Experimental::AddProgressBar(df);
+  auto plots = to_plots(df);
   df.Snapshot("testevent", "testsample.root",
               {"E", "costheta", "phi", "flavor", "w"});
+  auto filehist = std::make_unique<TFile>("testsample.root", "RECREATE");
+
+  for (auto &&plot : plots) {
+    filehist->Add(plot.GetPtr());
+  }
+  filehist->Write();
+  filehist->Close();
+
+  return 0;
 }

@@ -73,3 +73,13 @@ double genie_xsec::GetXsec(double energy, int nud, int tar) {
   fXsecHist[std::make_tuple(nud, tar)] = spline_graph;
   return TSpline3{"", spline_graph}.Eval(energy);
 }
+
+TH1D genie_xsec::GetXsecHist(std::vector<double> energy_bins, int nud,
+                             int tar) {
+  TH1D ret{"", "", static_cast<int>(energy_bins.size()) - 1,
+           energy_bins.data()};
+  for (int i = 1; i <= ret.GetNbinsX(); ++i) {
+    ret.SetBinContent(i, GetXsec(ret.GetBinCenter(i), nud, tar));
+  }
+  return ret;
+}

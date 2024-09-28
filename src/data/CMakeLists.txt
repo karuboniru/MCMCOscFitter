@@ -15,11 +15,23 @@ target_include_directories(
 
 add_library(
   SimpleDataPoint
-  SHARED
+  STATIC
   SimpleDataPoint.cxx
 )
 
 target_link_libraries(
   SimpleDataPoint
   state
+)
+
+add_library(
+  SimpleDataHist
+  STATIC
+  SimpleDataHist.cxx
+)
+
+target_link_libraries(
+  SimpleDataHist
+  state
+  GENIE_XSEC
 )
