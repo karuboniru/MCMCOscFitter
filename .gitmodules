@@ -1,3 +1,7 @@
 [submodule "external/Prob3plusplus"]
 	path = external/Prob3plusplus
 	url = https://github.com/rogerwendell/Prob3plusplus.git
+
+[submodule "external/CUDAProb3"]
+	path = external/CUDAProb3
+	url = https://github.com/karuboniru/CUDAProb3.git

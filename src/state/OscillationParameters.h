@@ -3,7 +3,6 @@
 #include "StateI.h"
 #include <TH2.h>
 #include <array>
-#include <vector>
 
 class OscillationParameters : virtual public StateI {
 public:
@@ -16,36 +15,29 @@ public:
   ~OscillationParameters() override = default;
 
   void proposeStep() override;
-  double GetLogLikelihood() const override;
+  [[nodiscard]] double GetLogLikelihood() const override;
 
   [[nodiscard]] virtual std::array<std::array<double, 3>, 3>
   GetProb(int flavor, double E, double costheta) const = 0;
 
-  // [[nodiscard]] decltype(auto) GetDM2() const {
-  //   return is_NH ? NH_DM2 : IH_DM2;
-  // }
-  // [[nodiscard]] decltype(auto) GetT23() const {
-  //   return is_NH ? NH_T23 : IH_T23;
-  // }
-  // [[nodiscard]] decltype(auto) GetT13() const {
-  //   return is_NH ? NH_T13 : IH_T13;
-  // }
-  // [[nodiscard]] decltype(auto) GetDm2() const {
-  //   return is_NH ? NH_Dm2 : IH_Dm2;
-  // }
-  // [[nodiscard]] decltype(auto) GetT12() const {
-  //   return is_NH ? NH_T12 : IH_T12;
-  // }
-  // [[nodiscard]] decltype(auto) GetDeltaCP() const {
-  //   return is_NH ? NH_DCP : IH_DCP;
-  // }
-
-  [[nodiscard]] auto GetDM2() const { return is_NH ? NH_DM2 : IH_DM2; }
-  [[nodiscard]] auto GetT23() const { return is_NH ? NH_T23 : IH_T23; }
-  [[nodiscard]] auto GetT13() const { return is_NH ? NH_T13 : IH_T13; }
-  [[nodiscard]] auto GetDm2() const { return is_NH ? NH_Dm2 : IH_Dm2; }
-  [[nodiscard]] auto GetT12() const { return is_NH ? NH_T12 : IH_T12; }
-  [[nodiscard]] auto GetDeltaCP() const { return is_NH ? NH_DCP : IH_DCP; }
+  [[nodiscard, gnu::pure]] auto GetDM2() const {
+    return is_NH ? NH_DM2 : IH_DM2;
+  }
+  [[nodiscard, gnu::pure]] auto GetT23() const {
+    return is_NH ? NH_T23 : IH_T23;
+  }
+  [[nodiscard, gnu::pure]] auto GetT13() const {
+    return is_NH ? NH_T13 : IH_T13;
+  }
+  [[nodiscard, gnu::pure]] auto GetDm2() const {
+    return is_NH ? NH_Dm2 : IH_Dm2;
+  }
+  [[nodiscard, gnu::pure]] auto GetT12() const {
+    return is_NH ? NH_T12 : IH_T12;
+  }
+  [[nodiscard, gnu::pure]] auto GetDeltaCP() const {
+    return is_NH ? NH_DCP : IH_DCP;
+  }
 
 private:
   // PDG Central Values
@@ -72,15 +64,4 @@ private:
       NH_T12{Theta12}, NH_DCP{0.};
   double IH_DM2{DM2_IH}, IH_T23{Theta23_IH}, IH_T13{Theta13}, IH_Dm2{dm2},
       IH_T12{Theta12}, IH_DCP{0.};
-};
-
-class Prob3ppOscillation : public OscillationParameters {
-public:
-  Prob3ppOscillation() = default;
-  [[nodiscard]] std::array<std::array<double, 3>, 3>
-  GetProb(int flavor, double E, double costheta) const override;
-
-  [[nodiscard]] std::array<std::array<TH2D, 2>, 2>
-  GetProb_Hist(std::vector<double> Ebin, std::vector<double> costhbin,
-               int flavor) const;
 };

@@ -25,7 +25,7 @@ double genie_xsec::GetXsec(double energy, int nud, int tar) {
     auto &&iter = fXsecHist.find(std::make_tuple(nud, tar));
     if (iter != fXsecHist.end()) {
       // return fXsecHist[std::make_tuple(nud, tar)]->Eval(energy);
-      return TSpline3{"", iter->second}.Eval(energy);
+      return iter->second.Eval(energy);
     }
   }
   const char *target_name, *nu_name;
@@ -70,8 +70,11 @@ double genie_xsec::GetXsec(double energy, int nud, int tar) {
     std::cerr << "Failed to load spline graph: \t" << hist_name << std::endl;
     throw std::runtime_error("");
   }
-  fXsecHist[std::make_tuple(nud, tar)] = spline_graph;
-  return TSpline3{"", spline_graph}.Eval(energy);
+  // fXsecHist[std::make_tuple(nud, tar)] = TSpline3{"", spline_graph};
+  // return TSpline3{"", spline_graph}.Eval(energy);
+  auto &&[iter, success] = fXsecHist.try_emplace(std::make_tuple(nud, tar),
+                                                 TSpline3{"", spline_graph});
+  return iter->second.Eval(energy);
 }
 
 TH1D genie_xsec::GetXsecHist(std::vector<double> energy_bins, int nud,

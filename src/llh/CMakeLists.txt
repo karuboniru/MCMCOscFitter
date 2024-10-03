@@ -33,7 +33,7 @@ target_link_libraries(
   state
   HondaFlux
   GENIE_XSEC
-  OscillationParameters
+  Prob3ppOscillation
 )
 
 add_library(
@@ -46,7 +46,7 @@ target_link_libraries(
   BinnedInteraction
   ModelDataLLH
   state
-  HondaFlux
+  HondaFlux2D
   GENIE_XSEC
-  OscillationParameters
+  ParProb3ppOscillation
 )

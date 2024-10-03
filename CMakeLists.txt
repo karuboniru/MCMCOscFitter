@@ -9,7 +9,18 @@ include_directories(
     ${ROOT_INCLUDE_DIRS}
 )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -Wall -Wextra -Wpedantic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wextra -Wpedantic")
+
+Option(ENABLE_CUDA "Enable CUDA" OFF)
+
+if (ENABLE_CUDA)
+    find_package(CUDA REQUIRED)
+    enable_language(CUDA)
+endif()
+
+#enable asan
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer")
+# set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fsanitize=address -fsanitize=undefined ")
 
 add_subdirectory(src)
 add_subdirectory(external)

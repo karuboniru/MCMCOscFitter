@@ -7,7 +7,7 @@
 
 class ModelDataLLH : virtual public StateI {
 public:
-  virtual double GetLogLikelihoodAgainstData(const StateI &dataset) const = 0;
+  [[nodiscard]] virtual double GetLogLikelihoodAgainstData(const StateI &dataset) const = 0;
 };
 
 template <std::derived_from<ModelDataLLH> Model, std::derived_from<StateI> Data>
@@ -18,7 +18,7 @@ public:
   ModelAndData(ModelAndData &&) = default;
   ModelAndData &operator=(const ModelAndData &) = default;
   ModelAndData &operator=(ModelAndData &&) = default;
-  ~ModelAndData() = default;
+  ~ModelAndData() override = default;
 
   void proposeStep() override {
     model.proposeStep();

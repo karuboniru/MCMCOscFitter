@@ -13,7 +13,7 @@
 #include <memory>
 #include <ranges>
 
-constexpr auto variable_list =
+const auto variable_list =
     std::to_array<std::string>({"DM2", "Dm2", "T12", "T13", "T23", "DCP"});
 constexpr size_t nvars = variable_list.size();
 

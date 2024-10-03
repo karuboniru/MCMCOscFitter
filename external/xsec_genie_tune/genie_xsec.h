@@ -3,6 +3,7 @@
 #include <TFile.h>
 #include <TGraph.h>
 #include <TH1D.h>
+#include <TSpline.h>
 #include <cstdlib>
 #include <map>
 #include <memory>
@@ -13,13 +14,14 @@ public:
   ~genie_xsec();
 
   double GetXsec(double energy, int nud, int tar);
+  TSpline3 GetXsecSpl(int nud, int tar);
 
   TH1D GetXsecHist(std::vector<double> energy_bins, int nud, int tar);
 
 private:
   void LoadSplineFile(const char *splinefile);
   std::unique_ptr<TFile> spline_file;
-  std::map<std::tuple<int, int>, TGraph *> fXsecHist;
+  std::map<std::tuple<int, int>, TSpline3> fXsecHist;
 };
 
 // inline genie_xsec xsec_input(

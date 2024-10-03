@@ -1,5 +1,5 @@
 #include "SimpleInteraction.h"
-#include "OscillationParameters.h"
+#include "Prob3ppOscillation.h"
 #include "genie_xsec.h"
 #include "hondaflux.h"
 #include <SimpleDataHist.h>

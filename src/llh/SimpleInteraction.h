@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ModelDataLLH.h"
-#include "OscillationParameters.h"
+#include "Prob3ppOscillation.h"
 #include "SimpleDataPoint.h"
 #include "genie_xsec.h"
 #include "hondaflux.h"

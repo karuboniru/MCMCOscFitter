@@ -1,8 +1,10 @@
 
 #include "BinnedInteraction.h"
-#include "OscillationParameters.h"
+#include "ParProb3ppOscillation.h"
+#include "binning_tool.hpp"
 #include "genie_xsec.h"
-#include "hondaflux.h"
+#include "hondaflux2d.h"
+
 #include <SimpleDataHist.h>
 #include <TF3.h>
 #include <TH2.h>
@@ -11,9 +13,19 @@
 
 BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
                                      std::vector<double> costheta_bins_,
-                                     double scale_)
-    : ModelDataLLH(), Ebins(std::move(Ebins_)),
+                                     double scale_, size_t E_rebin_factor_)
+    : ParProb3ppOscillation{to_center<float>(Ebins_),
+                            linspace<float>(
+                                costheta_bins_[0],
+                                costheta_bins_[costheta_bins_.size() - 1],
+                                costheta_bins_.size() * 50)},
+      ModelDataLLH(), Ebins(std::move(Ebins_)),
       costheta_bins(std::move(costheta_bins_)),
+      // Ebins_calc(logspace<double>(Ebins[0], Ebins[Ebins.size() - 1],
+      //                             Ebins.size() * 10)),
+      // costheta_bins_calc(linspace<double>(
+      //     costheta_bins[0], costheta_bins[costheta_bins.size() - 1],
+      //     costheta_bins.size() * 10)),
       re_dim([&](const TH1D &hist) -> TH2D {
         TH2D re_hist("", "", Ebins.size() - 1, Ebins.data(),
                      costheta_bins.size() - 1, costheta_bins.data());
@@ -32,9 +44,7 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
       xsec_hist_numubar(re_dim(xsec_input.GetXsecHist(Ebins, -14, 1000060120))),
       xsec_hist_nue(re_dim(xsec_input.GetXsecHist(Ebins, 12, 1000060120))),
       xsec_hist_nuebar(re_dim(xsec_input.GetXsecHist(Ebins, -12, 1000060120))),
-      scale(scale_)
-
-{
+      scale(scale_), E_rebin_factor(E_rebin_factor_) {
   UpdatePrediction();
 }
 
@@ -66,8 +76,11 @@ template <is_hist T> T operator*(double lhs, const T &rhs) { return rhs * lhs; }
 } // namespace
 
 void BinnedInteraction::UpdatePrediction() {
-  auto oscHist = GetProb_Hist(Ebins, costheta_bins, 12);
-  auto oscHist_anti = GetProb_Hist(Ebins, costheta_bins, -12);
+  // auto oscHist = GetProb_Hist(Ebins, costheta_bins, 12);
+  // auto oscHist_anti = GetProb_Hist(Ebins, costheta_bins, -12);
+  auto oscHists = GetProb_Hist(Ebins, costheta_bins);
+  auto &oscHist = oscHists[0];
+  auto &oscHist_anti = oscHists[1];
   Prediction_hist_numu =
       scale * (oscHist[1][1] * flux_hist_numu * xsec_hist_numu +
                oscHist[0][1] * flux_hist_nue * xsec_hist_nue);
@@ -80,10 +93,14 @@ void BinnedInteraction::UpdatePrediction() {
   Prediction_hist_nuebar =
       scale * (oscHist_anti[0][0] * flux_hist_nuebar * xsec_hist_nuebar +
                oscHist_anti[1][0] * flux_hist_numubar * xsec_hist_numubar);
+  Prediction_hist_numu.Rebin2D(E_rebin_factor, 1);
+  Prediction_hist_numubar.Rebin2D(E_rebin_factor, 1);
+  Prediction_hist_nue.Rebin2D(E_rebin_factor, 1);
+  Prediction_hist_nuebar.Rebin2D(E_rebin_factor, 1);
 }
 
 void BinnedInteraction::proposeStep() {
-  OscillationParameters::proposeStep();
+  ParProb3ppOscillation::proposeStep();
   UpdatePrediction();
 }
 
@@ -138,7 +155,7 @@ BinnedInteraction::GetLogLikelihoodAgainstData(StateI const &dataset) const {
   return llh;
 }
 
-SimpleDataHist BinnedInteraction::GenerateData() const {
+SimpleDataHist BinnedInteraction::GenerateData() {
   SimpleDataHist data;
   data.hist_numu = Prediction_hist_numu;
   data.hist_numubar = Prediction_hist_numubar;

@@ -1,5 +1,7 @@
 #include "BinnedInteraction.h"
 #include "SimpleDataHist.h"
+#include "binning_tool.hpp"
+#include "timer.hpp"
 #include "walker.h"
 
 #include <ROOT/RDF/InterfaceUtils.hxx>
@@ -15,19 +17,18 @@
 #include <memory>
 
 int main(int argc, char **argv) {
-  ROOT::EnableImplicitMT(5);
+  //   ROOT::EnableImplicitMT(10);
   TH1::AddDirectory(false);
-  std::vector<double> Ebins;
-  std::vector<double> costheta_bins;
-  double deltae = 1;
-  double deltacostheta = 0.2;
-  for (double i = 0; i * deltae + 3 < 10; i += deltae) {
-    Ebins.push_back(i * deltae + 3);
-  }
-  for (double i = 0; i * deltacostheta - 1 < 1; i += deltacostheta) {
-    costheta_bins.push_back(i * deltacostheta - 1);
-  }
-  BinnedInteraction bint{Ebins, costheta_bins, 0.07};
+  //   std::vector<double> Ebins;
+  std::vector<double> costheta_bins{-1,  -.9, -.8, -.7, -.6, -.5, -.4,
+                                    -.3, -.2, -.1, 0,   .1,  .2,  .3,
+                                    .4,  .5,  .6,  .7,  .8,  .9,  1};
+  //   double deltae = 1;
+  //   for (double i = 0; i * deltae + 3 < 10; i += deltae) {
+  //     Ebins.push_back(i * deltae + 3);
+  //   }
+  auto Ebins = logspace(1., 10., 300);
+  BinnedInteraction bint{Ebins, costheta_bins, 0.01, 30};
   // bint.proposeStep();
   // bint.Print();
   auto cdata = bint.GenerateData();
@@ -45,7 +46,7 @@ int main(int argc, char **argv) {
   for (size_t i = 0; i < nth; i++) {
     state_pool.emplace_back(bint, cdata).proposeStep();
   }
-  auto rawdf = ROOT::RDataFrame{500000};
+  auto rawdf = ROOT::RDataFrame{150000};
   ROOT::RDF::Experimental::AddProgressBar(rawdf);
   std::atomic<size_t> count{};
   auto df =
@@ -53,6 +54,7 @@ int main(int argc, char **argv) {
           .Define("tuple",
                   [&state_pool, &count](unsigned int id) -> vals {
                     auto &current_state = state_pool[id];
+                    TimeCount timer{"5 step"};
                     for (size_t i = 0; i < 5; i++) {
                       auto new_state = current_state;
                       new_state.proposeStep();
@@ -89,7 +91,7 @@ int main(int argc, char **argv) {
   df.Snapshot("tree", "testfit2.root",
               {"DM2", "Dm2", "T12", "T13", "T23", "DCP", "count"});
 
-  // cdata.SaveAs("data.root");
+  cdata.SaveAs("data.root");
 
   return 0;
 }
