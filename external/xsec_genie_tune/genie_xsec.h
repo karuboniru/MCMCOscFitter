@@ -17,6 +17,7 @@ public:
   TSpline3 GetXsecSpl(int nud, int tar);
 
   TH1D GetXsecHist(std::vector<double> energy_bins, int nud, int tar);
+  TH1D GetXsecHistMixture(std::vector<double> energy_bins, int nud, const std::vector<std::pair<int, double>> & mix_target);
 
 private:
   void LoadSplineFile(const char *splinefile);
