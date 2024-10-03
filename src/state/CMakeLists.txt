@@ -46,6 +46,9 @@ if (ENABLE_CUDA)
     ParProb3ppOscillation.cu
   )
 
+  set_target_properties(ParProb3ppOscillation PROPERTIES CUDA_ARCHITECTURES "all")
+
+
   # set_target_properties(
   #   ParProb3ppOscillation
   #   PROPERTIES
