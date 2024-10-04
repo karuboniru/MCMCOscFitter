@@ -130,3 +130,6 @@ TH2D HondaFlux2D::GetFlux_Hist(std::vector<double> Ebins,
 }
 
 HondaFlux2D::~HondaFlux2D() = default;
+
+inline HondaFlux2D flux_input(std::getenv("FLUX_FILE_2D"));
+

@@ -10,15 +10,15 @@
 #include <TH2.h>
 #include <type_traits>
 #include <utility>
+const size_t costh_rebin_factor = 25;
 
 BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
                                      std::vector<double> costheta_bins_,
                                      double scale_, size_t E_rebin_factor_)
     : ParProb3ppOscillation{to_center<float>(Ebins_),
-                            linspace<float>(
-                                costheta_bins_[0],
-                                costheta_bins_[costheta_bins_.size() - 1],
-                                costheta_bins_.size() * 50)},
+                            to_center<float>(costheta_bins_,
+                                             costh_rebin_factor),
+                            costh_rebin_factor},
       ModelDataLLH(), Ebins(std::move(Ebins_)),
       costheta_bins(std::move(costheta_bins_)),
       // Ebins_calc(logspace<double>(Ebins[0], Ebins[Ebins.size() - 1],
@@ -76,8 +76,6 @@ template <is_hist T> T operator*(double lhs, const T &rhs) { return rhs * lhs; }
 } // namespace
 
 void BinnedInteraction::UpdatePrediction() {
-  // auto oscHist = GetProb_Hist(Ebins, costheta_bins, 12);
-  // auto oscHist_anti = GetProb_Hist(Ebins, costheta_bins, -12);
   auto oscHists = GetProb_Hist(Ebins, costheta_bins);
   auto &oscHist = oscHists[0];
   auto &oscHist_anti = oscHists[1];
@@ -111,11 +109,11 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
   double chi2{};
   for (int x = 1; x <= binsx; x++) {
     for (int y = 1; y <= binsy; y++) {
+      auto bin_data = data.GetBinContent(x, y);
       auto bin_pred = pred.GetBinContent(x, y);
-      if (bin_pred < 5.) {
+      if (bin_pred < 5. || bin_data < 5.) {
         continue;
       }
-      auto bin_data = data.GetBinContent(x, y);
       // auto diff = bin_data - bin_pred;
       // chi2 += diff * diff / bin_pred;
       chi2 += (bin_pred - bin_data) + bin_data * log(bin_data / bin_pred);

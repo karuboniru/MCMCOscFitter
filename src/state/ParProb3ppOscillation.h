@@ -13,7 +13,7 @@ template <class FLOAT_T> class CudaPropagatorSingle;
 class ParProb3ppOscillation : public OscillationParameters {
 public:
   ParProb3ppOscillation(const std::vector<float> &Ebin,
-                        const std::vector<float> &costhbin);
+                        const std::vector<float> &costhbin, size_t costh_rebin_fac);
   ~ParProb3ppOscillation() override;
   ParProb3ppOscillation(const ParProb3ppOscillation &);
   ParProb3ppOscillation(ParProb3ppOscillation &&) noexcept = default;
@@ -43,4 +43,5 @@ private:
 
 #endif
   std::vector<float> Ebins, costheta_bins;
+  size_t costh_rebin_fac;
 };

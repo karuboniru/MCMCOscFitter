@@ -117,3 +117,5 @@ TH1D genie_xsec::GetXsecHistMixture(
 }
 
 // TH1D genie_xsec::GetXsecHistMixture
+
+genie_xsec xsec_input(std::getenv("XSEC_FILE"));

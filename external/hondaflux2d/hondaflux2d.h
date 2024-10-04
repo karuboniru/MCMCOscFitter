@@ -1,8 +1,8 @@
 #pragma once
 // c++ header
-#include <TH2.h>
 #include <TF1.h>
 #include <TGraph.h>
+#include <TH2.h>
 #include <memory>
 
 class TH3D;
@@ -40,4 +40,4 @@ private:
 };
 
 // inline HondaFlux flux_input("/var/home/yan/neutrino/honda-3d.txt");
-inline HondaFlux2D flux_input(std::getenv("FLUX_FILE_2D"));
+extern HondaFlux2D flux_input;

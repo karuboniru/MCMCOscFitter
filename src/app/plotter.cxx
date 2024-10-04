@@ -19,7 +19,7 @@ constexpr size_t nvars = variable_list.size();
 
 int locate(int x, int y) { return (x * nvars) + y + 1; }
 
-void do_plot(ROOT::RDF::RNode data_in, std::string name) {
+void do_plot(auto &&data_in, const std::string& name) {
   auto canvas = std::make_unique<TCanvas>("c1", "c1", 800 * nvars, 800 * nvars);
   canvas->Divide(nvars, nvars);
 
@@ -40,10 +40,7 @@ void do_plot(ROOT::RDF::RNode data_in, std::string name) {
                    auto hist = data_in.Histo1D({var.c_str(), var.c_str(), 128,
                                                 min.GetValue(), max.GetValue()},
                                                var);
-                   //  hist->SetName(var.c_str());
-                   //  hist->SetTitle(var.c_str());
                    return [&, hist1 = std::move(hist), id]() mutable {
-                     // canvas->cd(locate(0, 0));
                      canvas->cd(locate(id, id));
                      hist1->Draw();
                    };
@@ -70,11 +67,6 @@ void do_plot(ROOT::RDF::RNode data_in, std::string name) {
         auto &&[minmax_y, var_y] = tup_y;
         auto &&[min_y, max_y] = minmax_y;
         auto name = std::format("{}_vs_{}", var_x, var_y);
-        // auto hist2d = data_in.Histo2D({name.c_str(), name.c_str(), 128,
-        //                                min_x.GetValue(), max_x.GetValue(),
-        //                                128, min_y.GetValue(),
-        //                                max_y.GetValue()},
-        //                               var_x, var_y);
         auto hist2d = data_in.Histo2D({name.c_str(), name.c_str(), 128,
                                        min_y.GetValue(), max_y.GetValue(), 128,
                                        min_x.GetValue(), max_x.GetValue()},
@@ -98,7 +90,7 @@ int main(int argc, char **argv) {
   ROOT::EnableImplicitMT();
   TH1::AddDirectory(false);
 
-  auto data_in = ROOT::RDataFrame{"tree", "testfit2.root"}.Filter(
+  auto data_in = ROOT::RDataFrame{"tree", "testfit.root"}.Filter(
       [](size_t count) { return count > 10000; }, {"count"});
 
   do_plot(data_in.Filter([](double DM2) { return DM2 > 0; }, {"DM2"}), "NH");
