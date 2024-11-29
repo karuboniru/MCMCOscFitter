@@ -4,6 +4,8 @@
 #include <TH2.h>
 #include <array>
 
+#include <iostream>
+
 class OscillationParameters : virtual public StateI {
 public:
   OscillationParameters() = default;
@@ -39,13 +41,18 @@ public:
     return is_NH ? NH_DCP : IH_DCP;
   }
 
+  void flip_hierarchy() {
+    std::cout << "flip_hierarchy" << std::endl;
+    is_NH = !is_NH;
+  }
+
 private:
   // PDG Central Values
-  static constexpr double DM2 = 2.453e-3;
-  static constexpr double DM2_IH = -2.536e-3;
-  static constexpr double Theta23 = 0.546;
-  static constexpr double Theta23_IH = 0.539;
-  static constexpr double Theta13 = 0.022;
+  static constexpr double DM2 = 2.455e-3;
+  static constexpr double DM2_IH = -2.529e-3;
+  static constexpr double Theta23 = 0.558;
+  static constexpr double Theta23_IH = 0.553;
+  static constexpr double Theta13 = 2.19e-2;
   static constexpr double dm2 = 7.53e-5;
   static constexpr double Theta12 = 0.307;
 
@@ -61,7 +68,7 @@ private:
   // private:
   bool is_NH{true};
   double NH_DM2{DM2}, NH_T23{Theta23}, NH_T13{Theta13}, NH_Dm2{dm2},
-      NH_T12{Theta12}, NH_DCP{0.};
+      NH_T12{Theta12}, NH_DCP{1.19};
   double IH_DM2{DM2_IH}, IH_T23{Theta23_IH}, IH_T13{Theta13}, IH_Dm2{dm2},
-      IH_T12{Theta12}, IH_DCP{0.};
+      IH_T12{Theta12}, IH_DCP{1.19};
 };

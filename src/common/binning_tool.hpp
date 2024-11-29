@@ -11,10 +11,9 @@ template <class T> std::vector<T> linspace(T Emin, T Emax, unsigned int div) {
 
   T step_lin = (Emax - Emin) / T(div - 1);
 
-  T EE = Emin;
-
-  for (unsigned int i = 0; i < div - 1; i++, EE += step_lin)
-    linpoints[i] = EE;
+  for (unsigned int i = 0; i < div - 1; i++) {
+    linpoints[i] = Emin + (step_lin * i);
+  }
 
   linpoints[div - 1] = Emax;
 
@@ -32,10 +31,9 @@ template <class T> std::vector<T> logspace(T Emin, T Emax, unsigned int div) {
 
   T step_log = (Emax_log - Emin_log) / T(div - 1);
 
-  logpoints[0] = Emin;
-  T EE = Emin_log + step_log;
-  for (unsigned int i = 1; i < div - 1; i++, EE += step_log)
-    logpoints[i] = exp(EE);
+  for (unsigned int i = 0; i < div - 1; i++) {
+    logpoints[i] = exp(Emin_log + (step_log * i));
+  }
   logpoints[div - 1] = Emax;
   return logpoints;
 }

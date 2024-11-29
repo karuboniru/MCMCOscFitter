@@ -13,13 +13,15 @@
 #include <memory>
 #include <ranges>
 
+constexpr size_t nbins = 64;
+
 const auto variable_list =
     std::to_array<std::string>({"DM2", "Dm2", "T12", "T13", "T23", "DCP"});
 constexpr size_t nvars = variable_list.size();
 
 int locate(int x, int y) { return (x * nvars) + y + 1; }
 
-void do_plot(auto &&data_in, const std::string& name) {
+void do_plot(ROOT::RDF::RNode data_in, const std::string &name) {
   auto canvas = std::make_unique<TCanvas>("c1", "c1", 800 * nvars, 800 * nvars);
   canvas->Divide(nvars, nvars);
 
@@ -37,12 +39,19 @@ void do_plot(auto &&data_in, const std::string& name) {
                    auto &&[id, tup] = id_tup;
                    auto &&[minmax, var] = tup;
                    auto [min, max] = minmax;
-                   auto hist = data_in.Histo1D({var.c_str(), var.c_str(), 128,
+                   auto hist = data_in.Histo1D({var.c_str(), var.c_str(), nbins,
                                                 min.GetValue(), max.GetValue()},
                                                var);
                    return [&, hist1 = std::move(hist), id]() mutable {
                      canvas->cd(locate(id, id));
                      hist1->Draw();
+                     auto separate_canvas = std::make_unique<TCanvas>(
+                         std::format("c1_{}", var).c_str(),
+                         std::format("c1_{}", var).c_str(), 800, 800);
+                     separate_canvas->cd();
+                     hist1->Draw();
+                     separate_canvas->SaveAs((name + var + ".pdf").c_str());
+                     separate_canvas->SaveAs((name + var + ".eps").c_str());
                    };
                  }) |
                  std::ranges::to<std::vector>();
@@ -67,10 +76,10 @@ void do_plot(auto &&data_in, const std::string& name) {
         auto &&[minmax_y, var_y] = tup_y;
         auto &&[min_y, max_y] = minmax_y;
         auto name = std::format("{}_vs_{}", var_x, var_y);
-        auto hist2d = data_in.Histo2D({name.c_str(), name.c_str(), 128,
-                                       min_y.GetValue(), max_y.GetValue(), 128,
-                                       min_x.GetValue(), max_x.GetValue()},
-                                      var_y, var_x);
+        auto hist2d = data_in.Histo2D(
+            {name.c_str(), name.c_str(), nbins, min_y.GetValue(),
+             max_y.GetValue(), nbins, min_x.GetValue(), max_x.GetValue()},
+            var_y, var_x);
         return [&canvas, id_x, id_y, this_hist = std::move(hist2d)]() mutable {
           canvas->cd(locate(id_x, id_y));
           this_hist->Draw("colz");

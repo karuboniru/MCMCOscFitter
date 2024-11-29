@@ -5,11 +5,13 @@ set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
 set (CMAKE_CXX_STANDARD 23)
 # find_package(nlohmann_json 3.2.0 REQUIRED)
 find_package(ROOT REQUIRED)
+find_package(Eigen3 REQUIRED)
 include_directories(
     ${ROOT_INCLUDE_DIRS}
+    ${CMAKE_SOURCE_DIR}/src/common
 )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wextra -Wpedantic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wextra -Wpedantic -ffast-math")
 
 Option(ENABLE_CUDA "Enable CUDA" OFF)
 

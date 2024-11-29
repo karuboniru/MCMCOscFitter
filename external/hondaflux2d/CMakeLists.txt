@@ -18,7 +18,7 @@ endif()
 
 SET(HEADERS hondaflux2d.h)
 
-SET(SOURCE hondaflux2d.cxx)
+SET(SOURCE hondaflux2d.cxx hkkm_reader.cxx)
 
 add_library(HondaFlux2D SHARED ${SOURCE})
 
@@ -26,6 +26,7 @@ target_link_libraries(
   HondaFlux2D PUBLIC 
   ROOT::Core
   ROOT::Hist
+  Eigen3::Eigen
 )
 
 set_target_properties(HondaFlux2D PROPERTIES 

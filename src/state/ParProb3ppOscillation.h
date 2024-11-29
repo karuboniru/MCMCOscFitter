@@ -13,7 +13,7 @@ template <class FLOAT_T> class CudaPropagatorSingle;
 class ParProb3ppOscillation : public OscillationParameters {
 public:
   ParProb3ppOscillation(const std::vector<float> &Ebin,
-                        const std::vector<float> &costhbin, size_t costh_rebin_fac);
+                        const std::vector<float> &costhbin);
   ~ParProb3ppOscillation() override;
   ParProb3ppOscillation(const ParProb3ppOscillation &);
   ParProb3ppOscillation(ParProb3ppOscillation &&) noexcept = default;
@@ -30,6 +30,8 @@ public:
   [[nodiscard]] std::array<std::array<std::array<TH2D, 2>, 2>, 2>
   GetProb_Hist(std::vector<double> Ebin, std::vector<double> costhbin);
 
+  void re_calculate();
+
 private:
 #ifndef __CUDA__
   std::unique_ptr<cudaprob3::CpuPropagator<float>> propagator_neutrino;
@@ -43,5 +45,4 @@ private:
 
 #endif
   std::vector<float> Ebins, costheta_bins;
-  size_t costh_rebin_fac;
 };

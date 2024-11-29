@@ -78,21 +78,21 @@ double genie_xsec::GetXsec(double energy, int nud, int tar) {
   return iter->second.Eval(energy);
 }
 
-TH1D genie_xsec::GetXsecHist(std::vector<double> energy_bins, int nud,
-                             int tar) {
-  TH1D ret{"", "", static_cast<int>(energy_bins.size()) - 1,
-           energy_bins.data()};
-  TF1 f{
-      "",
-      [this, nud, tar](double *x, double *) { return GetXsec(x[0], nud, tar); },
-      energy_bins.front(), energy_bins.back(), 0};
-  for (int i = 1; i <= ret.GetNbinsX(); ++i) {
-    ret.SetBinContent(
-        i, f.Integral(ret.GetBinLowEdge(i), ret.GetBinLowEdge(i + 1)) /
-               (ret.GetBinWidth(i)));
-  }
-  return ret;
-}
+// TH1D genie_xsec::GetXsecHist(std::vector<double> energy_bins, int nud,
+//                              int tar) {
+//   TH1D ret{"", "", static_cast<int>(energy_bins.size()) - 1,
+//            energy_bins.data()};
+//   TF1 f{
+//       "",
+//       [this, nud, tar](double *x, double *) { return GetXsec(x[0], nud, tar); },
+//       energy_bins.front(), energy_bins.back(), 0};
+//   for (int i = 1; i <= ret.GetNbinsX(); ++i) {
+//     ret.SetBinContent(
+//         i, f.Integral(ret.GetBinLowEdge(i), ret.GetBinLowEdge(i + 1)) /
+//                (ret.GetBinWidth(i)));
+//   }
+//   return ret;
+// }
 
 TH1D genie_xsec::GetXsecHistMixture(
     std::vector<double> energy_bins, int nud,
@@ -109,9 +109,10 @@ TH1D genie_xsec::GetXsecHistMixture(
         },
         energy_bins.front(), energy_bins.back(), 0};
   for (int i = 1; i <= ret.GetNbinsX(); ++i) {
-    ret.SetBinContent(
-        i, f.Integral(ret.GetBinLowEdge(i), ret.GetBinLowEdge(i + 1)) /
-               (ret.GetBinWidth(i)));
+    // ret.SetBinContent(
+    //     i, f.Integral(ret.GetBinLowEdge(i), ret.GetBinLowEdge(i + 1)) /
+    //            (ret.GetBinWidth(i)));
+    ret.SetBinContent(i, f.Eval(ret.GetBinCenter(i)));
   }
   return ret;
 }

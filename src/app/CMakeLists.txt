@@ -43,6 +43,18 @@ target_link_libraries(testfitbinned
 
 install (TARGETS testfitbinned DESTINATION bin)
 
+add_executable(event_rate event_rate.cxx)
+
+target_link_libraries(event_rate 
+  SimpleDataHist
+  BinnedInteraction
+  walker
+  ROOT::ROOTDataFrame
+)
+
+
+install (TARGETS event_rate DESTINATION bin)
+
 add_executable(plotter plotter.cxx)
 
 target_link_libraries(plotter 

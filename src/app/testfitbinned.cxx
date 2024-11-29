@@ -1,6 +1,7 @@
 #include "BinnedInteraction.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
+#include "constants.h"
 #include "timer.hpp"
 #include "walker.h"
 
@@ -15,29 +16,27 @@
 #include <atomic>
 #include <cmath>
 #include <memory>
+#include <print>
 
 int main(int argc, char **argv) {
   //   ROOT::EnableImplicitMT(10);
   TH1::AddDirectory(false);
-  //   std::vector<double> Ebins;
-  std::vector<double> costheta_bins{-1,  -.9, -.8, -.7, -.6, -.5, -.4,
-                                    -.3, -.2, -.1, 0,   .1,  .2,  .3,
-                                    .4,  .5,  .6,  .7,  .8,  .9,  1};
-  //   double deltae = 1;
-  //   for (double i = 0; i * deltae + 3 < 10; i += deltae) {
-  //     Ebins.push_back(i * deltae + 3);
-  //   }
-  auto Ebins = logspace(1., 10., 300);
-  BinnedInteraction bint{Ebins, costheta_bins, 0.01, 30};
-  // bint.proposeStep();
-  // bint.Print();
+  std::string outname = argc == 2 ? "testfit.root" : argv[1];
+  auto costheta_bins = linspace(-1., 1., 401);
+
+  auto Ebins = logspace(0.1, 20., 401);
+
+  constexpr double scale_factor =
+      (2e10 / (12 + H_to_C) * 6.022e23) * (6 * 365 * 24 * 3600) / 1e42;
+
+  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 1, 1};
   auto cdata = bint.GenerateData();
-  cdata.Round();
+
   std::cout << std::format("numu    count: {} \n", cdata.hist_numu.Integral())
             << std::format("numubar count: {} \n",
                            cdata.hist_numubar.Integral())
-            << std::endl;
-
+            << '\n';
+  return 0;
   using combined_type = ModelAndData<BinnedInteraction, SimpleDataHist>;
   using vals =
       std::tuple<double, double, double, double, double, double, size_t>;
@@ -46,7 +45,7 @@ int main(int argc, char **argv) {
   for (size_t i = 0; i < nth; i++) {
     state_pool.emplace_back(bint, cdata).proposeStep();
   }
-  auto rawdf = ROOT::RDataFrame{150000};
+  auto rawdf = ROOT::RDataFrame{125};
   ROOT::RDF::Experimental::AddProgressBar(rawdf);
   std::atomic<size_t> count{};
   auto df =
@@ -54,8 +53,8 @@ int main(int argc, char **argv) {
           .Define("tuple",
                   [&state_pool, &count](unsigned int id) -> vals {
                     auto &current_state = state_pool[id];
-                    TimeCount timer{"5 step"};
-                    for (size_t i = 0; i < 5; i++) {
+                    TimeCount timer{"3 step"};
+                    for (size_t i = 0; i < 3; i++) {
                       auto new_state = current_state;
                       new_state.proposeStep();
                       if (MCMCAcceptState(current_state, new_state)) {
@@ -88,10 +87,10 @@ int main(int argc, char **argv) {
                   {"tuple"});
   ;
   // xx
-  df.Snapshot("tree", "testfit2.root",
+  df.Snapshot("tree", outname,
               {"DM2", "Dm2", "T12", "T13", "T23", "DCP", "count"});
 
-  cdata.SaveAs("data.root");
+  //   cdata.SaveAs("data.root");
 
   return 0;
 }
