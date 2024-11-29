@@ -10,7 +10,7 @@
 #include <array>
 #include <memory>
 
-const size_t n_threads_propagator = std::thread::hardware_concurrency() / 2;
+const size_t n_threads_propagator = std::thread::hardware_concurrency();
 
 ParProb3ppOscillation::ParProb3ppOscillation(const std::vector<float> &Ebin,
                                              const std::vector<float> &costhbin)
@@ -126,7 +126,9 @@ ParProb3ppOscillation::GetProb_Hist(std::vector<double> Ebin,
         this_prob = TH2D("", "", Ebin.size() - 1, Ebin.data(),
                          costhbin.size() - 1, costhbin.data());
         // auto prob = this_propagator.getProbability(j,k, this_term);
-        for (size_t energy_bin_index{}; energy_bin_index < Ebin.size() - 1;
+
+#pragma omp parallel for
+        for (size_t energy_bin_index = 0; energy_bin_index < Ebin.size() - 1;
              ++energy_bin_index) {
           for (size_t out_hist_costh_index{};
                out_hist_costh_index < costhbin.size() - 1;

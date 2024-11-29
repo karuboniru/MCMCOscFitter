@@ -27,6 +27,7 @@ target_link_libraries(
   ROOT::Core
   ROOT::Hist
   Eigen3::Eigen
+  OpenMP::OpenMP_CXX
 )
 
 set_target_properties(HondaFlux2D PROPERTIES 

@@ -6,6 +6,8 @@ set (CMAKE_CXX_STANDARD 23)
 # find_package(nlohmann_json 3.2.0 REQUIRED)
 find_package(ROOT REQUIRED)
 find_package(Eigen3 REQUIRED)
+find_package(OpenMP REQUIRED)
+
 include_directories(
     ${ROOT_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/src/common

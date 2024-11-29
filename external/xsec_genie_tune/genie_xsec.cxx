@@ -71,8 +71,6 @@ double genie_xsec::GetXsec(double energy, int nud, int tar) {
     std::cerr << "Failed to load spline graph: \t" << hist_name << std::endl;
     throw std::runtime_error("");
   }
-  // fXsecHist[std::make_tuple(nud, tar)] = TSpline3{"", spline_graph};
-  // return TSpline3{"", spline_graph}.Eval(energy);
   auto &&[iter, success] = fXsecHist.try_emplace(std::make_tuple(nud, tar),
                                                  TSpline3{"", spline_graph});
   return iter->second.Eval(energy);

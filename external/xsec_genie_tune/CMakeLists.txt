@@ -25,6 +25,7 @@ add_library(GENIE_XSEC SHARED ${SOURCE})
 target_link_libraries(
   GENIE_XSEC PUBLIC 
   ROOT::Core
+  OpenMP::OpenMP_CXX
 )
 
 set_target_properties(GENIE_XSEC PROPERTIES 

@@ -21,6 +21,7 @@ void SimpleDataHist::LoadFrom(const char *filename) {
 
 void SimpleDataHist::Round() {
   auto round_hist_2D = [](TH2D &hist) {
+#pragma omp parallel for
     for (int i = 1; i <= hist.GetNbinsX(); i++) {
       for (int j = 1; j <= hist.GetNbinsY(); j++) {
         hist.SetBinContent(i, j, std::round(hist.GetBinContent(i, j)));

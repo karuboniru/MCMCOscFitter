@@ -77,7 +77,7 @@ TH2D HondaFlux2D::GetFlux_Hist(std::vector<double> Ebins,
   auto &interp_obj = interp[pdg2idx(pdg)];
   TF2 f(
       "f",
-      [&](double *x, double *p) {
+      [&](double *x, double *) {
         double &E = x[0];
         double costh = x[1];
         double logE = log10(E);
@@ -85,9 +85,11 @@ TH2D HondaFlux2D::GetFlux_Hist(std::vector<double> Ebins,
                M_PI;
       },
       0.1, 1e4, -1, 1, 0);
+#pragma omp parallel for 
   for (int i = 0; i < ret.GetNbinsX(); i++) {
     auto emin = ret.GetXaxis()->GetBinLowEdge(i + 1);
     auto emax = ret.GetXaxis()->GetBinUpEdge(i + 1);
+#pragma omp parallel for
     for (int j = 0; j < ret.GetNbinsY(); j++) {
       auto costh_min = ret.GetYaxis()->GetBinLowEdge(j + 1);
       auto costh_max = ret.GetYaxis()->GetBinUpEdge(j + 1);
