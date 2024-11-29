@@ -4,6 +4,7 @@
 #include <TH2.h>
 #include <array>
 
+#include <cmath>
 #include <iostream>
 
 class OscillationParameters : virtual public StateI {
@@ -42,7 +43,6 @@ public:
   }
 
   void flip_hierarchy() {
-    std::cout << "flip_hierarchy" << std::endl;
     is_NH = !is_NH;
   }
 
@@ -68,7 +68,7 @@ private:
   // private:
   bool is_NH{true};
   double NH_DM2{DM2}, NH_T23{Theta23}, NH_T13{Theta13}, NH_Dm2{dm2},
-      NH_T12{Theta12}, NH_DCP{1.19};
+      NH_T12{Theta12}, NH_DCP{1.19 * M_PI};
   double IH_DM2{DM2_IH}, IH_T23{Theta23_IH}, IH_T13{Theta13}, IH_Dm2{dm2},
-      IH_T12{Theta12}, IH_DCP{1.19};
+      IH_T12{Theta12}, IH_DCP{1.19 * M_PI};
 };
