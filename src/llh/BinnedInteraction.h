@@ -5,6 +5,7 @@
 #include "SimpleDataHist.h"
 #include "genie_xsec.h"
 #include "hondaflux2d.h"
+#include <format>
 #include <functional>
 #include <memory>
 
@@ -28,7 +29,7 @@ public:
   // virtual double GetLogLikelihood() const override;
   double GetLogLikelihoodAgainstData(const StateI &dataset) const final;
 
-  [[nodiscard]] SimpleDataHist GenerateData() const ;
+  [[nodiscard]] SimpleDataHist GenerateData() const;
   [[nodiscard]] SimpleDataHist GenerateData_NoOsc() const;
 
   void Print() const {
@@ -42,6 +43,28 @@ public:
     UpdatePrediction();
   }
 
+  void Save_prob_hist(const std::string &name) {
+    auto file = TFile::Open(name.c_str(), "RECREATE");
+    file->cd();
+    auto prob_hist = GetProb_Hist_3F(Ebins, costheta_bins);
+    auto id_2_name = std::to_array({"nue", "numu", "nutau"});
+    // prob_hist: [0 neutrino, 1 antineutrino][from: 0-nue, 1-mu][to: 0-e, 1-mu]
+    for (int i = 0; i < 2; ++i) {
+      for (int j = 0; j < 3; ++j) {
+        for (int k = 0; k < 3; ++k) {
+          prob_hist[i][j][k].SetName(
+              std::format("{}_{}_{}", i == 0 ? "neutrino" : "antineutrino",
+                          id_2_name[j], id_2_name[k])
+                  .c_str());
+          prob_hist[i][j][k].Write();
+        }
+      }
+    }
+    // file->Write();
+    file->Close();
+    delete file;
+  }
+
 private:
   void UpdatePrediction();
 
@@ -50,12 +73,11 @@ private:
   TH2D flux_hist_numu, flux_hist_numubar, flux_hist_nue, flux_hist_nuebar;
   TH1D xsec_hist_numu, xsec_hist_numubar, xsec_hist_nue, xsec_hist_nuebar;
 
-  TH2D no_osc_hist_numu, no_osc_hist_numubar, no_osc_hist_nue,
-      no_osc_hist_nuebar;
+  // TH2D no_osc_hist_numu, no_osc_hist_numubar, no_osc_hist_nue,
+  //     no_osc_hist_nuebar;
 
   TH2D Prediction_hist_numu, Prediction_hist_numubar, Prediction_hist_nue,
       Prediction_hist_nuebar;
-  double scale;
   size_t E_rebin_factor;
   size_t costh_rebin_factor;
 };

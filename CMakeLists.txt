@@ -22,9 +22,13 @@ if (ENABLE_CUDA)
     enable_language(CUDA)
 endif()
 
+set(DATA_PATH "${CMAKE_SOURCE_DIR}")
+add_definitions(-DDATA_PATH="${DATA_PATH}")
+
 #enable asan
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer")
 # set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} -fsanitize=address -fsanitize=undefined ")
 
 add_subdirectory(src)
 add_subdirectory(external)
+add_subdirectory(cross_check)

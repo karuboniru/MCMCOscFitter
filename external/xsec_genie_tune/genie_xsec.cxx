@@ -3,6 +3,7 @@
 #include <TF1.h>
 #include <exception>
 #include <iostream>
+#include <print>
 #include <stdexcept>
 
 #include <TSpline.h>
@@ -82,8 +83,8 @@ double genie_xsec::GetXsec(double energy, int nud, int tar) {
 //            energy_bins.data()};
 //   TF1 f{
 //       "",
-//       [this, nud, tar](double *x, double *) { return GetXsec(x[0], nud, tar); },
-//       energy_bins.front(), energy_bins.back(), 0};
+//       [this, nud, tar](double *x, double *) { return GetXsec(x[0], nud, tar);
+//       }, energy_bins.front(), energy_bins.back(), 0};
 //   for (int i = 1; i <= ret.GetNbinsX(); ++i) {
 //     ret.SetBinContent(
 //         i, f.Integral(ret.GetBinLowEdge(i), ret.GetBinLowEdge(i + 1)) /
@@ -101,20 +102,29 @@ TH1D genie_xsec::GetXsecHistMixture(
         [&](double *x, double *) -> double {
           double ret{};
           for (auto &&[tar, mix] : mix_target) {
-            ret += GetXsec(x[0], nud, tar) * mix;
+            auto var = GetXsec(x[0], nud, tar) * mix;
+            var = std::max(var, 0.0);
+            ret += var;
           }
           return ret;
         },
         energy_bins.front(), energy_bins.back(), 0};
   for (int i = 1; i <= ret.GetNbinsX(); ++i) {
-    // ret.SetBinContent(
-    //     i, f.Integral(ret.GetBinLowEdge(i), ret.GetBinLowEdge(i + 1)) /
-    //            (ret.GetBinWidth(i)));
-    ret.SetBinContent(i, f.Eval(ret.GetBinCenter(i)));
+    ret.SetBinContent(
+        i, f.Integral(ret.GetBinLowEdge(i), ret.GetBinLowEdge(i + 1)) /
+               (ret.GetBinWidth(i)));
   }
   return ret;
 }
 
 // TH1D genie_xsec::GetXsecHistMixture
 
-genie_xsec xsec_input(std::getenv("XSEC_FILE"));
+genie_xsec xsec_input([]() -> const char * {
+  auto var = std::getenv("XSEC_FILE");
+  if (var)
+    return var;
+
+  return DATA_PATH "/data/total_xsec.root";
+}()
+
+);

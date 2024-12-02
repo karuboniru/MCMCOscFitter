@@ -6,7 +6,7 @@ std::array<std::array<double, 3>, 3>
 Prob3ppOscillation::GetProb(int flavor, double E, double costheta) const {
   flavor = flavor / abs(flavor);
   BargerPropagator b;
-  b.SetMNS(GetT12(), GetT13(), GetT23(), GetDm2(), GetDM2(),
+  b.SetMNS(GetT12(), GetT13(), GetT23(), GetDM21sq(), GetDM32sq(),
            GetDeltaCP() /*delta cp*/, E, true, flavor);
   b.DefinePath(costheta, 25);
   b.propagate(flavor);

@@ -9,14 +9,12 @@
 class TH3D;
 class TH2D;
 
-using interpolater_type = interpolate<3, 4>;
+using interpolater_type = interpolate<2, 4>;
 
 class HondaFlux2D {
 public:
   HondaFlux2D(const char *fluxfile);
   ~HondaFlux2D();
-
-  static size_t to_costh_bin(double costh);
 
   TH2D GetFlux_Hist(std::vector<double> Ebins, std::vector<double> costh_bins,
                     int pdg);

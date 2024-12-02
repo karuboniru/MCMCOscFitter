@@ -59,9 +59,9 @@ int main() {
                 if (MCMCAcceptState(comp, comp_new)) {
                   comp = comp_new;
                 }
-                // std::cerr << "DM2: " << comp.GetModel().GetDM2()
+                // std::cerr << "DM2: " << comp.GetModel().GetDM32sq()
                 //           << " T23: " << comp.GetModel().GetT23() << std::endl;
-                return std::make_tuple(comp.GetModel().GetDM2(),
+                return std::make_tuple(comp.GetModel().GetDM32sq(),
                                        comp.GetModel().GetT23());
               },
               {})
@@ -86,7 +86,7 @@ int main() {
   //   if(MCMCAcceptState(comp, comp_new)) {
   //     comp = comp_new;
   //   }
-  //   DM2 = comp.GetModel().GetDM2();
+  //   DM2 = comp.GetModel().GetDM32sq();
   //   std::cerr << "DM2: " << DM2 << std::endl;
   //   tree.Fill();
   // }

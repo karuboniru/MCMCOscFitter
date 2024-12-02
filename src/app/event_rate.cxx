@@ -6,8 +6,29 @@
 
 #include <TMath.h>
 #include <TRandom.h>
+#include <array>
 #include <cmath>
 #include <print>
+#include <ranges>
+#include <string>
+#include <string_view>
+void report(std::string_view title, const std::array<double, 4> &result,
+            const std::array<double, 4> &ref) {
+  const std::string hline(38, '-');
+  const auto name =
+      std::to_array<std::string_view>({"numu", "numubar", "nue", "nuebar"});
+  std::println("{}", hline);
+  std::println("|{:^36}|", title);
+  std::println("{}", hline);
+  std::println("|{:^10}|{:^8}|{:^8}|{:^7}|", "Flavor", "Result", "Ziou",
+               "Diff");
+  std::println("{}", hline);
+  for (auto &&[name, res, ref] : std::ranges::views::zip(name, result, ref)) {
+    std::println("|{:^10}|{:^8.1f}|{:^8.0f}|{:^6.1f}%|", name, res, ref,
+                 100. * (res - ref) / ref);
+  }
+  std::println("{}\n", hline);
+}
 
 int main(int argc, char **argv) {
   auto costheta_bins = linspace(-1., 1., 401);
@@ -15,7 +36,9 @@ int main(int argc, char **argv) {
   auto Ebins = logspace(0.1, 20., 401);
 
   constexpr double scale_factor =
-      (2e10 / (12 + H_to_C) * 6.022e23) * (6 * 365 * 24 * 3600) / 1e42;
+      (2e10 / (12 + H_to_C) * 6.02214076e23) * // number of target C12
+      ((6 * 365) * 24 * 3600) /                // seconds in a year
+      1e42; // unit conversion from 1e-38 cm^2 to 1e-42 m^2
 
   BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 1, 1};
   auto cdata = bint.GenerateData();
@@ -31,17 +54,15 @@ int main(int argc, char **argv) {
   auto no_osc_nue = cdata_noOsc.hist_nue.Integral();
   auto no_osc_nue_bar = cdata_noOsc.hist_nuebar.Integral();
 
-  std::cout << "\nNon-Oscillated Event Rates:" << std::endl;
-  std::cout << "numu: " << no_osc_numu << std::endl;
-  std::cout << "numu_bar: " << no_osc_numu_bar << std::endl;
-  std::cout << "nue: " << no_osc_nue << std::endl;
-  std::cout << "nue_bar: " << no_osc_nue_bar << std::endl;
+  report("Non-Oscillated Event Rates",
+         {no_osc_numu, no_osc_numu_bar, no_osc_nue, no_osc_nue_bar},
+         {7012.66, 2600.31, 3622.82, 1172.16});
 
-  std::cout << "\nOscillated Event Rates:" << std::endl;
-  std::cout << "numu: " << numu << std::endl;
-  std::cout << "numu_bar: " << numu_bar << std::endl;
-  std::cout << "nue: " << nue << std::endl;
-  std::cout << "nue_bar: " << nue_bar << std::endl;
+  report("Oscillated Event Rates", {numu, numu_bar, nue, nue_bar},
+         {4820.17, 1805.62, 3739.65, 1153.6});
+  cdata_noOsc.SaveAs("No_Osc.root");
+  cdata.SaveAs("Event_rate_NH.root");
+  bint.Save_prob_hist("NH.root");
 
   bint.flip_hierarchy();
   auto cdata_IH = bint.GenerateData();
@@ -51,11 +72,13 @@ int main(int argc, char **argv) {
   auto nue_IH = cdata_IH.hist_nue.Integral();
   auto nue_bar_IH = cdata_IH.hist_nuebar.Integral();
 
-  std::cout << "\nInverted Hierarchy Event Rates:" << std::endl;
-  std::cout << "numu: " << numu_IH << std::endl;
-  std::cout << "numu_bar: " << numu_bar_IH << std::endl;
-  std::cout << "nue: " << nue_IH << std::endl;
-  std::cout << "nue_bar: " << nue_bar_IH << std::endl;
+  cdata_IH.SaveAs("Event_rate_IH.root");
+
+  report("Inverted Hierarchy Event Rates",
+         {numu_IH, numu_bar_IH, nue_IH, nue_bar_IH},
+         {4829.29, 1791.67, 3686.88, 1171.33});
+
+  bint.Save_prob_hist("IH.root");
 
   return 0;
 }

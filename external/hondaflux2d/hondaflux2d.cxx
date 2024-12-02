@@ -16,20 +16,21 @@
 
 #include <TMath.h>
 #include <string>
+#include <unistd.h>
 
 namespace {
 constexpr size_t n_logE_points = 101;
 constexpr size_t n_costh_bins = 20;
 constexpr size_t n_costh_points = n_costh_bins + 1;
-constexpr size_t n_phi_bins = 12;
-constexpr size_t n_phi_points = n_phi_bins + 1;
+// constexpr size_t n_phi_bins = 12;
+// constexpr size_t n_phi_points = n_phi_bins + 1;
 
 constexpr axis_object logE_points{
     .min = -1, .max = 4, .n_points = n_logE_points};
 constexpr axis_object costh_points{
     .min = -1, .max = 1, .n_points = n_costh_points};
-constexpr axis_object phi_points{
-    .min = 0, .max = M_PI * 2, .n_points = n_phi_points};
+// constexpr axis_object phi_points{
+//     .min = 0, .max = M_PI * 2, .n_points = n_phi_points};
 
 size_t pdg2idx(int pdg) {
   switch (pdg) {
@@ -47,6 +48,12 @@ size_t pdg2idx(int pdg) {
 }
 constexpr std::array<int, 4> pdg_list{12, 14, -12, -14};
 
+HKKM_READER_2D reader([]() -> const char * {
+  auto env_str = std::getenv("FLUX_FILE_2D");
+  if (env_str)
+    return env_str;
+  return DATA_PATH "/data/honda-2d.solmin.txt";
+}());
 } // namespace
 
 HondaFlux2D::HondaFlux2D(const char *fluxfile)
@@ -85,7 +92,7 @@ TH2D HondaFlux2D::GetFlux_Hist(std::vector<double> Ebins,
                M_PI;
       },
       0.1, 1e4, -1, 1, 0);
-#pragma omp parallel for 
+#pragma omp parallel for
   for (int i = 0; i < ret.GetNbinsX(); i++) {
     auto emin = ret.GetXaxis()->GetBinLowEdge(i + 1);
     auto emax = ret.GetXaxis()->GetBinUpEdge(i + 1);
@@ -95,6 +102,12 @@ TH2D HondaFlux2D::GetFlux_Hist(std::vector<double> Ebins,
       auto costh_max = ret.GetYaxis()->GetBinUpEdge(j + 1);
       auto integration = f.Integral(emin, emax, costh_min, costh_max);
       ret.SetBinContent(i + 1, j + 1, integration);
+      // auto &hist = reader[pdg];
+      // ret.SetBinContent(i + 1, j + 1,
+      //                   hist.Interpolate(log10((emax * emin)) / 2,
+      //                                    (costh_min + costh_max) / 2) *
+      //                       (emax - emin) * (costh_max - costh_min) * 2 *
+      //                       M_PI);
     }
   }
 
@@ -103,4 +116,9 @@ TH2D HondaFlux2D::GetFlux_Hist(std::vector<double> Ebins,
 
 HondaFlux2D::~HondaFlux2D() = default;
 
-inline HondaFlux2D flux_input(std::getenv("FLUX_FILE_2D"));
+inline HondaFlux2D flux_input([]() -> const char * {
+  auto env_str = std::getenv("FLUX_FILE_2D");
+  if (env_str)
+    return env_str;
+  return DATA_PATH "/data/honda-2d.solmin.txt";
+}());

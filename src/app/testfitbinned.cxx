@@ -63,8 +63,8 @@ int main(int argc, char **argv) {
                     }
                     count++;
                     return std::make_tuple(
-                        current_state.GetModel().GetDM2(),
-                        current_state.GetModel().GetDm2(),
+                        current_state.GetModel().GetDM32sq(),
+                        current_state.GetModel().GetDM21sq(),
                         current_state.GetModel().GetT12(),
                         current_state.GetModel().GetT13(),
                         current_state.GetModel().GetT23(),

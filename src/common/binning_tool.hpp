@@ -2,6 +2,7 @@
 
 #include <stdexcept>
 #include <vector>
+#include <cmath>
 
 template <class T> std::vector<T> linspace(T Emin, T Emax, unsigned int div) {
   if (div == 0)
@@ -48,13 +49,22 @@ std::vector<T> to_center(const std::vector<U> &vec) {
 }
 
 template <class T, typename U = T>
-std::vector<T> to_center(const std::vector<U> &vec, size_t multiplier) {
-  std::vector<T> ret((vec.size() - 1) * multiplier);
+std::vector<T> to_center_g(const std::vector<U> &vec) {
+  std::vector<T> ret(vec.size() - 1);
   for (size_t i = 0; i < vec.size() - 1; i++) {
-    auto step = (vec[i + 1] - vec[i]) / (multiplier + 1);
-    for (size_t j = 0; j < multiplier; j++) {
-      ret[i * multiplier + j] = vec[i] + step * (j + 1);
-    }
+    ret[i] = sqrt(vec[i] * vec[i + 1]);
   }
   return ret;
 }
+
+// template <class T, typename U = T>
+// std::vector<T> to_center(const std::vector<U> &vec, size_t multiplier) {
+//   std::vector<T> ret((vec.size() - 1) * multiplier);
+//   for (size_t i = 0; i < vec.size() - 1; i++) {
+//     auto step = (vec[i + 1] - vec[i]) / (multiplier + 1);
+//     for (size_t j = 0; j < multiplier; j++) {
+//       ret[i * multiplier + j] = vec[i] + step * (j + 1);
+//     }
+//   }
+//   return ret;
+// }

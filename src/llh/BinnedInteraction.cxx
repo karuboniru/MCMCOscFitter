@@ -63,8 +63,9 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
                                      std::vector<double> costheta_bins_,
                                      double scale_, size_t E_rebin_factor_,
                                      size_t costh_rebin_factor_)
-    : ParProb3ppOscillation{to_center<float>(Ebins_),
-                            to_center<float>(costheta_bins_)},
+    : ParProb3ppOscillation{to_center<oscillaton_calc_precision>(Ebins_),
+                            to_center<oscillaton_calc_precision>(
+                                costheta_bins_)},
       ModelDataLLH(), Ebins(std::move(Ebins_)),
       costheta_bins(std::move(costheta_bins_)),
       flux_hist_numu(flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) *
@@ -82,8 +83,7 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
           Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}})),
       xsec_hist_nuebar(xsec_input.GetXsecHistMixture(
           Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}})),
-      scale(scale_), E_rebin_factor(E_rebin_factor_),
-      costh_rebin_factor(costh_rebin_factor_) {
+      E_rebin_factor(E_rebin_factor_), costh_rebin_factor(costh_rebin_factor_) {
   UpdatePrediction();
 }
 
@@ -92,20 +92,21 @@ void BinnedInteraction::UpdatePrediction() {
   auto oscHists = GetProb_Hist(Ebins, costheta_bins);
   auto &oscHist = oscHists[0];
   auto &oscHist_anti = oscHists[1];
-  // auto no_osc_e = flux_hist_nue * xsec_hist_nue;
-  // auto no_osc_ebar = flux_hist_nuebar * xsec_hist_nuebar;
-  // auto no_osc_mu = flux_hist_numu * xsec_hist_numu;
-  // auto no_osc_mubar = flux_hist_numubar * xsec_hist_numubar;
-  auto no_osc_e = flux_hist_nue * xsec_hist_nue;
-  auto no_osc_ebar = flux_hist_nuebar * xsec_hist_nuebar;
-  auto no_osc_mu = flux_hist_numu * xsec_hist_numu;
-  auto no_osc_mubar = flux_hist_numubar * xsec_hist_numubar;
-  Prediction_hist_numu = (oscHist[1][1] * no_osc_mu + oscHist[0][1] * no_osc_e);
-  Prediction_hist_numubar =
-      (oscHist_anti[1][1] * no_osc_mubar + oscHist_anti[0][1] * no_osc_ebar);
-  Prediction_hist_nue = (oscHist[0][0] * no_osc_e + oscHist[1][0] * no_osc_mu);
-  Prediction_hist_nuebar =
-      (oscHist_anti[0][0] * no_osc_ebar + oscHist_anti[1][0] * no_osc_mubar);
+
+  auto osc_flux_numu =
+      oscHist[0][1] * flux_hist_nue + oscHist[1][1] * flux_hist_numu;
+  auto osc_flux_nue =
+      oscHist[0][0] * flux_hist_nue + oscHist[1][0] * flux_hist_numu;
+
+  auto osc_flux_numubar = oscHist_anti[0][1] * flux_hist_nuebar +
+                          oscHist_anti[1][1] * flux_hist_numubar;
+  auto osc_flux_nuebar = oscHist_anti[0][0] * flux_hist_nuebar +
+                         oscHist_anti[1][0] * flux_hist_numubar;
+
+  Prediction_hist_numu = osc_flux_numu * xsec_hist_numu;
+  Prediction_hist_numubar = osc_flux_numubar * xsec_hist_numubar;
+  Prediction_hist_nue = osc_flux_nue * xsec_hist_nue;
+  Prediction_hist_nuebar = osc_flux_nuebar * xsec_hist_nuebar;
 
   Prediction_hist_numu.Rebin2D(E_rebin_factor, costh_rebin_factor);
   Prediction_hist_numubar.Rebin2D(E_rebin_factor, costh_rebin_factor);
