@@ -2,6 +2,7 @@
 
 #include "ModelDataLLH.h"
 #include "ParProb3ppOscillation.h"
+#include "Prob3ppOscillation.h"
 #include "SimpleDataHist.h"
 #include "genie_xsec.h"
 #include "hondaflux2d.h"
@@ -12,7 +13,10 @@
 // extern HondaFlux flux_input;
 // extern genie_xsec xsec_input;
 
-class BinnedInteraction : public ParProb3ppOscillation, public ModelDataLLH {
+// using propgator_type = ParProb3ppOscillation;
+using propgator_type = Prob3ppOscillation;
+
+class BinnedInteraction : public propgator_type, public ModelDataLLH {
 public:
   BinnedInteraction(std::vector<double> Ebins,
                     std::vector<double> costheta_bins, double scale_ = 1.,
@@ -39,16 +43,20 @@ public:
 
   void flip_hierarchy() {
     OscillationParameters::flip_hierarchy();
-    re_calculate();
+    if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
+      re_calculate();
+    }
     UpdatePrediction();
   }
 
   void Save_prob_hist(const std::string &name) {
+    // if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
     auto file = TFile::Open(name.c_str(), "RECREATE");
     file->cd();
-    auto prob_hist = GetProb_Hist_3F(Ebins, costheta_bins);
+    auto prob_hist = GetProb_Hists_3F(Ebins, costheta_bins);
     auto id_2_name = std::to_array({"nue", "numu", "nutau"});
-    // prob_hist: [0 neutrino, 1 antineutrino][from: 0-nue, 1-mu][to: 0-e, 1-mu]
+    // prob_hist: [0 neutrino, 1 antineutrino][from: 0-nue, 1-mu][to: 0-e,
+    // 1-mu]
     for (int i = 0; i < 2; ++i) {
       for (int j = 0; j < 3; ++j) {
         for (int k = 0; k < 3; ++k) {
@@ -63,6 +71,7 @@ public:
     // file->Write();
     file->Close();
     delete file;
+    // }
   }
 
 private:

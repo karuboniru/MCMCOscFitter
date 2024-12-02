@@ -29,13 +29,13 @@ public:
   ///> The 3D probability histogram
   ///> [0-neutrino, 1-antineutrino][from: 0-nue, 1-nuebar][to: 0-nue, 1-nuebar]
   [[nodiscard]] std::array<std::array<std::array<TH2D, 2>, 2>, 2>
-  GetProb_Hist(const std::vector<double> &Ebin,
+  GetProb_Hists(const std::vector<double> &Ebin,
                const std::vector<double> &costhbin);
 
   ///> The 3D probability histogram
   ///> [0-neutrino, 1-antineutrino][from: 0-nue, 1-numu, 2-nutau][to: 0-nue, 1-numu, 2-nutau]
   [[nodiscard]] std::array<std::array<std::array<TH2D, 3>, 3>, 2>
-  GetProb_Hist_3F(const std::vector<double> &Ebin,
+  GetProb_Hists_3F(const std::vector<double> &Ebin,
                const std::vector<double> &costhbin);
 
 

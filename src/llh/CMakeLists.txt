@@ -48,5 +48,6 @@ target_link_libraries(
   state
   HondaFlux2D
   GENIE_XSEC
+  Prob3ppOscillation
   ParProb3ppOscillation
 )

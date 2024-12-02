@@ -110,8 +110,8 @@ ParProb3ppOscillation::GetProb(int flavor, double E, double costheta) const {
 ///> The 3D probability histogram
 ///> [0-neutrino, 1-antineutrino][from: 0-nue, 1-mu][to: 0-e, 1-mu]
 [[nodiscard]] std::array<std::array<std::array<TH2D, 2>, 2>, 2>
-ParProb3ppOscillation::GetProb_Hist(const std::vector<double> &Ebin,
-                                    const std::vector<double> &costhbin) {
+ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
+                                     const std::vector<double> &costhbin) {
   std::array<std::array<std::array<TH2D, 2>, 2>, 2> ret{};
   constexpr auto type_matrix = std::to_array(
       {std::to_array({cudaprob3::ProbType::e_e, cudaprob3::ProbType::e_m}),
@@ -171,7 +171,7 @@ ParProb3ppOscillation::GetProb_Hist(const std::vector<double> &Ebin,
 ///> [0-neutrino, 1-antineutrino][from: 0-nue, 1-mu, 2-tau][to: 0-e, 1-mu,
 /// 2-tau]
 [[nodiscard]] std::array<std::array<std::array<TH2D, 3>, 3>, 2>
-ParProb3ppOscillation::GetProb_Hist_3F(const std::vector<double> &Ebin,
+ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
                                        const std::vector<double> &costhbin) {
   std::array<std::array<std::array<TH2D, 3>, 3>, 2> ret{};
   constexpr auto type_matrix = std::to_array(

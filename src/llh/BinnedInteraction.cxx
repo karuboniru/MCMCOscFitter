@@ -63,7 +63,7 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
                                      std::vector<double> costheta_bins_,
                                      double scale_, size_t E_rebin_factor_,
                                      size_t costh_rebin_factor_)
-    : ParProb3ppOscillation{to_center<oscillaton_calc_precision>(Ebins_),
+    : propgator_type{to_center<oscillaton_calc_precision>(Ebins_),
                             to_center<oscillaton_calc_precision>(
                                 costheta_bins_)},
       ModelDataLLH(), Ebins(std::move(Ebins_)),
@@ -89,7 +89,10 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
 
 void BinnedInteraction::UpdatePrediction() {
   // [0-neutrino, 1-antineutrino][from: 0-nue, 1-mu][to: 0-e, 1-mu]
-  auto oscHists = GetProb_Hist(Ebins, costheta_bins);
+  auto oscHists = GetProb_Hists(Ebins, costheta_bins);
+
+  // auto oscHist = GetProb_Hist(Ebins, costheta_bins, 1);
+  // auto oscHist_anti = GetProb_Hist(Ebins, costheta_bins, -1);
   auto &oscHist = oscHists[0];
   auto &oscHist_anti = oscHists[1];
 
@@ -115,7 +118,7 @@ void BinnedInteraction::UpdatePrediction() {
 }
 
 void BinnedInteraction::proposeStep() {
-  ParProb3ppOscillation::proposeStep();
+  propgator_type::proposeStep();
   UpdatePrediction();
 }
 
