@@ -13,8 +13,8 @@
 // extern HondaFlux flux_input;
 // extern genie_xsec xsec_input;
 
-// using propgator_type = ParProb3ppOscillation;
-using propgator_type = Prob3ppOscillation;
+using propgator_type = ParProb3ppOscillation;
+// using propgator_type = Prob3ppOscillation;
 
 class BinnedInteraction : public propgator_type, public ModelDataLLH {
 public:

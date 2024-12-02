@@ -35,10 +35,10 @@ ParProb3ppOscillation::ParProb3ppOscillation(
 #endif
       ,
       Ebins(Ebin), costheta_bins(costhbin) {
-  load_state(*propagator_neutrino, true);
+  load_state(*propagator_neutrino, 1, true);
   propagator_neutrino->calculateProbabilities(cudaprob3::Neutrino);
 
-  load_state(*propagator_antineutrino, true);
+  load_state(*propagator_antineutrino, -1, true);
   propagator_antineutrino->calculateProbabilities(cudaprob3::Antineutrino);
 }
 
@@ -63,8 +63,9 @@ ParProb3ppOscillation::ParProb3ppOscillation(const ParProb3ppOscillation &from)
 #endif
       Ebins(from.Ebins), costheta_bins(from.costheta_bins) {
 #ifdef __CUDA__
-  load_state(*propagator_neutrino);
-  load_state(*propagator_antineutrino);
+  load_state(*propagator_neutrino, 1);
+  load_state(*propagator_antineutrino, -1
+  );
 #endif
 }
 
@@ -83,8 +84,8 @@ ParProb3ppOscillation::operator=(const ParProb3ppOscillation &from) {
   propagator_antineutrino = std::make_unique<
       cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
       0, (int)costheta_bins.size(), (int)Ebins.size(), costh_rebin_fac);
-  load_state(*propagator_neutrino);
-  load_state(*propagator_antineutrino);
+  load_state(*propagator_neutrino, 1);
+  load_state(*propagator_antineutrino, -1);
 #endif
   return *this;
 }
@@ -95,10 +96,10 @@ void ParProb3ppOscillation::proposeStep() {
 }
 
 void ParProb3ppOscillation::re_calculate() {
-  load_state(*propagator_neutrino);
+  load_state(*propagator_neutrino, 1);
   propagator_neutrino->calculateProbabilities(cudaprob3::Neutrino);
 
-  load_state(*propagator_antineutrino);
+  load_state(*propagator_antineutrino, -1);
   propagator_antineutrino->calculateProbabilities(cudaprob3::Antineutrino);
 }
 
@@ -123,7 +124,8 @@ ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
   for (int i = 0; i < 2; ++i) {
     auto &this_propagator =
         i == 0 ? propagator_neutrino : propagator_antineutrino;
-    auto &this_type_matrix = i == 0 ? type_matrix : type_matrix_invert;
+    // auto &this_type_matrix = i == 0 ? type_matrix : type_matrix_invert;
+    auto &this_type_matrix = type_matrix;
     for (int j = 0; j < 2; ++j) {
       for (int k = 0; k < 2; ++k) {
         auto &this_prob = ret[i][j][k];
@@ -216,10 +218,10 @@ ParProb3ppOscillation::~ParProb3ppOscillation() = default;
 
 #ifndef __CUDA__
 void ParProb3ppOscillation::load_state(
-    cudaprob3::CpuPropagator<oscillaton_calc_precision> &to_load, bool init)
+    cudaprob3::CpuPropagator<oscillaton_calc_precision> &to_load, int nutype, bool init)
 #else
 void ParProb3ppOscillation::load_state(
-    cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision> &to_load,
+    cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision> &to_load, int nutype,
     bool init)
 #endif
 {
@@ -233,6 +235,6 @@ void ParProb3ppOscillation::load_state(
   }
 
   to_load.setMNSMatrix(asin(sqrt(GetT12())), asin(sqrt(GetT13())),
-                       asin(sqrt(GetT23())), GetDeltaCP());
+                       asin(sqrt(GetT23())), GetDeltaCP(), nutype);
   to_load.setNeutrinoMasses(GetDM21sq(), GetDM32sq());
 }

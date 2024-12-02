@@ -9,7 +9,7 @@
 class TH3D;
 class TH2D;
 
-using interpolater_type = interpolate<2, 4>;
+using interpolater_type = interpolate<3, 4>;
 
 class HondaFlux2D {
 public:
