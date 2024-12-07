@@ -155,12 +155,10 @@ BinnedInteraction::GetLogLikelihoodAgainstData(StateI const &dataset) const {
 
   auto chi2_numu = TH2D_chi2(data_hist_numu, Prediction_hist_numu);
   auto chi2_numubar = TH2D_chi2(data_hist_numubar, Prediction_hist_numubar);
-  auto chi2_nue = TH2D_chi2(data_hist_nue + data_hist_nuebar,
-                            Prediction_hist_nue + Prediction_hist_nuebar);
+  auto chi2_nue = TH2D_chi2(data_hist_nue, Prediction_hist_nue);
   auto chi2_nuebar = TH2D_chi2(data_hist_nuebar, Prediction_hist_nuebar);
 
   auto llh = -0.5 * (chi2_numu + chi2_numubar + chi2_nue + chi2_nuebar);
-  // llh *= 5;
   return llh;
 }
 
