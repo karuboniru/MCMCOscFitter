@@ -35,10 +35,10 @@ ParProb3ppOscillation::ParProb3ppOscillation(
 #endif
       ,
       Ebins(Ebin), costheta_bins(costhbin) {
-  load_state(*propagator_neutrino, 1, true);
+  load_state(*propagator_neutrino, true);
   propagator_neutrino->calculateProbabilities(cudaprob3::Neutrino);
 
-  load_state(*propagator_antineutrino, -1, true);
+  load_state(*propagator_antineutrino,  true);
   propagator_antineutrino->calculateProbabilities(cudaprob3::Antineutrino);
 }
 
@@ -63,9 +63,8 @@ ParProb3ppOscillation::ParProb3ppOscillation(const ParProb3ppOscillation &from)
 #endif
       Ebins(from.Ebins), costheta_bins(from.costheta_bins) {
 #ifdef __CUDA__
-  load_state(*propagator_neutrino, 1);
-  load_state(*propagator_antineutrino, -1
-  );
+  load_state(*propagator_neutrino, false);
+  load_state(*propagator_antineutrino, false);
 #endif
 }
 
@@ -84,8 +83,8 @@ ParProb3ppOscillation::operator=(const ParProb3ppOscillation &from) {
   propagator_antineutrino = std::make_unique<
       cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
       0, (int)costheta_bins.size(), (int)Ebins.size(), costh_rebin_fac);
-  load_state(*propagator_neutrino, 1);
-  load_state(*propagator_antineutrino, -1);
+  load_state(*propagator_neutrino, true);
+  load_state(*propagator_antineutrino, true);
 #endif
   return *this;
 }
@@ -96,10 +95,10 @@ void ParProb3ppOscillation::proposeStep() {
 }
 
 void ParProb3ppOscillation::re_calculate() {
-  load_state(*propagator_neutrino, 1);
+  load_state(*propagator_neutrino, false);
   propagator_neutrino->calculateProbabilities(cudaprob3::Neutrino);
 
-  load_state(*propagator_antineutrino, -1);
+  load_state(*propagator_antineutrino, false);
   propagator_antineutrino->calculateProbabilities(cudaprob3::Antineutrino);
 }
 
@@ -117,9 +116,6 @@ ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
   constexpr auto type_matrix = std::to_array(
       {std::to_array({cudaprob3::ProbType::e_e, cudaprob3::ProbType::e_m}),
        std::to_array({cudaprob3::ProbType::m_e, cudaprob3::ProbType::m_m})});
-  constexpr auto type_matrix_invert = std::to_array(
-      {std::to_array({cudaprob3::ProbType::e_e, cudaprob3::ProbType::m_e}),
-       std::to_array({cudaprob3::ProbType::e_m, cudaprob3::ProbType::m_m})});
 
   for (int i = 0; i < 2; ++i) {
     auto &this_propagator =
@@ -174,7 +170,7 @@ ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
 /// 2-tau]
 [[nodiscard]] std::array<std::array<std::array<TH2D, 3>, 3>, 2>
 ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
-                                       const std::vector<double> &costhbin) {
+                                        const std::vector<double> &costhbin) {
   std::array<std::array<std::array<TH2D, 3>, 3>, 2> ret{};
   constexpr auto type_matrix = std::to_array(
       {std::to_array({cudaprob3::ProbType::e_e, cudaprob3::ProbType::e_m,
@@ -218,10 +214,10 @@ ParProb3ppOscillation::~ParProb3ppOscillation() = default;
 
 #ifndef __CUDA__
 void ParProb3ppOscillation::load_state(
-    cudaprob3::CpuPropagator<oscillaton_calc_precision> &to_load, int nutype, bool init)
+    cudaprob3::CpuPropagator<oscillaton_calc_precision> &to_load, bool init)
 #else
 void ParProb3ppOscillation::load_state(
-    cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision> &to_load, int nutype,
+    cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision> &to_load,
     bool init)
 #endif
 {
@@ -235,6 +231,6 @@ void ParProb3ppOscillation::load_state(
   }
 
   to_load.setMNSMatrix(asin(sqrt(GetT12())), asin(sqrt(GetT13())),
-                       asin(sqrt(GetT23())), GetDeltaCP(), nutype);
+                       asin(sqrt(GetT23())), GetDeltaCP());
   to_load.setNeutrinoMasses(GetDM21sq(), GetDM32sq());
 }

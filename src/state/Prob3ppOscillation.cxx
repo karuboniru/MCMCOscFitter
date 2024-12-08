@@ -7,7 +7,9 @@ std::array<std::array<double, 3>, 3>
 Prob3ppOscillation::GetProb(int flavor, double E, double costheta) const {
   flavor = flavor / abs(flavor);
   BargerPropagator b(DATA_PATH "/data/density.txt");
-  b.SetDefaultOctant(23, 1);
+  b.SetOneMassScaleMode(false);
+  b.SetWarningSuppression(true);
+  b.SetDefaultOctant(23, 2);
   b.SetMNS(GetT12(), GetT13(), GetT23(), GetDM21sq(), GetDM32sq(),
            GetDeltaCP() /*delta cp*/, E, true, flavor);
   // b.de

@@ -24,8 +24,8 @@ void report(std::string_view title, const std::array<double, 4> &result,
                "Diff");
   std::println("{}", hline);
   for (auto &&[name, res, ref] : std::ranges::views::zip(name, result, ref)) {
-    std::println("|{:^10}|{:^8.1f}|{:^8.0f}|{:^6.1f}%|", name, res, ref,
-                 100. * (res - ref) / ref);
+    std::println("|{:^10}|{:^8.1f}|{:^8.0f}|{:^6.1f}‰|", name, res, ref,
+                 1000. * (res - ref) / ref);
   }
   std::println("{}\n", hline);
 }
@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
       ((6 * 365) * 24 * 3600) /                // seconds in a year
       1e42; // unit conversion from 1e-38 cm^2 to 1e-42 m^2
 
-  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 1, 1};
+  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40};
   auto cdata = bint.GenerateData();
   auto cdata_noOsc = bint.GenerateData_NoOsc();
 
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
          {no_osc_numu, no_osc_numu_bar, no_osc_nue, no_osc_nue_bar},
          {7012.66, 2600.31, 3622.82, 1172.16});
 
-  report("Oscillated Event Rates", {numu, numu_bar, nue, nue_bar},
+  report("Normal Hierarchy Event Rates", {numu, numu_bar, nue, nue_bar},
          {4820.17, 1805.62, 3739.65, 1153.6});
   cdata_noOsc.SaveAs("No_Osc.root");
   cdata.SaveAs("Event_rate_NH.root");
