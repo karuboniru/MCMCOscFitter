@@ -11,6 +11,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <print>
 #include <sstream>
 #include <stdexcept>
 
@@ -92,22 +93,16 @@ TH2D HondaFlux2D::GetFlux_Hist(std::vector<double> Ebins,
                M_PI;
       },
       0.1, 1e4, -1, 1, 0);
-#pragma omp parallel for
+  // #pragma omp parallel for
   for (int i = 0; i < ret.GetNbinsX(); i++) {
     auto emin = ret.GetXaxis()->GetBinLowEdge(i + 1);
     auto emax = ret.GetXaxis()->GetBinUpEdge(i + 1);
-#pragma omp parallel for
+    // #pragma omp parallel for
     for (int j = 0; j < ret.GetNbinsY(); j++) {
       auto costh_min = ret.GetYaxis()->GetBinLowEdge(j + 1);
       auto costh_max = ret.GetYaxis()->GetBinUpEdge(j + 1);
       auto integration = f.Integral(emin, emax, costh_min, costh_max);
       ret.SetBinContent(i + 1, j + 1, integration);
-      // auto &hist = reader[pdg];
-      // ret.SetBinContent(i + 1, j + 1,
-      //                   hist.Interpolate(log10((emax * emin)) / 2,
-      //                                    (costh_min + costh_max) / 2) *
-      //                       (emax - emin) * (costh_max - costh_min) * 2 *
-      //                       M_PI);
     }
   }
 

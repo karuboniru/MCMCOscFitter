@@ -64,8 +64,7 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
                                      double scale_, size_t E_rebin_factor_,
                                      size_t costh_rebin_factor_)
     : propgator_type{to_center<oscillaton_calc_precision>(Ebins_),
-                            to_center<oscillaton_calc_precision>(
-                                costheta_bins_)},
+                     to_center<oscillaton_calc_precision>(costheta_bins_)},
       ModelDataLLH(), Ebins(std::move(Ebins_)),
       costheta_bins(std::move(costheta_bins_)),
       flux_hist_numu(flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) *
@@ -127,6 +126,7 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
   auto binsx = data.GetNbinsX();
   auto binsy = data.GetNbinsY();
   double chi2{};
+#pragma omp parallel for reduction(+ : chi2) collapse(2)
   for (int x = 1; x <= binsx; x++) {
     for (int y = 1; y <= binsy; y++) {
       auto bin_data = data.GetBinContent(x, y);

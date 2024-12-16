@@ -128,10 +128,9 @@ ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
         auto &this_term = this_type_matrix[j][k];
         this_prob = TH2D("", "", Ebin.size() - 1, Ebin.data(),
                          costhbin.size() - 1, costhbin.data());
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
         for (size_t energy_bin_index = 0; energy_bin_index < Ebin.size() - 1;
              ++energy_bin_index) {
-#pragma omp parallel for
           for (size_t out_hist_costh_index = 0;
                out_hist_costh_index < costhbin.size() - 1;
                ++out_hist_costh_index) {
@@ -191,10 +190,9 @@ ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
         auto &this_term = this_type_matrix[j][k];
         this_prob = TH2D("", "", Ebin.size() - 1, Ebin.data(),
                          costhbin.size() - 1, costhbin.data());
-#pragma omp parallel for
+#pragma omp parallel for collapse(2)
         for (size_t energy_bin_index = 0; energy_bin_index < Ebin.size() - 1;
              ++energy_bin_index) {
-#pragma omp parallel for
           for (size_t out_hist_costh_index = 0;
                out_hist_costh_index < costhbin.size() - 1;
                ++out_hist_costh_index) {

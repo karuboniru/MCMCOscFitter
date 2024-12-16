@@ -27,16 +27,14 @@ int main(int argc, char **argv) {
   auto Ebins = logspace(0.1, 20., 401);
 
   constexpr double scale_factor =
-      (2e10 / (12 + H_to_C) * 6.022e23) * (6 * 365 * 24 * 3600) / 1e42;
+      (2e10 / (12 + H_to_C) * 6.02214076e23) * // number of target C12
+      ((6 * 365) * 24 * 3600) /                // seconds in a year
+      1e42; // unit conversion from 1e-38 cm^2 to 1e-42 m^2
 
-  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 1, 1};
+  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 20};
   auto cdata = bint.GenerateData();
+  cdata.Round();
 
-  std::cout << std::format("numu    count: {} \n", cdata.hist_numu.Integral())
-            << std::format("numubar count: {} \n",
-                           cdata.hist_numubar.Integral())
-            << '\n';
-  return 0;
   using combined_type = ModelAndData<BinnedInteraction, SimpleDataHist>;
   using vals =
       std::tuple<double, double, double, double, double, double, size_t>;
@@ -45,7 +43,7 @@ int main(int argc, char **argv) {
   for (size_t i = 0; i < nth; i++) {
     state_pool.emplace_back(bint, cdata).proposeStep();
   }
-  auto rawdf = ROOT::RDataFrame{125};
+  auto rawdf = ROOT::RDataFrame{125000};
   ROOT::RDF::Experimental::AddProgressBar(rawdf);
   std::atomic<size_t> count{};
   auto df =
