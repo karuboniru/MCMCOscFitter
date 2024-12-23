@@ -20,7 +20,8 @@ class BinnedInteraction : public propgator_type, public ModelDataLLH {
 public:
   BinnedInteraction(std::vector<double> Ebins,
                     std::vector<double> costheta_bins, double scale_ = 1.,
-                    size_t E_rebin_factor = 1, size_t costh_rebin_factor = 1);
+                    size_t E_rebin_factor = 1, size_t costh_rebin_factor = 1,
+                    double IH_Bias = 1.0);
 
   BinnedInteraction(const BinnedInteraction &) = default;
   BinnedInteraction(BinnedInteraction &&) = default;
@@ -31,7 +32,8 @@ public:
   void proposeStep() final;
 
   // virtual double GetLogLikelihood() const override;
-  double GetLogLikelihoodAgainstData(const StateI &dataset) const final;
+  [[nodiscard]] double
+  GetLogLikelihoodAgainstData(const StateI &dataset) const final;
 
   [[nodiscard]] SimpleDataHist GenerateData() const;
   [[nodiscard]] SimpleDataHist GenerateData_NoOsc() const;
@@ -74,9 +76,11 @@ public:
     // }
   }
 
-private:
+  [[nodiscard]] double GetLogLikelihood() const final;
+
   void UpdatePrediction();
 
+private:
   std::vector<double> Ebins, costheta_bins;
   // std::vector<double> Ebins_calc, costheta_bins_calc;
   TH2D flux_hist_numu, flux_hist_numubar, flux_hist_nue, flux_hist_nuebar;
@@ -89,4 +93,6 @@ private:
       Prediction_hist_nuebar;
   size_t E_rebin_factor;
   size_t costh_rebin_factor;
+
+  double log_ih_bias;
 };

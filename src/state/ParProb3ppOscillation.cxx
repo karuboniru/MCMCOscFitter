@@ -12,7 +12,7 @@
 #include <array>
 #include <memory>
 
-const size_t n_threads_propagator = std::thread::hardware_concurrency();
+const size_t n_threads_propagator = std::thread::hardware_concurrency() / 2;
 
 ParProb3ppOscillation::ParProb3ppOscillation(
     const std::vector<oscillaton_calc_precision> &Ebin,
@@ -38,7 +38,7 @@ ParProb3ppOscillation::ParProb3ppOscillation(
   load_state(*propagator_neutrino, true);
   propagator_neutrino->calculateProbabilities(cudaprob3::Neutrino);
 
-  load_state(*propagator_antineutrino,  true);
+  load_state(*propagator_antineutrino, true);
   propagator_antineutrino->calculateProbabilities(cudaprob3::Antineutrino);
 }
 

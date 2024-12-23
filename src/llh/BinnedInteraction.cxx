@@ -1,5 +1,6 @@
 
 #include "BinnedInteraction.h"
+#include "OscillationParameters.h"
 #include "ParProb3ppOscillation.h"
 #include "binning_tool.hpp"
 #include "constants.h"
@@ -62,7 +63,8 @@ template <is_hist T> T operator*(double lhs, const T &&rhs) {
 BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
                                      std::vector<double> costheta_bins_,
                                      double scale_, size_t E_rebin_factor_,
-                                     size_t costh_rebin_factor_)
+                                     size_t costh_rebin_factor_,
+                                     double IH_bias_)
     : propgator_type{to_center<oscillaton_calc_precision>(Ebins_),
                      to_center<oscillaton_calc_precision>(costheta_bins_)},
       ModelDataLLH(), Ebins(std::move(Ebins_)),
@@ -82,7 +84,8 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
           Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}})),
       xsec_hist_nuebar(xsec_input.GetXsecHistMixture(
           Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}})),
-      E_rebin_factor(E_rebin_factor_), costh_rebin_factor(costh_rebin_factor_) {
+      E_rebin_factor(E_rebin_factor_), costh_rebin_factor(costh_rebin_factor_),
+      log_ih_bias(std::log(IH_bias_)) {
   UpdatePrediction();
 }
 
@@ -178,4 +181,12 @@ SimpleDataHist BinnedInteraction::GenerateData_NoOsc() const {
   data.hist_nue = flux_hist_nue * xsec_hist_nue;
   data.hist_nuebar = flux_hist_nuebar * xsec_hist_nuebar;
   return data;
+}
+
+double BinnedInteraction::GetLogLikelihood() const {
+  auto llh = OscillationParameters::GetLogLikelihood();
+  if(GetDM32sq() < 0){
+    llh += log_ih_bias;
+  }
+  return llh;
 }
