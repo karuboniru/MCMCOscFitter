@@ -61,3 +61,23 @@ double OscillationParameters::GetLogLikelihood() const {
          log_llh_gaussian(GetT12(), Theta12, sigma_t12);
 }
 
+void OscillationParameters::set_param(const param &p) {
+  if (p.DM2 > 0) {
+    NH_DM2 = p.DM2;
+    NH_T23 = p.T23;
+    NH_T13 = p.T13;
+    NH_Dm2 = p.Dm2;
+    NH_T12 = p.T12;
+    NH_DCP = p.DCP;
+    is_NH = true;
+  } else {
+    IH_DM2 = p.DM2;
+    IH_T23 = p.T23;
+    IH_T13 = p.T13;
+    IH_Dm2 = p.Dm2;
+    IH_T12 = p.T12;
+    IH_DCP = p.DCP;
+    is_NH = false;
+  }
+  re_calculate();
+}

@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
       ((6 * 365) * 24 * 3600) /                // seconds in a year
       1e42; // unit conversion from 1e-38 cm^2 to 1e-42 m^2
 
-  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 20};
+  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40, 8000};
   auto cdata = bint.GenerateData();
   cdata.Round();
 

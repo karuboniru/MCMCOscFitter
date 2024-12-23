@@ -63,3 +63,15 @@ target_link_libraries(plotter
 
 
 install (TARGETS plotter DESTINATION bin)
+
+
+add_executable(chi2fit chi2fit.cxx)
+
+target_link_libraries(chi2fit 
+  ROOT::ROOTDataFrame
+  BinnedInteraction
+  ROOT::Minuit2
+)
+
+
+install (TARGETS chi2fit DESTINATION bin)

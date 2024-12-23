@@ -7,6 +7,15 @@
 #include <cmath>
 #include <iostream>
 
+struct param {
+  double DM2;
+  double Dm2;
+  double T23;
+  double T13;
+  double T12;
+  double DCP;
+};
+
 class OscillationParameters : virtual public StateI {
 public:
   OscillationParameters() = default;
@@ -43,6 +52,10 @@ public:
   }
 
   void flip_hierarchy() { is_NH = !is_NH; }
+
+  void set_param(const param &p);
+
+  virtual void re_calculate() = 0;
 
 private:
   // PDG Central Values

@@ -39,7 +39,7 @@ public:
   GetProb_Hists_3F(const std::vector<double> &Ebin,
                    const std::vector<double> &costhbin);
 
-  void re_calculate();
+  void re_calculate() override;
 
 private:
 #ifndef __CUDA__
