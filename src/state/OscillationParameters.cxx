@@ -6,9 +6,17 @@
 
 [[gnu::const]]
 double log_llh_gaussian(double x1, double x2, double sigma) {
-  // return exp(-0.5 * pow((x1 - x2) / sigma, 2)) / (sqrt(2 * M_1_PI) * sigma);
   return -0.5 * pow((x1 - x2) / sigma, 2);
-  // return -0.5 * pow((x1 - x2) / sigma, 2) - log(2 * M_1_PI) / 2 - log(sigma);
+}
+
+[[gnu::const]]
+double log_llh_gaussian_cyd(double x1, double x2, double sigma) {
+  auto diff = std::abs(x1 - x2);
+  // for delta cp we need to wrap around
+  if (diff > M_PI) {
+    diff = 2 * M_PI - diff;
+  }
+  return -0.5 * pow(diff / sigma, 2);
 }
 
 void OscillationParameters::proposeStep() {
@@ -52,13 +60,17 @@ double OscillationParameters::GetLogLikelihood() const {
            log_llh_gaussian(GetT23(), Theta23, sigma_t23) +
            log_llh_gaussian(GetT13(), Theta13, sigma_t13) +
            log_llh_gaussian(GetDM21sq(), dm2, sigma_dm2) +
-           log_llh_gaussian(GetT12(), Theta12, sigma_t12);
+           log_llh_gaussian(GetT12(), Theta12, sigma_t12) +
+           log_llh_gaussian_cyd(GetDeltaCP(), DCP, sigma_DCP);
+    ;
   }
   return log_llh_gaussian(GetDM32sq(), DM2_IH, sigma_DM2_IH) +
          log_llh_gaussian(GetT23(), Theta23_IH, sigma_t23_IH) +
          log_llh_gaussian(GetT13(), Theta13, sigma_t13) +
          log_llh_gaussian(GetDM21sq(), dm2, sigma_dm2) +
-         log_llh_gaussian(GetT12(), Theta12, sigma_t12);
+         log_llh_gaussian(GetT12(), Theta12, sigma_t12) +
+         log_llh_gaussian_cyd(GetDeltaCP(), DCP, sigma_DCP);
+  ;
 }
 
 void OscillationParameters::set_param(const param &p) {

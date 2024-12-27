@@ -75,6 +75,7 @@ private:
   static constexpr double sigma_t23_IH = 0.022;
   static constexpr double sigma_DM2 = 0.028e-3;
   static constexpr double sigma_DM2_IH = 0.029e-3;
+  static constexpr double sigma_DCP = 0.22 * M_PI;
 
   bool is_NH{true};
   double NH_DM2{DM2}, NH_T23{Theta23}, NH_T13{Theta13}, NH_Dm2{dm2},
