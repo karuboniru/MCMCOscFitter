@@ -36,7 +36,7 @@ private:
 };
 
 int main(int argc, char **agrv) {
-  auto costheta_bins = linspace(-1., 1., 401);
+  auto costheta_bins = linspace(-1., 1., 481);
 
   auto Ebins = logspace(0.1, 20., 401);
 
