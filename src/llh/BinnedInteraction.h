@@ -80,6 +80,8 @@ public:
 
   void UpdatePrediction();
 
+  void SaveAs(const char *filename) const;
+
 private:
   std::vector<double> Ebins, costheta_bins;
   // std::vector<double> Ebins_calc, costheta_bins_calc;

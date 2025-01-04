@@ -180,8 +180,32 @@ SimpleDataHist BinnedInteraction::GenerateData_NoOsc() const {
 
 double BinnedInteraction::GetLogLikelihood() const {
   auto llh = OscillationParameters::GetLogLikelihood();
-  if(GetDM32sq() < 0){
+  if (GetDM32sq() < 0) {
     llh += log_ih_bias;
   }
   return llh;
+}
+
+void BinnedInteraction::SaveAs(const char *filename) const {
+  auto file = TFile::Open(filename, "RECREATE");
+  file->cd();
+
+  file->Add(flux_hist_numu.Clone("flux_hist_numu"));
+  file->Add(flux_hist_numubar.Clone("flux_hist_numubar"));
+  file->Add(flux_hist_nue.Clone("flux_hist_nue"));
+  file->Add(flux_hist_nuebar.Clone("flux_hist_nuebar"));
+
+  file->Add(xsec_hist_numu.Clone("xsec_hist_numu"));
+  file->Add(xsec_hist_numubar.Clone("xsec_hist_numubar"));
+  file->Add(xsec_hist_nue.Clone("xsec_hist_nue"));
+  file->Add(xsec_hist_nuebar.Clone("xsec_hist_nuebar"));
+
+  file->Add(Prediction_hist_numu.Clone("Prediction_hist_numu"));
+  file->Add(Prediction_hist_numubar.Clone("Prediction_hist_numubar"));
+  file->Add(Prediction_hist_nue.Clone("Prediction_hist_nue"));
+  file->Add(Prediction_hist_nuebar.Clone("Prediction_hist_nuebar"));
+
+  file->Write();
+  file->Close();
+  delete file;
 }
