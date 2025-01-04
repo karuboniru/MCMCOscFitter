@@ -48,13 +48,6 @@ size_t pdg2idx(int pdg) {
   }
 }
 constexpr std::array<int, 4> pdg_list{12, 14, -12, -14};
-
-HKKM_READER_2D reader([]() -> const char * {
-  auto env_str = std::getenv("FLUX_FILE_2D");
-  if (env_str)
-    return env_str;
-  return DATA_PATH "/data/honda-2d.solmin.txt";
-}());
 } // namespace
 
 HondaFlux2D::HondaFlux2D(const char *fluxfile)
