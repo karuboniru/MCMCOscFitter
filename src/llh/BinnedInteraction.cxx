@@ -134,11 +134,6 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
     for (int y = 1; y <= binsy; y++) {
       auto bin_data = data.GetBinContent(x, y);
       auto bin_pred = pred.GetBinContent(x, y);
-      if (bin_pred < 3.) {
-        continue;
-      }
-      // auto diff = bin_data - bin_pred;
-      // chi2 += diff * diff / bin_pred;
       if (bin_data != 0) [[likely]]
         chi2 += (bin_pred - bin_data) + bin_data * log(bin_data / bin_pred);
       else
