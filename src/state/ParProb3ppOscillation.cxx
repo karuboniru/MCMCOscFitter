@@ -138,24 +138,24 @@ ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
                 energy_bin_index + 1, out_hist_costh_index + 1,
                 this_propagator->getProbability(out_hist_costh_index,
                                                 energy_bin_index, this_term));
-            auto prob_sum =
-                this_propagator->getProbability(out_hist_costh_index,
-                                                energy_bin_index,
-                                                cudaprob3::ProbType::e_e) +
-                this_propagator->getProbability(out_hist_costh_index,
-                                                energy_bin_index,
-                                                cudaprob3::ProbType::e_m) +
-                this_propagator->getProbability(out_hist_costh_index,
-                                                energy_bin_index,
-                                                cudaprob3::ProbType::e_t);
-            if (abs(prob_sum - 1) > 1e-7) {
-              std::println(
-                  std::cerr,
-                  "Sum of probabilities is not 1: {:.5f} at E = {}, costh = "
-                  "{}",
-                  prob_sum, Ebin[energy_bin_index],
-                  costhbin[out_hist_costh_index]);
-            }
+            // auto prob_sum =
+            //     this_propagator->getProbability(out_hist_costh_index,
+            //                                     energy_bin_index,
+            //                                     cudaprob3::ProbType::e_e) +
+            //     this_propagator->getProbability(out_hist_costh_index,
+            //                                     energy_bin_index,
+            //                                     cudaprob3::ProbType::e_m) +
+            //     this_propagator->getProbability(out_hist_costh_index,
+            //                                     energy_bin_index,
+            //                                     cudaprob3::ProbType::e_t);
+            // if (abs(prob_sum - 1) > 1e-7) {
+            //   std::println(
+            //       std::cerr,
+            //       "Sum of probabilities is not 1: {:.5f} at E = {}, costh = "
+            //       "{}",
+            //       prob_sum, Ebin[energy_bin_index],
+            //       costhbin[out_hist_costh_index]);
+            // }
           }
         }
       }

@@ -30,5 +30,5 @@ public:
   [[nodiscard]] std::array<std::array<std::array<TH2D, 3>, 3>, 2>
   GetProb_Hists_3F(std::vector<double> Ebin, std::vector<double> costhbin) const;
 
-  void re_calculate() {}
+  void re_calculate() override {}
 };
