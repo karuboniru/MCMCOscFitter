@@ -71,8 +71,15 @@ private:
   static constexpr double sigma_t12 = 0.013;
   static constexpr double sigma_t13 = 0.07e-2;
   static constexpr double sigma_dm2 = 0.18e-5;
-  static constexpr double sigma_t23 = 0.021;
-  static constexpr double sigma_t23_IH = 0.022;
+
+  static constexpr double sigma_t23_down = 0.021;
+  static constexpr double sigma_t23_up = 0.015;
+  static constexpr double sigma_t23 = (sigma_t23_down + sigma_t23_up) / 2;
+
+  static constexpr double sigma_t23_IH_down = 0.022;
+  static constexpr double sigma_t23_IH_up = 0.016;
+  static constexpr double sigma_t23_IH =
+      (sigma_t23_IH_down + sigma_t23_IH_up) / 2;
   static constexpr double sigma_DM2 = 0.028e-3;
   static constexpr double sigma_DM2_IH = 0.029e-3;
   static constexpr double sigma_DCP = 0.22 * M_PI;
