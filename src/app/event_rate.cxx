@@ -31,14 +31,15 @@ void report(std::string_view title, const std::array<double, 4> &result,
 }
 
 int main(int argc, char **argv) {
-  auto costheta_bins = linspace(-1., 1., 401);
-
+  TH1::AddDirectory(false);
   auto Ebins = logspace(0.1, 20., 401);
+  auto costheta_bins = linspace(-1., 1., 481);
 
   constexpr double scale_factor = scale_factor_6y;
 
   BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40};
   auto cdata = bint.GenerateData();
+  bint.SaveAs("flux_xsec.root");
   auto cdata_noOsc = bint.GenerateData_NoOsc();
 
   auto numu = cdata.hist_numu.Integral();

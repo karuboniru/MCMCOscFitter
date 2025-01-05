@@ -139,13 +139,13 @@ int main(int argc, char **agrv) {
   gStyle->SetOptStat(0);
   gStyle->SetPaintTextFormat("4.1f");
   TH1::AddDirectory(false);
-  auto costheta_bins = linspace(-1., 1., 201);
+  auto costheta_bins = linspace(-1., 1., 481);
 
-  auto Ebins = logspace(0.1, 20., 201);
+  auto Ebins = logspace(0.1, 20., 401);
 
   constexpr double scale_factor = scale_factor_6y;
 
-  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 20, 20, 1};
+  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40, 1};
   auto cdata = bint.GenerateData(); // data for NH
   cdata.SaveAs("NH_data.root");
   bint.SaveAs("xcheck.root");
