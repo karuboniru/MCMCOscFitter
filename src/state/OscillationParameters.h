@@ -16,6 +16,37 @@ struct param {
   double DCP;
 };
 
+class pull_toggle {
+public:
+  std::array<bool, 6> flags{};
+  constexpr static auto names =
+      std::to_array<std::string>({"DM32", "DM21", "T23", "T13", "T12", "DCP"});
+  [[nodiscard]] std::vector<std::string> get_active() const {
+    std::vector<std::string> active;
+    for (size_t i = 0; i < flags.size(); ++i) {
+      if (flags[i]) {
+        active.push_back(names[i]);
+      }
+    }
+    return active;
+  }
+  [[nodiscard]] std::vector<std::string> get_inactive() const {
+    std::vector<std::string> inactive;
+    for (size_t i = 0; i < flags.size(); ++i) {
+      if (!flags[i]) {
+        inactive.push_back(names[i]);
+      }
+    }
+    return inactive;
+  }
+  bool operator[](size_t i) const { return flags[i]; }
+  bool &operator[](size_t i) { return flags[i]; }
+};
+
+constexpr pull_toggle all_on{.flags = {true, true, true, true, true, true}};
+constexpr pull_toggle all_off{
+    .flags = {false, false, false, false, false, false}};
+
 class OscillationParameters : virtual public StateI {
 public:
   OscillationParameters() = default;
@@ -28,6 +59,7 @@ public:
 
   void proposeStep() override;
   [[nodiscard]] double GetLogLikelihood() const override;
+  [[nodiscard]] double GetLogLikelihood(const pull_toggle &) const;
 
   [[nodiscard]] virtual std::array<std::array<double, 3>, 3>
   GetProb(int flavor, double E, double costheta) const = 0;
@@ -76,7 +108,7 @@ private:
   static constexpr double sigma_t23_up = 0.015;
   static constexpr double sigma_t23 = (sigma_t23_down + sigma_t23_up) / 2;
 
-  static constexpr double sigma_t23_IH_down = 0.022;
+  static constexpr double sigma_t23_IH_down = 0.024;
   static constexpr double sigma_t23_IH_up = 0.016;
   static constexpr double sigma_t23_IH =
       (sigma_t23_IH_down + sigma_t23_IH_up) / 2;
