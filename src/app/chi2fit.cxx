@@ -24,6 +24,7 @@
 #include <cmath>
 #include <filesystem>
 #include <omp.h>
+#include <ostream>
 #include <print>
 #include <ranges>
 
@@ -70,12 +71,18 @@ int main(int argc, char **agrv) {
   BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40, 1};
   auto cdata = bint.GenerateData(); // data for NH
 
+  BinnedInteraction bint_1{Ebins, costheta_bins, scale_factor, 40, 40, 1};
+  bint_1.flip_hierarchy();
+  bint_1.UpdatePrediction();
+  auto cdata_IH = bint_1.GenerateData();
+
   // std::println(std::cout, "Mock chi2: {}",
   //              TH2D_chi2(cdata.hist_numu, cdata.hist_numubar));
 
   auto do_fit_and_plot = [&](double dm32_init,
                              const pull_toggle &toggles = all_on) {
-    MinuitFitter fitter_chi2(bint, cdata, toggles);
+    auto &data_to_fit = dm32_init > 0 ? cdata_IH : cdata;
+    MinuitFitter fitter_chi2(bint, data_to_fit, toggles);
     auto tag = dm32_init > 0 ? "NH" : "IH";
 
     std::println("{:*^25}", tag);
@@ -124,7 +131,7 @@ int main(int argc, char **agrv) {
     bint.UpdatePrediction();
     auto pre_fit = bint.GenerateData();
     std::println("chi2 pre-fit: {:.4f}",
-                 -2 * bint.GetLogLikelihoodAgainstData(cdata));
+                 -2 * bint.GetLogLikelihoodAgainstData(data_to_fit));
 
     auto result = ROOT::Minuit2::MnMigrad{fitter_chi2, param}();
 
@@ -153,13 +160,14 @@ int main(int argc, char **agrv) {
 
     bint.UpdatePrediction();
 
-    auto llh_to_data = bint.GetLogLikelihoodAgainstData(cdata);
+    auto llh_to_data = bint.GetLogLikelihoodAgainstData(data_to_fit);
     auto pull = bint.GetLogLikelihood();
 
     std::println("chi2 {:.4e}, data: {:.4e}, pull: {:.4e}",
                  -2 * (llh_to_data + pull), -2 * llh_to_data, -2 * pull);
 
     std::println("{:*^25}\n\n", "finished");
+    std::flush(std::cout);
   };
 
   do_fit_and_plot(-4.91e-3, all_on);
