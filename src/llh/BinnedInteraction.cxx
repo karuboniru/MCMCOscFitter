@@ -135,7 +135,8 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
       auto bin_data = data.GetBinContent(x, y);
       auto bin_pred = pred.GetBinContent(x, y);
       if (bin_data != 0) [[likely]]
-        chi2 += (bin_pred - bin_data) + bin_data * log(bin_data / bin_pred);
+        chi2 +=
+            (bin_pred - bin_data) + bin_data * std::log(bin_data / bin_pred);
       else
         chi2 += bin_pred;
     }

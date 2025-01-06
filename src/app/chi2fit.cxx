@@ -12,7 +12,9 @@
 #include <TCanvas.h>
 #include <TGraph.h>
 #include <TLegend.h>
+#include <TMath.h>
 #include <TPad.h>
+#include <TRandom.h>
 #include <TStyle.h>
 #include <TSystem.h>
 #include <TVirtualPad.h>
@@ -23,6 +25,27 @@
 #include <omp.h>
 #include <print>
 #include <ranges>
+
+namespace {
+double TH2D_chi2(const TH2D &data, const TH2D &pred) {
+  auto binsx = data.GetNbinsX();
+  auto binsy = data.GetNbinsY();
+  double chi2{};
+#pragma omp parallel for reduction(+ : chi2) collapse(2)
+  for (int x = 1; x <= binsx; x++) {
+    for (int y = 1; y <= binsy; y++) {
+      auto bin_data = data.GetBinContent(x, y);
+      auto bin_pred = pred.GetBinContent(x, y);
+      if (bin_data != 0) [[likely]]
+        chi2 +=
+            (bin_pred - bin_data) + bin_data * TMath::Log(bin_data / bin_pred);
+      else
+        chi2 += bin_pred;
+    }
+  }
+  return 2 * chi2;
+}
+} // namespace
 
 class MinuitFitter final : public ROOT::Minuit2::FCNBase {
 public:
@@ -39,6 +62,7 @@ public:
     binned_interaction.UpdatePrediction();
     auto llh = binned_interaction.GetLogLikelihoodAgainstData(data);
     llh += binned_interaction.GetLogLikelihood();
+    std::println("llh: {}", -2 * llh);
     return -2. * llh;
   }
 
@@ -88,8 +112,6 @@ SimpleDataHist get_chi2_data(const SimpleDataHist &data,
   ret.hist_numubar = get_chi2_hist(data.hist_numubar, pred.hist_numubar);
   ret.hist_nue = get_chi2_hist(data.hist_nue, pred.hist_nue);
   ret.hist_nuebar = get_chi2_hist(data.hist_nuebar, pred.hist_nuebar);
-  double chi2 = ret.hist_numu.GetSum() + ret.hist_numubar.GetSum() +
-                ret.hist_nue.GetSum() + ret.hist_nuebar.GetSum();
   return ret;
 }
 
@@ -147,7 +169,10 @@ int main(int argc, char **agrv) {
 
   BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40, 1};
   auto cdata = bint.GenerateData(); // data for NH
-  cdata.SaveAs("NH_data.root");
+
+  std::println(std::cout, "Mock chi2: {}",
+               TH2D_chi2(cdata.hist_numu, cdata.hist_numubar));
+
   bint.SaveAs("xcheck.root");
   plot_data(cdata, "asimov.pdf");
 
@@ -167,13 +192,16 @@ int main(int argc, char **agrv) {
     double dm32_min = dm32_init > 0 ? 0 : -1;
     double dm32_max = dm32_init > 0 ? 1 : 0;
 
+    auto get_random = [&]() { return gRandom->Uniform(0.5, 1.5); };
+
     ROOT::Minuit2::MnUserParameters param{};
-    param.Add("#Delta M_{32}^{2}", dm32_init, 0.001e-3, dm32_min, dm32_max);
-    param.Add("#Delta M_{21}^{2}", 7.53e-5, 0.01e-5, 0, 1);
-    param.Add("sin^{2}#theta_{23}", 0.558, 0.001, 0, 1);
-    param.Add("sin^{2}#theta_{13}", 2.19e-2, 0.01e-2, 0, 1);
-    param.Add("sin^{2}#theta_{12}", 0.307, 0.001, 0, 1);
-    param.Add("#delta_{CP}", 1.19 * M_PI, 0.01, 0, 2 * M_PI);
+    param.Add("#Delta M_{32}^{2}", dm32_init * get_random(), 0.001e-3, dm32_min,
+              dm32_max);
+    param.Add("#Delta M_{21}^{2}", 7.53e-5 * get_random(), 0.01e-5, 0, 1);
+    param.Add("sin^{2}#theta_{23}", 0.558 * get_random(), 0.001, 0.5, 1);
+    param.Add("sin^{2}#theta_{13}", 2.19e-2 * get_random(), 0.01e-2, 0, 1);
+    param.Add("sin^{2}#theta_{12}", 0.307 * get_random(), 0.001, 0, 1);
+    param.Add("#delta_{CP}", 1.19 * M_PI * get_random(), 0.01, 0, 2 * M_PI);
 
     bint.set_param({.DM2 = param.Value(0),
                     .Dm2 = param.Value(1),
@@ -185,6 +213,11 @@ int main(int argc, char **agrv) {
     auto pre_fit = bint.GenerateData();
 
     auto result = ROOT::Minuit2::MnMigrad{fitter_chi2, param}();
+
+    if (!result.HasValidParameters()) {
+      std::println("failed: {}", tag);
+      return;
+    }
 
     const auto &final_params = result.UserParameters();
     for (size_t i = 0; i < final_params.Params().size(); ++i) {
@@ -238,7 +271,7 @@ int main(int argc, char **agrv) {
           std::views::zip(
               std::to_array({&cdata, &pre_fit, &fdata}) |
                   std::views::transform([&](auto &&plot) {
-                    auto &hist = plot->hist_nue;
+                    auto &hist = plot->hist_numubar;
                     auto plot_proj = hist.ProjectionX(
                         std::format("_px{}", bin_id).c_str(), bin_id, bin_id);
                     ResetStyle(plot_proj);
@@ -286,8 +319,8 @@ int main(int argc, char **agrv) {
     gSystem->ChangeDirectory("..");
   };
 
-  do_fit_and_plot(-2.8e-3);
-  do_fit_and_plot(2.8e-3);
+  do_fit_and_plot(-2.455e-3);
+  do_fit_and_plot(2.455e-3);
 
   // ROOT::Minuit2::MnContours contours(fitter_IH, result);
   // for (size_t i = 0; i < final_params.Params().size(); ++i) {

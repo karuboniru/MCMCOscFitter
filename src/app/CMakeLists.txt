@@ -71,6 +71,7 @@ target_link_libraries(chi2fit
   ROOT::ROOTDataFrame
   BinnedInteraction
   ROOT::Minuit2
+  SimpleDataHist
 )
 
 
