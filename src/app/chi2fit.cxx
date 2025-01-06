@@ -1,4 +1,5 @@
 #include "BinnedInteraction.h"
+#include "OscillationParameters.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "tools.h"
@@ -49,8 +50,9 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
 
 class MinuitFitter final : public ROOT::Minuit2::FCNBase {
 public:
-  MinuitFitter(BinnedInteraction &binned_interaction_, SimpleDataHist &data_)
-      : binned_interaction(binned_interaction_), data(data_) {}
+  MinuitFitter(BinnedInteraction &binned_interaction_, SimpleDataHist &data_,
+               pull_toggle toggle_ = all_on)
+      : binned_interaction(binned_interaction_), data(data_), toggle(toggle_) {}
 
   double operator()(const std::vector<double> &params) const override {
     binned_interaction.set_param({.DM2 = params[0],
@@ -61,8 +63,8 @@ public:
                                   .DCP = params[5]});
     binned_interaction.UpdatePrediction();
     auto llh = binned_interaction.GetLogLikelihoodAgainstData(data);
-    llh += binned_interaction.GetLogLikelihood();
-    std::println("llh: {}", -2 * llh);
+    llh += binned_interaction.OscillationParameters::GetLogLikelihood(toggle);
+    // std::println("llh: {}", -2 * llh);
     return -2. * llh;
   }
 
@@ -71,6 +73,7 @@ public:
 private:
   mutable BinnedInteraction binned_interaction;
   SimpleDataHist data;
+  pull_toggle toggle;
 };
 
 namespace {
@@ -170,38 +173,57 @@ int main(int argc, char **agrv) {
   BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40, 1};
   auto cdata = bint.GenerateData(); // data for NH
 
-  std::println(std::cout, "Mock chi2: {}",
-               TH2D_chi2(cdata.hist_numu, cdata.hist_numubar));
+  // std::println(std::cout, "Mock chi2: {}",
+  //              TH2D_chi2(cdata.hist_numu, cdata.hist_numubar));
 
   bint.SaveAs("xcheck.root");
   plot_data(cdata, "asimov.pdf");
 
-  // std::println("event count for NH: {:.2e}", cdata.hist_numu.GetSum());
-
-  // pre-fit plot
-  // ratio plot
-  // 1D slice/projection plot
-
-  MinuitFitter fitter_chi2(bint, cdata);
-
-  auto do_fit_and_plot = [&](double dm32_init) {
+  auto do_fit_and_plot = [&](double dm32_init,
+                             const pull_toggle &toggles = all_on) {
+    MinuitFitter fitter_chi2(bint, cdata, toggles);
     auto tag = dm32_init > 0 ? "NH" : "IH";
+    std::println("{:*^15}", tag);
+
+    {
+      auto enabled_pull = toggles.get_active();
+      auto disabled_pull = toggles.get_inactive();
+      if (!enabled_pull.empty()) {
+        std::print("\n\nenabled pull: ");
+        for (auto &name : enabled_pull) {
+          std::cout << name << ' ';
+        }
+      }
+      if (!disabled_pull.empty()) {
+        std::print("\n\ndisabled pull: ");
+        for (auto &name : disabled_pull) {
+          std::cout << name << ' ';
+        }
+      }
+      std::cout << '\n';
+    }
+
     gSystem->MakeDirectory(tag);
     gSystem->ChangeDirectory(tag);
 
     double dm32_min = dm32_init > 0 ? 0 : -1;
     double dm32_max = dm32_init > 0 ? 1 : 0;
 
-    auto get_random = [&]() { return gRandom->Uniform(0.5, 1.5); };
+    auto get_random = [&]() { return 1.; };
 
     ROOT::Minuit2::MnUserParameters param{};
     param.Add("#Delta M_{32}^{2}", dm32_init * get_random(), 0.001e-3, dm32_min,
               dm32_max);
-    param.Add("#Delta M_{21}^{2}", 7.53e-5 * get_random(), 0.01e-5, 0, 1);
-    param.Add("sin^{2}#theta_{23}", 0.558 * get_random(), 0.001, 0.5, 1);
-    param.Add("sin^{2}#theta_{13}", 2.19e-2 * get_random(), 0.01e-2, 0, 1);
-    param.Add("sin^{2}#theta_{12}", 0.307 * get_random(), 0.001, 0, 1);
-    param.Add("#delta_{CP}", 1.19 * M_PI * get_random(), 0.01, 0, 2 * M_PI);
+    param.Add("#Delta M_{21}^{2}", 1.56e-4 * get_random(), 0.01e-5, 0, 1);
+    param.Add("sin^{2}#theta_{23}", 0.75 * get_random(), 0.001, 0.5, 1);
+    param.Add("sin^{2}#theta_{13}", 0.0439 * get_random(), 0.01e-2, 0, 1);
+    param.Add("sin^{2}#theta_{12}", 0.614 * get_random(), 0.001, 0, 1);
+    param.Add("#delta_{CP}", 0.59 * M_PI * get_random(), 0.01, 0, 2 * M_PI);
+    // param.Add("#Delta M_{21}^{2}", 7.53e-5 * get_random(), 0.01e-5, 0, 1);
+    // param.Add("sin^{2}#theta_{23}", 0.558 * get_random(), 0.001, 0.5, 1);
+    // param.Add("sin^{2}#theta_{13}", 2.19e-2 * get_random(), 0.01e-2, 0, 1);
+    // param.Add("sin^{2}#theta_{12}", 0.307 * get_random(), 0.001, 0, 1);
+    // param.Add("#delta_{CP}", 1.19 * M_PI * get_random(), 0.01, 0, 2 * M_PI);
 
     bint.set_param({.DM2 = param.Value(0),
                     .Dm2 = param.Value(1),
@@ -211,6 +233,9 @@ int main(int argc, char **agrv) {
                     .DCP = param.Value(5)});
     bint.UpdatePrediction();
     auto pre_fit = bint.GenerateData();
+    std::println("chi2 pre-fit: {:.4f}",
+                 -2 * bint.GetLogLikelihoodAgainstData(cdata));
+    pre_fit.SaveAs(std::format("prefit_hists_{}.root", tag).c_str());
 
     auto result = ROOT::Minuit2::MnMigrad{fitter_chi2, param}();
 
@@ -226,7 +251,7 @@ int main(int argc, char **agrv) {
 
     auto minimal_chi2 = result.Fval();
 
-    std::println("Fval: {:.2e}", minimal_chi2);
+    std::println("Fval: {:.4e}", minimal_chi2);
 
     bint.set_param({.DM2 = final_params.Value(0),
                     .Dm2 = final_params.Value(1),
@@ -240,7 +265,7 @@ int main(int argc, char **agrv) {
     auto llh_to_data = bint.GetLogLikelihoodAgainstData(cdata);
     auto pull = bint.GetLogLikelihood();
 
-    std::println("chi2 {:.2e}, data: {:.2e}, pull: {:.2e}",
+    std::println("chi2 {:.4e}, data: {:.4e}, pull: {:.4e}",
                  -2 * (llh_to_data + pull), -2 * llh_to_data, -2 * pull);
 
     auto fdata = bint.GenerateData();
@@ -256,6 +281,7 @@ int main(int argc, char **agrv) {
               std::format("fit_to_data_chi2_{}.pdf", tag));
     plot_data(get_chi2_data(cdata, pre_fit),
               std::format("prefit_to_data_chi2_{}.pdf", tag));
+    plot_data(pre_fit, std::format("prefit_{}.pdf", tag));
 
     // plot_data(get_chi2_hist(cdata, fdata),
 
@@ -317,10 +343,21 @@ int main(int argc, char **agrv) {
 
     fdata.SaveAs(std::format("best_fit_{}.root", tag).c_str());
     gSystem->ChangeDirectory("..");
+    std::println("{:*^15}", "finished");
   };
 
-  do_fit_and_plot(-2.455e-3);
-  do_fit_and_plot(2.455e-3);
+  do_fit_and_plot(-4.91e-3);
+  do_fit_and_plot(4.91e-3);
+  for (int i = 0; i < 6; ++i) {
+    pull_toggle one_off = all_on;
+    one_off[i] = false;
+    do_fit_and_plot(-4.91e-3, one_off);
+    do_fit_and_plot(4.91e-3, one_off);
+    pull_toggle one_on = all_off;
+    one_on[i] = true;
+    do_fit_and_plot(-4.91e-3, one_on);
+    do_fit_and_plot(4.91e-3, one_on);
+  }
 
   // ROOT::Minuit2::MnContours contours(fitter_IH, result);
   // for (size_t i = 0; i < final_params.Params().size(); ++i) {

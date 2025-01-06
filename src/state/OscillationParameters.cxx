@@ -73,6 +73,34 @@ double OscillationParameters::GetLogLikelihood() const {
   ;
 }
 
+double
+OscillationParameters::GetLogLikelihood(const pull_toggle &toggle) const {
+  auto sigma_DM2_H = is_NH ? sigma_DM2 : sigma_DM2_IH;
+  auto sigma_t23_H = is_NH ? sigma_t23 : sigma_t23_IH;
+  auto DM2_H = is_NH ? DM2 : DM2_IH;
+  auto Theta23_H = is_NH ? Theta23 : Theta23_IH;
+  double llh{};
+  if (toggle[0]) {
+    llh += log_llh_gaussian(GetDM32sq(), DM2_H, sigma_DM2_H);
+  }
+  if (toggle[1]) {
+    llh += log_llh_gaussian(GetDM21sq(), dm2, sigma_dm2);
+  }
+  if (toggle[2]) {
+    llh += log_llh_gaussian(GetT23(), Theta23_H, sigma_t23_H);
+  }
+  if (toggle[3]) {
+    llh += log_llh_gaussian(GetT13(), Theta13, sigma_t13);
+  }
+  if (toggle[4]) {
+    llh += log_llh_gaussian(GetT12(), Theta12, sigma_t12);
+  }
+  if (toggle[5]) {
+    llh += log_llh_gaussian_cyd(GetDeltaCP(), DCP, sigma_DCP);
+  }
+  return llh;
+}
+
 void OscillationParameters::set_param(const param &p) {
   if (p.DM2 > 0) {
     NH_DM2 = p.DM2;
