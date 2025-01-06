@@ -1,9 +1,9 @@
+#include "OscillationParameters.h"
 #include "ParBinned.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
-#include "tools.h"
-#include "OscillationParameters.h"
 #include "constants.h"
+#include "tools.h"
 
 #include <Minuit2/FCNBase.h>
 #include <Minuit2/FunctionMinimum.h>
@@ -33,7 +33,7 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
   auto binsx = data.GetNbinsX();
   auto binsy = data.GetNbinsY();
   double chi2{};
-// #pragma omp parallel for reduction(+ : chi2) collapse(2)
+  // #pragma omp parallel for reduction(+ : chi2) collapse(2)
   for (int x = 1; x <= binsx; x++) {
     for (int y = 1; y <= binsy; y++) {
       auto bin_data = data.GetBinContent(x, y);
@@ -64,7 +64,6 @@ public:
     binned_interaction.UpdatePrediction();
     auto llh = binned_interaction.GetLogLikelihoodAgainstData(data);
     llh += binned_interaction.GetLogLikelihood();
-    std::println("llh: {}", -2 * llh);
     return -2. * llh;
   }
 
@@ -170,40 +169,58 @@ int main(int argc, char **agrv) {
   constexpr double scale_factor = scale_factor_6y;
 
   ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, 40, 40, 1};
-  auto cdata = bint.GenerateData(); // data for NH
+  auto cdata_NH = bint.GenerateData(); // data for NH
 
-  std::println(std::cout, "Mock chi2: {}",
-               TH2D_chi2(cdata.hist_numu, cdata.hist_numubar));
+  // ParBinnedInterface bint_1{Ebins, costheta_bins, scale_factor, 40, 40, 1};
+  bint.flip_hierarchy();
+  auto cdata_IH = bint.GenerateData(); // data for NH
 
-  bint.SaveAs("xcheck.root");
-  plot_data(cdata, "asimov.pdf");
+  plot_data(cdata_NH, "asimovNH.pdf");
+  plot_data(cdata_IH, "asimovIH.pdf");
 
-  // std::println("event count for NH: {:.2e}", cdata.hist_numu.GetSum());
-
-  // pre-fit plot
-  // ratio plot
-  // 1D slice/projection plot
-
-  MinuitFitter fitter_chi2(bint, cdata);
-
-  auto do_fit_and_plot = [&](double dm32_init) {
+  auto do_fit_and_plot = [&](double dm32_init,
+                             const pull_toggle &toggles = all_on,
+                             const double n_years = 6) -> double {
+    bint.set_toggle(toggles);
+    auto &data_to_fit = dm32_init > 0 ? cdata_IH : cdata_NH;
+    MinuitFitter fitter_chi2(bint, data_to_fit);
     auto tag = dm32_init > 0 ? "NH" : "IH";
+    std::println("{:*^15}", tag);
+
+    {
+      auto enabled_pull = toggles.get_active();
+      auto disabled_pull = toggles.get_inactive();
+      if (!enabled_pull.empty()) {
+        std::print("\n\nenabled pull: ");
+        for (auto &name : enabled_pull) {
+          std::cout << name << ' ';
+        }
+      }
+      if (!disabled_pull.empty()) {
+        std::print("\n\ndisabled pull: ");
+        for (auto &name : disabled_pull) {
+          std::cout << name << ' ';
+        }
+      }
+      std::cout << '\n';
+    }
+
     gSystem->MakeDirectory(tag);
     gSystem->ChangeDirectory(tag);
 
     double dm32_min = dm32_init > 0 ? 0 : -1;
     double dm32_max = dm32_init > 0 ? 1 : 0;
 
-    auto get_random = [&]() { return gRandom->Uniform(0.5, 1.5); };
+    auto get_random = [&]() { return gRandom->Uniform(0.2, 1.8); };
 
     ROOT::Minuit2::MnUserParameters param{};
     param.Add("#Delta M_{32}^{2}", dm32_init * get_random(), 0.001e-3, dm32_min,
               dm32_max);
-    param.Add("#Delta M_{21}^{2}", 7.53e-5 * get_random(), 0.01e-5, 0, 1);
-    param.Add("sin^{2}#theta_{23}", 0.558 * get_random(), 0.001, 0.5, 1);
-    param.Add("sin^{2}#theta_{13}", 2.19e-2 * get_random(), 0.01e-2, 0, 1);
-    param.Add("sin^{2}#theta_{12}", 0.307 * get_random(), 0.001, 0, 1);
-    param.Add("#delta_{CP}", 1.19 * M_PI * get_random(), 0.01, 0, 2 * M_PI);
+    param.Add("#Delta M_{21}^{2}", 1.56e-4 * get_random(), 0.01e-5, 0, 1);
+    param.Add("sin^{2}#theta_{23}", 0.75 * get_random(), 0.001, 0.5, 1);
+    param.Add("sin^{2}#theta_{13}", 0.0439 * get_random(), 0.01e-2, 0, 1);
+    param.Add("sin^{2}#theta_{12}", 0.614 * get_random(), 0.001, 0, 1);
+    param.Add("#delta_{CP}", 0.59 * M_PI * get_random(), 0.01, 0, 2 * M_PI);
 
     bint.set_param({.DM2 = param.Value(0),
                     .Dm2 = param.Value(1),
@@ -212,13 +229,12 @@ int main(int argc, char **agrv) {
                     .T12 = param.Value(4),
                     .DCP = param.Value(5)});
     bint.UpdatePrediction();
-    auto pre_fit = bint.GenerateData();
 
     auto result = ROOT::Minuit2::MnMigrad{fitter_chi2, param}();
 
     if (!result.HasValidParameters()) {
       std::println("failed: {}", tag);
-      return;
+      return std::nan("");
     }
 
     const auto &final_params = result.UserParameters();
@@ -228,7 +244,7 @@ int main(int argc, char **agrv) {
 
     auto minimal_chi2 = result.Fval();
 
-    std::println("Fval: {:.2e}", minimal_chi2);
+    std::println("Fval: {:.4e}", minimal_chi2);
 
     bint.set_param({.DM2 = final_params.Value(0),
                     .Dm2 = final_params.Value(1),
@@ -238,126 +254,61 @@ int main(int argc, char **agrv) {
                     .DCP = final_params.Value(5)});
 
     bint.UpdatePrediction();
-
-    auto llh_to_data = bint.GetLogLikelihoodAgainstData(cdata);
+    auto llh_to_data = bint.GetLogLikelihoodAgainstData(cdata_NH);
     auto pull = bint.GetLogLikelihood();
 
-    std::println("chi2 {:.2e}, data: {:.2e}, pull: {:.2e}",
+    std::println("chi2 {:.4e}, data: {:.4e}, pull: {:.4e}",
                  -2 * (llh_to_data + pull), -2 * llh_to_data, -2 * pull);
 
-    auto fdata = bint.GenerateData();
-    plot_data(fdata, std::format("{}_best_fit.pdf", tag));
-    const double ratio_min{0.6}, ratio_max{1.6};
-
-    plot_data(fdata / cdata, std::format("fit_to_data_ratio_{}.pdf", tag),
-              ratio_min, ratio_max);
-    plot_data(pre_fit / cdata, std::format("prefit_to_data_ratio_{}.pdf", tag),
-              ratio_min, ratio_max);
-
-    plot_data(get_chi2_data(cdata, fdata),
-              std::format("fit_to_data_chi2_{}.pdf", tag));
-    plot_data(get_chi2_data(cdata, pre_fit),
-              std::format("prefit_to_data_chi2_{}.pdf", tag));
-
-    // plot_data(get_chi2_hist(cdata, fdata),
-
-    // auto make_plot = ;
-
-    std::ranges::for_each(std::views::iota(1, 12), [&](int bin_id) {
-      // TCanvas c1{};
-      auto c1 = getCanvas();
-      c1->SetLogx();
-      TLegend leg{.7, .7, .9, .9};
-      ResetStyle(&leg);
-      auto cached_plots =
-          std::views::zip(
-              std::to_array({&cdata, &pre_fit, &fdata}) |
-                  std::views::transform([&](auto &&plot) {
-                    auto &hist = plot->hist_numubar;
-                    auto plot_proj = hist.ProjectionX(
-                        std::format("_px{}", bin_id).c_str(), bin_id, bin_id);
-                    ResetStyle(plot_proj);
-                    TAxis *costh_axis = hist.GetYaxis();
-                    auto cos_bin_min = costh_axis->GetBinLowEdge(bin_id);
-                    auto cos_bin_max = costh_axis->GetBinUpEdge(bin_id);
-                    plot_proj->SetTitle(
-                        std::format("cos#it{{#theta}} in [{:.2f}, {:.2f}]"
-                                    ";E_{{#nu}} (GeV);Events",
-                                    cos_bin_min, cos_bin_max)
-                            .c_str());
-                    return std::unique_ptr<TH1D>(plot_proj);
-                  }),
-              std::to_array({std::format("Asimov (NH)"),
-                             std::format("Before fit ({})", tag),
-                             std::format("After Fit ({})", tag)}),
-              std::to_array({kBlack, kBlue, kRed})) |
-          std::ranges::to<std::vector>();
-      auto max = std::ranges::max(cached_plots | std::views::keys |
-                                  std::views::transform([](auto &&plot) {
-                                    return plot->GetMaximum();
-                                  }));
-      std::ranges::for_each(cached_plots | std::views::enumerate,
-                            [&](auto &&obj) {
-                              auto &&[id, plot] = obj;
-                              auto &&[hist, name, col] = plot;
-                              hist->SetLineColor(col);
-                              leg.AddEntry(hist.get(), name.c_str(), "l");
-                              hist->SetMaximum(max * 1.2);
-                              hist->SetMinimum(0);
-                              hist->SetLineStyle(id);
-                              if (id == 0) {
-                                hist->SetLineWidth(4);
-                                hist->Draw("HIST");
-                              } else {
-                                hist->SetLineWidth(2);
-                                hist->Draw("HIST SAME");
-                              }
-                            });
-      leg.Draw("SAME");
-      c1->SaveAs(std::format("projection_{}_{}.pdf", tag, bin_id).c_str());
-    });
-
-    fdata.SaveAs(std::format("best_fit_{}.root", tag).c_str());
     gSystem->ChangeDirectory("..");
+    std::println("{:*^15}", "finished");
+
+    return result.Fval();
   };
+  std::ranges::iota_view iter_times{0, 12};
+  std::println("SK_w_T13 true NH: min chi2: {:.4e}",
+               std::ranges::min(iter_times | std::views::transform([&](int) {
+                                  return do_fit_and_plot(-4.91e-3, SK_w_T13, 6);
+                                })));
+  std::println("SK_w_T13 true IH: min chi2: {:.4e}",
+               std::ranges::min(iter_times | std::views::transform([&](int) {
+                                  return do_fit_and_plot(4.91e-3, SK_w_T13, 6);
+                                })));
+  std::println("SK_wo_T13 true NH: min chi2: {:.4e}",
+               std::ranges::min(iter_times | std::views::transform([&](int) {
+                                  return do_fit_and_plot(-4.91e-3, SK_wo_T13,
+                                                         6);
+                                })));
+  std::println("SK_wo_T13 true IH: min chi2: {:.4e}",
+               std::ranges::min(iter_times | std::views::transform([&](int) {
+                                  return do_fit_and_plot(4.91e-3, SK_wo_T13, 6);
+                                })));
 
-  do_fit_and_plot(-2.455e-3);
-  do_fit_and_plot(2.455e-3);
-
-  // ROOT::Minuit2::MnContours contours(fitter_IH, result);
-  // for (size_t i = 0; i < final_params.Params().size(); ++i) {
-  //   for (size_t j = i + 1; j < final_params.Params().size(); ++j) {
-  //     const size_t npoints = 15;
-  //     auto contour = contours(i, j, npoints);
-  //     std::println("Contour between {} and {}:", final_params.GetName(i),
-  //                  final_params.GetName(j));
-  //     std::array<double, npoints + 1> x{}, y{};
-  //     std::ranges::for_each(std::views::zip(contour, x, y),
-  //                           [](auto &&point_x_y) {
-  //                             auto &[point, x, y] = point_x_y;
-  //                             x = point.first;
-  //                             y = point.second;
-  //                           });
-  //     x[npoints] = x[0];
-  //     y[npoints] = y[0];
-  //     TCanvas canvas;
-  //     auto left_margin = canvas.GetLeftMargin();
-  //     canvas.SetLeftMargin(left_margin * 1.5);
-
-  //     auto right_margin = canvas.GetRightMargin();
-  //     canvas.SetRightMargin(right_margin * 0.5);
-
-  //     TGraph graph(npoints + 1, x.data(), y.data());
-  //     graph.SetTitle("");
-  //     graph.GetXaxis()->SetTitle(final_params.GetName(i).c_str());
-  //     graph.GetYaxis()->SetTitle(final_params.GetName(j).c_str());
-
-  //     graph.Draw("AC");
-  //     canvas.SaveAs(std::format("contour_{}_{}.pdf", final_params.GetName(i),
-  //                               final_params.GetName(j))
-  //                       .c_str());
-  //   }
-  // }
-
+  for (int i = 0; i < 6; ++i) {
+    pull_toggle one_off = all_on;
+    one_off[i] = false;
+    // do_fit_and_plot(-4.91e-3, one_off);
+    std::println("one_off, true NH min chi2: {:.4e}",
+                 std::ranges::min(iter_times | std::views::transform([&](int) {
+                                    return do_fit_and_plot(-4.91e-3, one_off,
+                                                           6);
+                                  })));
+    std::println("one_off, true IH min chi2: {:.4e}",
+                 std::ranges::min(iter_times | std::views::transform([&](int) {
+                                    return do_fit_and_plot(4.91e-3, one_off, 6);
+                                  })));
+    pull_toggle one_on = all_off;
+    one_on[i] = true;
+    // do_fit_and_plot(-4.91e-3, one_on);
+    // do_fit_and_plot(4.91e-3, one_on);
+    std::println("one_on, true NH min chi2: {:.4e}",
+                 std::ranges::min(iter_times | std::views::transform([&](int) {
+                                    return do_fit_and_plot(-4.91e-3, one_on, 6);
+                                  })));
+    std::println("one_on, true IH min chi2: {:.4e}",
+                 std::ranges::min(iter_times | std::views::transform([&](int) {
+                                    return do_fit_and_plot(4.91e-3, one_on, 6);
+                                  })));
+  }
   return 0;
 }

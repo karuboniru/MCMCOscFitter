@@ -24,6 +24,7 @@
 #include <cmath>
 #include <filesystem>
 #include <omp.h>
+#include <ostream>
 #include <print>
 #include <ranges>
 
@@ -173,6 +174,11 @@ int main(int argc, char **agrv) {
   BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40, 1};
   auto cdata = bint.GenerateData(); // data for NH
 
+  BinnedInteraction bint_1{Ebins, costheta_bins, scale_factor, 40, 40, 1};
+  bint_1.flip_hierarchy();
+  bint_1.UpdatePrediction();
+  auto cdata_IH = bint_1.GenerateData();
+
   // std::println(std::cout, "Mock chi2: {}",
   //              TH2D_chi2(cdata.hist_numu, cdata.hist_numubar));
 
@@ -181,7 +187,8 @@ int main(int argc, char **agrv) {
 
   auto do_fit_and_plot = [&](double dm32_init,
                              const pull_toggle &toggles = all_on) {
-    MinuitFitter fitter_chi2(bint, cdata, toggles);
+    auto &data_to_fit = dm32_init > 0 ? cdata_IH : cdata;
+    MinuitFitter fitter_chi2(bint, data_to_fit, toggles);
     auto tag = dm32_init > 0 ? "NH" : "IH";
     std::println("{:*^15}", tag);
 
@@ -235,7 +242,8 @@ int main(int argc, char **agrv) {
     auto pre_fit = bint.GenerateData();
     std::println("chi2 pre-fit: {:.4f}",
                  -2 * bint.GetLogLikelihoodAgainstData(cdata));
-    pre_fit.SaveAs(std::format("prefit_hists_{}.root", tag).c_str());
+    // pre_fit.SaveAs(std::format("prefit_hists_{}.root", tag).c_str());
+    //              -2 * bint.GetLogLikelihoodAgainstData(data_to_fit));
 
     auto result = ROOT::Minuit2::MnMigrad{fitter_chi2, param}();
 
@@ -262,88 +270,14 @@ int main(int argc, char **agrv) {
 
     bint.UpdatePrediction();
 
-    auto llh_to_data = bint.GetLogLikelihoodAgainstData(cdata);
+    auto llh_to_data = bint.GetLogLikelihoodAgainstData(data_to_fit);
     auto pull = bint.GetLogLikelihood();
 
     std::println("chi2 {:.4e}, data: {:.4e}, pull: {:.4e}",
                  -2 * (llh_to_data + pull), -2 * llh_to_data, -2 * pull);
 
-    auto fdata = bint.GenerateData();
-    plot_data(fdata, std::format("{}_best_fit.pdf", tag));
-    const double ratio_min{0.6}, ratio_max{1.6};
-
-    plot_data(fdata / cdata, std::format("fit_to_data_ratio_{}.pdf", tag),
-              ratio_min, ratio_max);
-    plot_data(pre_fit / cdata, std::format("prefit_to_data_ratio_{}.pdf", tag),
-              ratio_min, ratio_max);
-
-    plot_data(get_chi2_data(cdata, fdata),
-              std::format("fit_to_data_chi2_{}.pdf", tag));
-    plot_data(get_chi2_data(cdata, pre_fit),
-              std::format("prefit_to_data_chi2_{}.pdf", tag));
-    plot_data(pre_fit, std::format("prefit_{}.pdf", tag));
-
-    // plot_data(get_chi2_hist(cdata, fdata),
-
-    // auto make_plot = ;
-
-    std::ranges::for_each(std::views::iota(1, 12), [&](int bin_id) {
-      // TCanvas c1{};
-      auto c1 = getCanvas();
-      c1->SetLogx();
-      TLegend leg{.7, .7, .9, .9};
-      ResetStyle(&leg);
-      auto cached_plots =
-          std::views::zip(
-              std::to_array({&cdata, &pre_fit, &fdata}) |
-                  std::views::transform([&](auto &&plot) {
-                    auto &hist = plot->hist_numubar;
-                    auto plot_proj = hist.ProjectionX(
-                        std::format("_px{}", bin_id).c_str(), bin_id, bin_id);
-                    ResetStyle(plot_proj);
-                    TAxis *costh_axis = hist.GetYaxis();
-                    auto cos_bin_min = costh_axis->GetBinLowEdge(bin_id);
-                    auto cos_bin_max = costh_axis->GetBinUpEdge(bin_id);
-                    plot_proj->SetTitle(
-                        std::format("cos#it{{#theta}} in [{:.2f}, {:.2f}]"
-                                    ";E_{{#nu}} (GeV);Events",
-                                    cos_bin_min, cos_bin_max)
-                            .c_str());
-                    return std::unique_ptr<TH1D>(plot_proj);
-                  }),
-              std::to_array({std::format("Asimov (NH)"),
-                             std::format("Before fit ({})", tag),
-                             std::format("After Fit ({})", tag)}),
-              std::to_array({kBlack, kBlue, kRed})) |
-          std::ranges::to<std::vector>();
-      auto max = std::ranges::max(cached_plots | std::views::keys |
-                                  std::views::transform([](auto &&plot) {
-                                    return plot->GetMaximum();
-                                  }));
-      std::ranges::for_each(cached_plots | std::views::enumerate,
-                            [&](auto &&obj) {
-                              auto &&[id, plot] = obj;
-                              auto &&[hist, name, col] = plot;
-                              hist->SetLineColor(col);
-                              leg.AddEntry(hist.get(), name.c_str(), "l");
-                              hist->SetMaximum(max * 1.2);
-                              hist->SetMinimum(0);
-                              hist->SetLineStyle(id);
-                              if (id == 0) {
-                                hist->SetLineWidth(4);
-                                hist->Draw("HIST");
-                              } else {
-                                hist->SetLineWidth(2);
-                                hist->Draw("HIST SAME");
-                              }
-                            });
-      leg.Draw("SAME");
-      c1->SaveAs(std::format("projection_{}_{}.pdf", tag, bin_id).c_str());
-    });
-
-    fdata.SaveAs(std::format("best_fit_{}.root", tag).c_str());
-    gSystem->ChangeDirectory("..");
-    std::println("{:*^15}", "finished");
+    std::println("{:*^25}\n\n", "finished");
+    std::flush(std::cout);
   };
 
   do_fit_and_plot(-4.91e-3);
