@@ -49,7 +49,7 @@ class global_style {
 public:
   global_style(bool lStat = false) {
     using namespace style;
-    std::cout << "Setting Style" << std::endl;
+    // std::cout << "Setting Style" << std::endl;
     gStyle->SetFrameBorderMode(0);
     gStyle->SetFrameFillColor(0);
     gStyle->SetCanvasBorderMode(0);

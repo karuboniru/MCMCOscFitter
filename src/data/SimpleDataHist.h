@@ -17,7 +17,7 @@ public:
   void SaveAs(const char *filename) const;
   void LoadFrom(const char *filename);
   void Round();
+  void Scale(double factor);
 
   TH2D hist_numu, hist_nue, hist_numubar, hist_nuebar;
-
 };

@@ -35,3 +35,9 @@ target_link_libraries(
   state
   GENIE_XSEC
 )
+
+target_include_directories(
+  SimpleDataHist
+  INTERFACE
+  ${CMAKE_CURRENT_SOURCE_DIR}
+)

@@ -16,3 +16,11 @@ target_link_libraries(prob_check
   ROOT::MathMore
 )
 
+add_executable(chi2_calc chi2_calc.cxx)
+
+target_link_libraries(chi2_calc 
+  ROOT::ROOTDataFrame
+  ROOT::MathMore
+  SimpleDataHist
+)
+

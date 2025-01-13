@@ -54,23 +54,24 @@ void OscillationParameters::proposeStep() {
 }
 
 double OscillationParameters::GetLogLikelihood() const {
+  return GetLogLikelihood(all_on);
   // return 0;
-  if (is_NH) {
-    return log_llh_gaussian(GetDM32sq(), DM2, sigma_DM2) +
-           log_llh_gaussian(GetT23(), Theta23, sigma_t23) +
-           log_llh_gaussian(GetT13(), Theta13, sigma_t13) +
-           log_llh_gaussian(GetDM21sq(), dm2, sigma_dm2) +
-           log_llh_gaussian(GetT12(), Theta12, sigma_t12) +
-           log_llh_gaussian_cyd(GetDeltaCP(), DCP, sigma_DCP);
-    ;
-  }
-  return log_llh_gaussian(GetDM32sq(), DM2_IH, sigma_DM2_IH) +
-         log_llh_gaussian(GetT23(), Theta23_IH, sigma_t23_IH) +
-         log_llh_gaussian(GetT13(), Theta13, sigma_t13) +
-         log_llh_gaussian(GetDM21sq(), dm2, sigma_dm2) +
-         log_llh_gaussian(GetT12(), Theta12, sigma_t12) +
-         log_llh_gaussian_cyd(GetDeltaCP(), DCP, sigma_DCP);
-  ;
+  // if (is_NH) {
+  //   return log_llh_gaussian(GetDM32sq(), DM2, sigma_DM2) +
+  //          log_llh_gaussian(GetT23(), Theta23, sigma_t23) +
+  //          log_llh_gaussian(GetT13(), Theta13, sigma_t13) +
+  //          log_llh_gaussian(GetDM21sq(), dm2, sigma_dm2) +
+  //          log_llh_gaussian(GetT12(), Theta12, sigma_t12) +
+  //          log_llh_gaussian_cyd(GetDeltaCP(), DCP, sigma_DCP);
+  //   ;
+  // }
+  // return log_llh_gaussian(GetDM32sq(), DM2_IH, sigma_DM2_IH) +
+  //        log_llh_gaussian(GetT23(), Theta23_IH, sigma_t23_IH) +
+  //        log_llh_gaussian(GetT13(), Theta13, sigma_t13) +
+  //        log_llh_gaussian(GetDM21sq(), dm2, sigma_dm2) +
+  //        log_llh_gaussian(GetT12(), Theta12, sigma_t12) +
+  //        log_llh_gaussian_cyd(GetDeltaCP(), DCP, sigma_DCP);
+  // ;
 }
 
 double
@@ -79,6 +80,7 @@ OscillationParameters::GetLogLikelihood(const pull_toggle &toggle) const {
   auto sigma_t23_H = is_NH ? sigma_t23 : sigma_t23_IH;
   auto DM2_H = is_NH ? DM2 : DM2_IH;
   auto Theta23_H = is_NH ? Theta23 : Theta23_IH;
+  auto Theta23_2_octant = GetT23() > 0.5 ? GetT23() : 1 - GetT23();
   double llh{};
   if (toggle[0]) {
     llh += log_llh_gaussian(GetDM32sq(), DM2_H, sigma_DM2_H);
@@ -87,7 +89,7 @@ OscillationParameters::GetLogLikelihood(const pull_toggle &toggle) const {
     llh += log_llh_gaussian(GetDM21sq(), dm2, sigma_dm2);
   }
   if (toggle[2]) {
-    llh += log_llh_gaussian(GetT23(), Theta23_H, sigma_t23_H);
+    llh += log_llh_gaussian(Theta23_2_octant, Theta23_H, sigma_t23_H);
   }
   if (toggle[3]) {
     llh += log_llh_gaussian(GetT13(), Theta13, sigma_t13);

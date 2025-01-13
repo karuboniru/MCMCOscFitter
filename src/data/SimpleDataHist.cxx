@@ -21,7 +21,7 @@ void SimpleDataHist::LoadFrom(const char *filename) {
 
 void SimpleDataHist::Round() {
   auto round_hist_2D = [](TH2D &hist) {
-// #pragma omp parallel for
+    // #pragma omp parallel for
     for (int i = 1; i <= hist.GetNbinsX(); i++) {
       for (int j = 1; j <= hist.GetNbinsY(); j++) {
         hist.SetBinContent(i, j, std::round(hist.GetBinContent(i, j)));
@@ -32,4 +32,11 @@ void SimpleDataHist::Round() {
   round_hist_2D(hist_nue);
   round_hist_2D(hist_numubar);
   round_hist_2D(hist_nuebar);
+}
+
+void SimpleDataHist::Scale(double factor) {
+  hist_numu.Scale(factor);
+  hist_nue.Scale(factor);
+  hist_numubar.Scale(factor);
+  hist_nuebar.Scale(factor);
 }

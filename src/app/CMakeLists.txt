@@ -76,3 +76,15 @@ target_link_libraries(chi2fit
 
 
 install (TARGETS chi2fit DESTINATION bin)
+
+add_executable(chi2table chi2table.cxx)
+
+target_link_libraries(chi2table 
+  ROOT::ROOTDataFrame
+  BinnedInteraction
+  ROOT::Minuit2
+  SimpleDataHist
+)
+
+
+install (TARGETS chi2table DESTINATION bin)

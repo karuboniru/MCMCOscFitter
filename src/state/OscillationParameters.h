@@ -44,6 +44,8 @@ public:
 };
 
 constexpr pull_toggle all_on{.flags = {true, true, true, true, true, true}};
+constexpr pull_toggle SK_w_T13{.flags = {false, true, false, true, true, false}};
+constexpr pull_toggle SK_wo_T13{.flags = {false, true, false, false, true, false}};
 constexpr pull_toggle all_off{
     .flags = {false, false, false, false, false, false}};
 
