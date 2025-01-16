@@ -21,7 +21,7 @@
 int main(int argc, char **argv) {
   //   ROOT::EnableImplicitMT(10);
   TH1::AddDirectory(false);
-  std::string outname = argc == 2 ? "testfit.root" : argv[1];
+  std::string outname = argc == 2 ? argv[1] : "testfit.root";
   auto costheta_bins = linspace(-1., 1., 481);
 
   auto Ebins = logspace(0.1, 20., 401);
@@ -41,9 +41,11 @@ int main(int argc, char **argv) {
   std::vector<combined_type> state_pool{};
   auto nth = ROOT::GetThreadPoolSize() == 0 ? 1 : ROOT::GetThreadPoolSize();
   for (size_t i = 0; i < nth; i++) {
-    state_pool.emplace_back(bint, cdata).proposeStep();
+    auto &state = state_pool.emplace_back(bint, cdata);
+    state.proposeStep();
+    state.GetModel().set_toggle(SK_w_T13);
   }
-  auto rawdf = ROOT::RDataFrame{135000};
+  auto rawdf = ROOT::RDataFrame{135000 / 2};
   ROOT::RDF::Experimental::AddProgressBar(rawdf);
   std::atomic<size_t> count{};
   auto df =

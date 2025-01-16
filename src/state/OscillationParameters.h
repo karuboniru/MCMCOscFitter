@@ -91,6 +91,10 @@ public:
 
   virtual void re_calculate() = 0;
 
+  void set_toggle(const pull_toggle & new_toggle){
+    current_toggle = new_toggle;
+  }
+
 private:
   // PDG Central Values
   static constexpr double DM2 = 2.455e-3;
@@ -123,4 +127,5 @@ private:
       NH_T12{Theta12}, NH_DCP{DCP};
   double IH_DM2{DM2_IH}, IH_T23{Theta23_IH}, IH_T13{Theta13}, IH_Dm2{dm2},
       IH_T12{Theta12}, IH_DCP{DCP};
+  pull_toggle current_toggle{all_on};
 };
