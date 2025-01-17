@@ -120,16 +120,17 @@ int main(int argc, char **agrv) {
     double dm32_min = dm32_init > 0 ? 0 : -dm32_limit_abs;
     double dm32_max = dm32_init > 0 ? dm32_limit_abs : 0;
 
-    auto get_random = [&]() { return gRandom->Uniform(0.5, 1.5); };
+    auto get_random = [&]() { return gRandom->Uniform(0, 2.0); };
 
     ROOT::Minuit2::MnUserParameters param{};
     param.Add("#Delta M_{32}^{2}", dm32_init * get_random(), 0.01e-3, dm32_min,
               dm32_max);
-    param.Add("#Delta M_{21}^{2}", 1.56e-4 * get_random(), 0.01e-4, 0, 1e-3);
-    param.Add("sin^{2}#theta_{23}", 0.75 * get_random(), 0.01, 0, 1);
-    param.Add("sin^{2}#theta_{13}", 0.0439 * get_random(), 0.01e-1, 0, 0.5);
-    param.Add("sin^{2}#theta_{12}", 0.614 * get_random(), 0.01, 0, 0.5);
-    param.Add("#delta_{CP}", 0.59 * M_PI * get_random(), 0.1, 0, 2 * M_PI);
+    param.Add("#Delta M_{21}^{2}", 7.538905177e-05 * get_random(), 0.01e-4, 0,
+              1e-3);
+    param.Add("sin^{2}#theta_{23}", 0.5 * get_random(), 0.01, 0, 1);
+    param.Add("sin^{2}#theta_{13}", 0.5 * get_random(), 0.01e-1, 0, 1);
+    param.Add("sin^{2}#theta_{12}", 0.5 * get_random(), 0.01, 0, 1);
+    param.Add("#delta_{CP}", 3.639202885 * get_random(), 0.1, 0, 2 * M_PI);
 
     interaction_model_fit.set_param({.DM2 = param.Value(0),
                                      .Dm2 = param.Value(1),
@@ -185,42 +186,52 @@ int main(int argc, char **agrv) {
     gSystem->ChangeDirectory("..");
     return result.Fval();
   };
+  // do_fit_and_plot(-4.91e-3, SK_w_T13, 6);
 
-  do_fit_and_plot(-4.91e-3, SK_w_T13, 6);
-  do_fit_and_plot(4.91e-3, SK_w_T13, 6);
-  do_fit_and_plot(-4.91e-3, SK_wo_T13, 6);
-  do_fit_and_plot(4.91e-3, SK_wo_T13, 6);
-  // do_fit_and_plot(-4.91e-3, all_on, 6);
+  std::ranges::iota_view iter_times{0, 12};
+  std::println("SK_w_T13 true NH: min chi2: {:.4e}",
+               std::ranges::min(iter_times | std::views::transform([&](int) {
+                                  return do_fit_and_plot(-4.91e-3, SK_w_T13, 6);
+                                })));
+  std::println("SK_w_T13 true IH: min chi2: {:.4e}",
+               std::ranges::min(iter_times | std::views::transform([&](int) {
+                                  return do_fit_and_plot(4.91e-3, SK_w_T13, 6);
+                                })));
+  std::println("SK_wo_T13 true NH: min chi2: {:.4e}",
+               std::ranges::min(iter_times | std::views::transform([&](int) {
+                                  return do_fit_and_plot(-4.91e-3, SK_wo_T13,
+                                                         6);
+                                })));
+  std::println("SK_wo_T13 true IH: min chi2: {:.4e}",
+               std::ranges::min(iter_times | std::views::transform([&](int) {
+                                  return do_fit_and_plot(4.91e-3, SK_wo_T13, 6);
+                                })));
 
-  // std::vector<double> years{}, chi2s{};
-  // for (int i = 1; i <= 12; ++i) {
-  //   auto n_years = i * 0.5;
-  //   years.push_back(n_years);
-  //   chi2s.push_back(do_fit_and_plot(-4.91e-3, all_on, n_years));
-  // }
-
-  // TGraph graph(years.size(), years.data(), chi2s.data());
-  // graph.SetTitle("chi2 vs years");
-  // graph.GetXaxis()->SetTitle("years");
-  // graph.GetYaxis()->SetTitle("chi2");
-  // graph.SetMarkerStyle(20);
-  // graph.SetMarkerSize(1.5);
-  // graph.SetMarkerColor(kBlue);
-  // graph.SaveAs("chi2_vs_years.root");
-
-  // do_fit_and_plot(4.91e-3, all_on);
-  // do_fit_and_plot(-4.91e-3, all_off);
-  // do_fit_and_plot(4.91e-3, all_off);
-  // for (int i = 0; i < 6; ++i) {
-  //   pull_toggle one_off = all_on;
-  //   one_off[i] = false;
-  //   do_fit_and_plot(-4.91e-3, one_off);
-  //   do_fit_and_plot(4.91e-3, one_off);
-  //   pull_toggle one_on = all_off;
-  //   one_on[i] = true;
-  //   do_fit_and_plot(-4.91e-3, one_on);
-  //   do_fit_and_plot(4.91e-3, one_on);
-  // }
+  for (int i = 0; i < 6; ++i) {
+    pull_toggle one_off = all_on;
+    one_off[i] = false;
+    // do_fit_and_plot(-4.91e-3, one_off);
+    std::println("one_off, true NH min chi2: {:.4e}",
+                 std::ranges::min(iter_times | std::views::transform([&](int) {
+                                    return do_fit_and_plot(-4.91e-3, one_off, 6);
+                                  })));
+    std::println("one_off, true IH min chi2: {:.4e}",
+                 std::ranges::min(iter_times | std::views::transform([&](int) {
+                                    return do_fit_and_plot(4.91e-3, one_off, 6);
+                                  })));
+    pull_toggle one_on = all_off;
+    one_on[i] = true;
+    // do_fit_and_plot(-4.91e-3, one_on);
+    // do_fit_and_plot(4.91e-3, one_on);
+    std::println("one_on, true NH min chi2: {:.4e}",
+                 std::ranges::min(iter_times | std::views::transform([&](int) {
+                                    return do_fit_and_plot(-4.91e-3, one_on, 6);
+                                  })));
+    std::println("one_on, true IH min chi2: {:.4e}",
+                 std::ranges::min(iter_times | std::views::transform([&](int) {
+                                    return do_fit_and_plot(4.91e-3, one_on, 6);
+                                  })));
+  }
 
   return 0;
 }
