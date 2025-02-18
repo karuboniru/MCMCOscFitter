@@ -54,17 +54,15 @@ ParProb3ppOscillation::ParProb3ppOscillation(const ParProb3ppOscillation &from)
 #else
       propagator_neutrino{std::make_unique<
           cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
-          0, (int)from.costheta_bins.size(), (int)from.Ebins.size(),
-          from.costh_rebin_fac)},
+          0, (int)from.costheta_bins.size(), (int)from.Ebins.size())},
       propagator_antineutrino{std::make_unique<
           cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
-          0, (int)from.costheta_bins.size(), (int)from.Ebins.size(),
-          from.costh_rebin_fac)},
+          0, (int)from.costheta_bins.size(), (int)from.Ebins.size())},
 #endif
       Ebins(from.Ebins), costheta_bins(from.costheta_bins) {
 #ifdef __CUDA__
-  load_state(*propagator_neutrino, false);
-  load_state(*propagator_antineutrino, false);
+  load_state(*propagator_neutrino, true);
+  load_state(*propagator_antineutrino, true);
 #endif
 }
 
@@ -79,10 +77,10 @@ ParProb3ppOscillation::operator=(const ParProb3ppOscillation &from) {
 #else
   propagator_neutrino = std::make_unique<
       cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
-      0, (int)costheta_bins.size(), (int)Ebins.size(), costh_rebin_fac);
+      0, (int)costheta_bins.size(), (int)Ebins.size());
   propagator_antineutrino = std::make_unique<
       cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
-      0, (int)costheta_bins.size(), (int)Ebins.size(), costh_rebin_fac);
+      0, (int)costheta_bins.size(), (int)Ebins.size());
   load_state(*propagator_neutrino, true);
   load_state(*propagator_antineutrino, true);
 #endif

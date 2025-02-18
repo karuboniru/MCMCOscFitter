@@ -1,5 +1,8 @@
 #pragma once
-
+#include <cstddef>
+#if defined(__CUDACC__) && !defined(__CUDA__)
+#define __CUDA__
+#endif
 #include "OscillationParameters.h"
 #include "constants.h"
 #include <memory>

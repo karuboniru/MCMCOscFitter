@@ -15,4 +15,4 @@ constexpr double scale_factor_1y =
 
 constexpr double scale_factor_6y = 6. * scale_factor_1y;
 
-using oscillaton_calc_precision = double;
+using oscillaton_calc_precision = float;
