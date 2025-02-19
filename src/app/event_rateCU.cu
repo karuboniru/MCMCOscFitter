@@ -1,4 +1,4 @@
-#include "BinnedInteraction.h"
+#include "ParBinned.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "constants.h"
@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
 
   constexpr double scale_factor = scale_factor_6y;
 
-  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40};
+  ParBinned bint{Ebins, costheta_bins, scale_factor, 40, 40};
   auto cdata = bint.GenerateData();
   bint.SaveAs("flux_xsec.root");
   auto cdata_noOsc = bint.GenerateData_NoOsc();

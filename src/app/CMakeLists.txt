@@ -76,3 +76,44 @@ target_link_libraries(chi2fit
 
 
 install (TARGETS chi2fit DESTINATION bin)
+
+
+add_executable(event_rateCU event_rateCU.cu)
+
+target_link_libraries(event_rateCU 
+  SimpleDataHist
+  ParBinned
+  walker
+  ROOT::ROOTDataFrame
+)
+
+
+install (TARGETS event_rateCU DESTINATION bin)
+
+
+add_executable(testfitbinnedCU testfitbinnedCU.cu)
+
+target_link_libraries(testfitbinnedCU 
+  SimpleDataHist
+  ParBinned
+  walker
+  ROOT::ROOTDataFrame
+)
+
+
+install (TARGETS testfitbinnedCU DESTINATION bin)
+
+
+
+add_executable(chi2fitCU chi2fitCU.cu)
+
+target_link_libraries(chi2fitCU 
+  SimpleDataHist
+  ParBinned
+  walker
+  ROOT::ROOTDataFrame
+  ROOT::Minuit2
+)
+
+
+install (TARGETS chi2fitCU DESTINATION bin)

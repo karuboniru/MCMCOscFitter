@@ -51,3 +51,26 @@ target_link_libraries(
   Prob3ppOscillation
   ParProb3ppOscillation
 )
+
+if (ENABLE_CUDA)
+  add_library(
+    ParBinned
+    STATIC
+    ParBinned.cu
+  )
+
+  target_link_directories(
+    ParBinned
+    PUBLIC
+    ${CUDA_TOOLKIT_ROOT_DIR}/lib64
+  )
+
+  target_link_libraries(
+    ParBinned
+    ParProb3ppOscillation
+    ModelDataLLH
+    state
+    HondaFlux2D
+    GENIE_XSEC
+  )
+endif()

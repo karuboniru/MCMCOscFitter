@@ -7,6 +7,11 @@
 #include "constants.h"
 #include <memory>
 
+#ifdef __CUDA__
+#include <cuda/std/mdspan>
+#include <cuda/std/span>
+#endif
+
 namespace cudaprob3 {
 #ifndef __CUDA__
 template <class oscillaton_calc_precision_T> class CpuPropagator;
@@ -44,18 +49,28 @@ public:
 
   void re_calculate() override;
 
+#ifdef __CUDA__
+
+  using oscillaton_span_t = cuda::std::mdspan<
+      oscillaton_calc_precision,
+      cuda::std::extents<size_t, 3, 3, cuda::std::dynamic_extent,
+                         cuda::std::dynamic_extent>>;
+  oscillaton_span_t get_dev_span_neutrino();
+  oscillaton_span_t get_dev_span_antineutrino();
+#endif
+
 private:
 #ifndef __CUDA__
-  std::unique_ptr<cudaprob3::CpuPropagator<oscillaton_calc_precision>>
+  std::shared_ptr<cudaprob3::CpuPropagator<oscillaton_calc_precision>>
       propagator_neutrino;
-  std::unique_ptr<cudaprob3::CpuPropagator<oscillaton_calc_precision>>
+  std::shared_ptr<cudaprob3::CpuPropagator<oscillaton_calc_precision>>
       propagator_antineutrino;
   void load_state(cudaprob3::CpuPropagator<oscillaton_calc_precision> &to_load,
                   bool init = false);
 #else
-  std::unique_ptr<cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>
+  std::shared_ptr<cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>
       propagator_neutrino;
-  std::unique_ptr<cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>
+  std::shared_ptr<cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>
       propagator_antineutrino;
   void load_state(
       cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision> &to_load,

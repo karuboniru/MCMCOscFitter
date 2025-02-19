@@ -20,16 +20,16 @@ ParProb3ppOscillation::ParProb3ppOscillation(
     :
 #ifndef __CUDA__
       propagator_neutrino{
-          std::make_unique<cudaprob3::CpuPropagator<oscillaton_calc_precision>>(
+          std::make_shared<cudaprob3::CpuPropagator<oscillaton_calc_precision>>(
               (int)costhbin.size(), (int)Ebin.size(), n_threads_propagator)},
       propagator_antineutrino{
-          std::make_unique<cudaprob3::CpuPropagator<oscillaton_calc_precision>>(
+          std::make_shared<cudaprob3::CpuPropagator<oscillaton_calc_precision>>(
               (int)costhbin.size(), (int)Ebin.size(), n_threads_propagator)}
 #else
-      propagator_neutrino{std::make_unique<
+      propagator_neutrino{std::make_shared<
           cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
           0, (int)costhbin.size(), (int)Ebin.size())},
-      propagator_antineutrino{std::make_unique<
+      propagator_antineutrino{std::make_shared<
           cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
           0, (int)costhbin.size(), (int)Ebin.size())}
 #endif
@@ -42,50 +42,11 @@ ParProb3ppOscillation::ParProb3ppOscillation(
   propagator_antineutrino->calculateProbabilities(cudaprob3::Antineutrino);
 }
 
-ParProb3ppOscillation::ParProb3ppOscillation(const ParProb3ppOscillation &from)
-    : OscillationParameters(from),
-#ifndef __CUDA__
-      propagator_neutrino{
-          std::make_unique<cudaprob3::CpuPropagator<oscillaton_calc_precision>>(
-              *from.propagator_neutrino)},
-      propagator_antineutrino{
-          std::make_unique<cudaprob3::CpuPropagator<oscillaton_calc_precision>>(
-              *from.propagator_antineutrino)},
-#else
-      propagator_neutrino{std::make_unique<
-          cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
-          0, (int)from.costheta_bins.size(), (int)from.Ebins.size())},
-      propagator_antineutrino{std::make_unique<
-          cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
-          0, (int)from.costheta_bins.size(), (int)from.Ebins.size())},
-#endif
-      Ebins(from.Ebins), costheta_bins(from.costheta_bins) {
-#ifdef __CUDA__
-  load_state(*propagator_neutrino, true);
-  load_state(*propagator_antineutrino, true);
-#endif
-}
+ParProb3ppOscillation::ParProb3ppOscillation(
+    const ParProb3ppOscillation &from) = default;
 
 ParProb3ppOscillation &
-ParProb3ppOscillation::operator=(const ParProb3ppOscillation &from) {
-  OscillationParameters::operator=(from);
-  Ebins = from.Ebins;
-  costheta_bins = from.costheta_bins;
-#ifndef __CUDA__
-  *propagator_neutrino = *from.propagator_neutrino;
-  *propagator_antineutrino = *from.propagator_antineutrino;
-#else
-  propagator_neutrino = std::make_unique<
-      cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
-      0, (int)costheta_bins.size(), (int)Ebins.size());
-  propagator_antineutrino = std::make_unique<
-      cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>(
-      0, (int)costheta_bins.size(), (int)Ebins.size());
-  load_state(*propagator_neutrino, true);
-  load_state(*propagator_antineutrino, true);
-#endif
-  return *this;
-}
+ParProb3ppOscillation::operator=(const ParProb3ppOscillation &from) = default;
 
 void ParProb3ppOscillation::proposeStep() {
   OscillationParameters::proposeStep();
@@ -136,24 +97,6 @@ ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
                 energy_bin_index + 1, out_hist_costh_index + 1,
                 this_propagator->getProbability(out_hist_costh_index,
                                                 energy_bin_index, this_term));
-            // auto prob_sum =
-            //     this_propagator->getProbability(out_hist_costh_index,
-            //                                     energy_bin_index,
-            //                                     cudaprob3::ProbType::e_e) +
-            //     this_propagator->getProbability(out_hist_costh_index,
-            //                                     energy_bin_index,
-            //                                     cudaprob3::ProbType::e_m) +
-            //     this_propagator->getProbability(out_hist_costh_index,
-            //                                     energy_bin_index,
-            //                                     cudaprob3::ProbType::e_t);
-            // if (abs(prob_sum - 1) > 1e-7) {
-            //   std::println(
-            //       std::cerr,
-            //       "Sum of probabilities is not 1: {:.5f} at E = {}, costh = "
-            //       "{}",
-            //       prob_sum, Ebin[energy_bin_index],
-            //       costhbin[out_hist_costh_index]);
-            // }
           }
         }
       }
@@ -230,3 +173,16 @@ void ParProb3ppOscillation::load_state(
                        asin(sqrt(GetT23())), GetDeltaCP());
   to_load.setNeutrinoMasses(GetDM21sq(), GetDM32sq());
 }
+
+#ifdef __CUDA__
+// span index [from] [to] [cosine] [energy]
+ParProb3ppOscillation::oscillaton_span_t
+ParProb3ppOscillation::get_dev_span_neutrino() {
+  return propagator_neutrino->GetDevResultMdSpan();
+}
+// span index [from] [to] [cosine] [energy]
+ParProb3ppOscillation::oscillaton_span_t
+ParProb3ppOscillation::get_dev_span_antineutrino() {
+  return propagator_antineutrino->GetDevResultMdSpan();
+}
+#endif
