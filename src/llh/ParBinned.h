@@ -8,6 +8,7 @@
 
 class ParBinned;
 struct param;
+class pull_toggle;
 
 class ParBinnedInterface : public ModelDataLLH {
 public:
@@ -51,6 +52,9 @@ public:
   double GetDeltaCP() const;
 
   void set_param(const param &p);
+
+  void set_toggle(const pull_toggle &toggle);
+  [[nodiscard]] const pull_toggle & get_toggle() const;
 
 private:
   std::unique_ptr<ParBinned> pImpl;

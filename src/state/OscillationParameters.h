@@ -46,6 +46,10 @@ public:
 constexpr pull_toggle all_on{.flags = {true, true, true, true, true, true}};
 constexpr pull_toggle all_off{
     .flags = {false, false, false, false, false, false}};
+constexpr pull_toggle SK_w_T13{
+    .flags = {false, true, false, true, true, false}};
+constexpr pull_toggle SK_wo_T13{
+    .flags = {false, true, false, false, true, false}};
 
 class OscillationParameters : virtual public StateI {
 public:
@@ -89,6 +93,10 @@ public:
 
   virtual void re_calculate() = 0;
 
+  void set_toggle(const pull_toggle &toggle) { current_toggle = toggle; }
+
+  [[nodiscard]] auto &get_toggle() const { return current_toggle; }
+
 private:
   // PDG Central Values
   static constexpr double DM2 = 2.455e-3;
@@ -121,4 +129,6 @@ private:
       NH_T12{Theta12}, NH_DCP{DCP};
   double IH_DM2{DM2_IH}, IH_T23{Theta23_IH}, IH_T13{Theta13}, IH_Dm2{dm2},
       IH_T12{Theta12}, IH_DCP{DCP};
+
+  pull_toggle current_toggle = all_on;
 };

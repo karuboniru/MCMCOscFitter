@@ -624,3 +624,10 @@ double ParBinnedInterface::GetT12() const { return pImpl->GetT12(); }
 double ParBinnedInterface::GetDeltaCP() const { return pImpl->GetDeltaCP(); }
 
 void ParBinnedInterface::set_param(const param &p) { pImpl->set_param(p); }
+
+void ParBinnedInterface::set_toggle(const pull_toggle &t) {
+  pImpl->set_toggle(t);
+}
+const pull_toggle &ParBinnedInterface::get_toggle() const {
+  return pImpl->get_toggle();
+}
