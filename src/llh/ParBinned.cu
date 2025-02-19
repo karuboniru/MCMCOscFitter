@@ -10,6 +10,7 @@
 #include <SimpleDataHist.h>
 #include <TF3.h>
 #include <TH2.h>
+#include <ranges>
 #include <type_traits>
 #include <utility>
 
@@ -119,6 +120,21 @@ thrust::host_vector<oscillaton_calc_precision> TH2D_to_hist(const TH2D &hist) {
 TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
                  size_t costh_bins, size_t e_bins) {
   TH2D ret("", "", e_bins, 0, e_bins, costh_bins, 0, costh_bins);
+  const_span_2d_hist_t ret_span(from_vec.data(), costh_bins, e_bins);
+  for (int x = 1; x <= e_bins; x++) {
+    for (int y = 1; y <= costh_bins; y++) {
+      ret.SetBinContent(x, y, ret_span[y - 1, x - 1]);
+    }
+  }
+  return ret;
+}
+
+TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
+                 const std::vector<double> &costh_bins_v,
+                 const std::vector<double> &e_bins_v) {
+  auto e_bins = e_bins_v.size() - 1;
+  auto costh_bins = costh_bins_v.size() - 1;
+  TH2D ret("", "", e_bins, e_bins_v.data(), costh_bins, costh_bins_v.data());
   const_span_2d_hist_t ret_span(from_vec.data(), costh_bins, e_bins);
   for (int x = 1; x <= e_bins; x++) {
     for (int y = 1; y <= costh_bins; y++) {
@@ -326,7 +342,7 @@ public:
 
 private:
   std::vector<double> Ebins, costheta_bins;
-  // std::vector<double> Ebins_calc, costheta_bins_calc;
+  std::vector<double> Ebins_analysis, costheta_analysis;
 
   // index: [cosine, energy]
   thrust::device_vector<oscillaton_calc_precision> flux_hist_numu,
@@ -350,6 +366,10 @@ private:
   thrust::device_vector<oscillaton_calc_precision> Prediction_hist_numu,
       Prediction_hist_numubar, Prediction_hist_nue, Prediction_hist_nuebar;
 
+  auto vec2hist_analysis(const auto &vec) const {
+    return vec_to_hist(vec, costheta_analysis, Ebins_analysis);
+  }
+
   double log_ih_bias;
 };
 
@@ -361,6 +381,11 @@ ParBinned::ParBinned(std::vector<double> Ebins_,
                      to_center<oscillaton_calc_precision>(costheta_bins_)},
       ModelDataLLH(), Ebins(std::move(Ebins_)),
       costheta_bins(std::move(costheta_bins_)),
+      Ebins_analysis(Ebins | std::views::stride(E_rebin_factor_) |
+                     std::ranges::to<std::vector>()),
+      costheta_analysis(costheta_bins |
+                        std::views::stride(costh_rebin_factor_) |
+                        std::ranges::to<std::vector>()),
       flux_hist_numu(TH2D_to_hist(
           flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) * scale_)),
       flux_hist_numubar(TH2D_to_hist(
@@ -454,20 +479,13 @@ double ParBinned::GetLogLikelihoodAgainstData(StateI const &dataset) const {
   auto &data_hist_nuebar = casted.hist_nuebar;
 
   auto chi2_numu =
-      TH2D_chi2(data_hist_numu,
-                vec_to_hist(Prediction_hist_numu, costh_analysis_bin_count,
-                            E_analysis_bin_count));
+      TH2D_chi2(data_hist_numu, vec2hist_analysis(Prediction_hist_numu));
   auto chi2_numubar =
-      TH2D_chi2(data_hist_numubar,
-                vec_to_hist(Prediction_hist_numubar, costh_analysis_bin_count,
-                            E_analysis_bin_count));
-  auto chi2_nue = TH2D_chi2(data_hist_nue, vec_to_hist(Prediction_hist_nue,
-                                                       costh_analysis_bin_count,
-                                                       E_analysis_bin_count));
+      TH2D_chi2(data_hist_numubar, vec2hist_analysis(Prediction_hist_numubar));
+  auto chi2_nue =
+      TH2D_chi2(data_hist_nue, vec2hist_analysis(Prediction_hist_nue));
   auto chi2_nuebar =
-      TH2D_chi2(data_hist_nuebar,
-                vec_to_hist(Prediction_hist_nuebar, costh_analysis_bin_count,
-                            E_analysis_bin_count));
+      TH2D_chi2(data_hist_nuebar, vec2hist_analysis(Prediction_hist_nuebar));
 
   auto llh = -0.5 * (chi2_numu + chi2_numubar + chi2_nue + chi2_nuebar);
   return llh;
@@ -475,14 +493,10 @@ double ParBinned::GetLogLikelihoodAgainstData(StateI const &dataset) const {
 
 SimpleDataHist ParBinned::GenerateData() const {
   SimpleDataHist data;
-  data.hist_numu = vec_to_hist(Prediction_hist_numu, costh_analysis_bin_count,
-                               E_analysis_bin_count);
-  data.hist_numubar = vec_to_hist(
-      Prediction_hist_numubar, costh_analysis_bin_count, E_analysis_bin_count);
-  data.hist_nue = vec_to_hist(Prediction_hist_nue, costh_analysis_bin_count,
-                              E_analysis_bin_count);
-  data.hist_nuebar = vec_to_hist(
-      Prediction_hist_nuebar, costh_analysis_bin_count, E_analysis_bin_count);
+  data.hist_numu = vec2hist_analysis(Prediction_hist_numu);
+  data.hist_numubar = vec2hist_analysis(Prediction_hist_numubar);
+  data.hist_nue = vec2hist_analysis(Prediction_hist_nue);
+  data.hist_nuebar = vec2hist_analysis(Prediction_hist_nuebar);
   return data;
 }
 
@@ -512,14 +526,10 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
   cudaDeviceSynchronize();
   CUERR
 
-  data.hist_numu = vec_to_hist(no_osc_hist_numu, costh_analysis_bin_count,
-                               E_analysis_bin_count);
-  data.hist_numubar = vec_to_hist(no_osc_hist_numubar, costh_analysis_bin_count,
-                                  E_analysis_bin_count);
-  data.hist_nue = vec_to_hist(no_osc_hist_nue, costh_analysis_bin_count,
-                              E_analysis_bin_count);
-  data.hist_nuebar = vec_to_hist(no_osc_hist_nuebar, costh_analysis_bin_count,
-                                 E_analysis_bin_count);
+  data.hist_numu = vec2hist_analysis(no_osc_hist_numu);
+  data.hist_numubar = vec2hist_analysis(no_osc_hist_numubar);
+  data.hist_nue = vec2hist_analysis(no_osc_hist_nue);
+  data.hist_nuebar = vec2hist_analysis(no_osc_hist_nuebar);
 
   return data;
 }
