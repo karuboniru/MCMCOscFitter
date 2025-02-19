@@ -21,7 +21,7 @@
 int main(int argc, char **argv) {
   //   ROOT::EnableImplicitMT(10);
   TH1::AddDirectory(false);
-  std::string outname = argc == 2 ? "testfit.root" : argv[1];
+  std::string outname = argc == 2 ? argv[1] : "testfit.root";
   auto costheta_bins = linspace(-1., 1., 481);
 
   auto Ebins = logspace(0.1, 20., 401);
@@ -31,11 +31,11 @@ int main(int argc, char **argv) {
       ((6 * 365) * 24 * 3600) /                // seconds in a year
       1e42; // unit conversion from 1e-38 cm^2 to 1e-42 m^2
 
-  ParBinned bint{Ebins, costheta_bins, scale_factor, 40, 40, 8000};
+  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, 40, 40, 8000};
   auto cdata = bint.GenerateData();
   //   cdata.Round();
 
-  using combined_type = ModelAndData<ParBinned, SimpleDataHist>;
+  using combined_type = ModelAndData<ParBinnedInterface, SimpleDataHist>;
   using vals =
       std::tuple<double, double, double, double, double, double, size_t>;
   std::vector<combined_type> state_pool{};
@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
   for (size_t i = 0; i < nth; i++) {
     state_pool.emplace_back(bint, cdata).proposeStep();
   }
-  auto rawdf = ROOT::RDataFrame{135000};
+  auto rawdf = ROOT::RDataFrame{235000};
   ROOT::RDF::Experimental::AddProgressBar(rawdf);
   std::atomic<size_t> count{};
   auto df =
@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
           .Define("tuple",
                   [&state_pool, &count](unsigned int id) -> vals {
                     auto &current_state = state_pool[id];
-                    TimeCount timer{"3 step"};
+                    //     TimeCount timer{"3 step"};
                     for (size_t i = 0; i < 3; i++) {
                       auto new_state = current_state;
                       new_state.proposeStep();

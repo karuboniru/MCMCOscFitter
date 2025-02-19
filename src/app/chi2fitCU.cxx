@@ -2,6 +2,8 @@
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "tools.h"
+#include "OscillationParameters.h"
+#include "constants.h"
 
 #include <Minuit2/FCNBase.h>
 #include <Minuit2/FunctionMinimum.h>
@@ -49,7 +51,7 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
 
 class MinuitFitter final : public ROOT::Minuit2::FCNBase {
 public:
-  MinuitFitter(ParBinned &binned_interaction_, SimpleDataHist &data_)
+  MinuitFitter(ParBinnedInterface &binned_interaction_, SimpleDataHist &data_)
       : binned_interaction(binned_interaction_), data(data_) {}
 
   double operator()(const std::vector<double> &params) const override {
@@ -69,7 +71,7 @@ public:
   double Up() const override { return 1.; }
 
 private:
-  mutable ParBinned binned_interaction;
+  mutable ParBinnedInterface binned_interaction;
   SimpleDataHist data;
 };
 
@@ -167,7 +169,7 @@ int main(int argc, char **agrv) {
 
   constexpr double scale_factor = scale_factor_6y;
 
-  ParBinned bint{Ebins, costheta_bins, scale_factor, 40, 40, 1};
+  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, 40, 40, 1};
   auto cdata = bint.GenerateData(); // data for NH
 
   std::println(std::cout, "Mock chi2: {}",

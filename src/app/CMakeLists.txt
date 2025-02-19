@@ -78,7 +78,7 @@ target_link_libraries(chi2fit
 install (TARGETS chi2fit DESTINATION bin)
 
 
-add_executable(event_rateCU event_rateCU.cu)
+add_executable(event_rateCU event_rateCU.cxx)
 
 target_link_libraries(event_rateCU 
   SimpleDataHist
@@ -91,7 +91,7 @@ target_link_libraries(event_rateCU
 install (TARGETS event_rateCU DESTINATION bin)
 
 
-add_executable(testfitbinnedCU testfitbinnedCU.cu)
+add_executable(testfitbinnedCU testfitbinnedCU.cxx)
 
 target_link_libraries(testfitbinnedCU 
   SimpleDataHist
@@ -105,7 +105,7 @@ install (TARGETS testfitbinnedCU DESTINATION bin)
 
 
 
-add_executable(chi2fitCU chi2fitCU.cu)
+add_executable(chi2fitCU chi2fitCU.cxx)
 
 target_link_libraries(chi2fitCU 
   SimpleDataHist
