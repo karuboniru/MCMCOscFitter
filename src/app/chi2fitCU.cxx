@@ -234,7 +234,7 @@ int main(int argc, char **agrv) {
 
     if (!result.HasValidParameters()) {
       std::println("failed: {}", tag);
-      return std::nan("");
+      return INFINITY;
     }
 
     const auto &final_params = result.UserParameters();
@@ -263,7 +263,11 @@ int main(int argc, char **agrv) {
     gSystem->ChangeDirectory("..");
     std::println("{:*^15}", "finished");
 
-    return result.Fval();
+    // return result.Fval();
+    if (std::isnan(minimal_chi2)) {
+      return INFINITY;
+    }
+    return minimal_chi2;
   };
   std::ranges::iota_view iter_times{0, 12};
   std::println("SK_w_T13 true NH: min chi2: {:.4e}",

@@ -13,7 +13,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/src/common
 )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wextra -Wpedantic -ffast-math")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wextra -Wpedantic")
 
 Option(ENABLE_CUDA "Enable CUDA" OFF)
 
