@@ -163,8 +163,10 @@ void __global__ calc_event_count_and_rebin(
     const_vec_span xsec_numu, const_vec_span xsec_numubar,
     const_vec_span xsec_nue, const_vec_span xsec_nuebar,
     span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
-    span_2d_hist_t ret_nuebar, size_t E_rebin_factor, size_t costh_rebin_factor,
-    size_t costh_bins, size_t e_bins) {
+    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
+    size_t costh_rebin_factor) {
+  auto costh_bins = ret_numu.extent(0);
+  auto e_bins = ret_numu.extent(1);
   auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
   if (this_thread_id >= (costh_bins * e_bins)) {
     return;
@@ -172,8 +174,7 @@ void __global__ calc_event_count_and_rebin(
   auto [current_costh_analysis_bin, current_energy_analysis_bin] =
       get_indexes(costh_bins, this_thread_id);
 
-  // just tell compiler that the extents are aligned
-
+  // just tell compiler the extra information that we know the sizes
   if (flux_numu.extents() != flux_numubar.extents() ||
       flux_numu.extents() != flux_nue.extents() ||
       flux_numu.extents() != flux_nuebar.extents() ||
@@ -183,7 +184,12 @@ void __global__ calc_event_count_and_rebin(
       flux_numu.extent(1) != xsec_nuebar.size() ||
       oscProb.extents() != oscProb_anti.extents() ||
       oscProb.extent(2) != flux_numu.extent(0) ||
-      oscProb.extent(3) != flux_numu.extent(1)) {
+      oscProb.extent(3) != flux_numu.extent(1) ||
+      ret_numu.extents() != ret_numubar.extents() ||
+      ret_numu.extents() != ret_nue.extents() ||
+      ret_numu.extents() != ret_nuebar.extents() ||
+      flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
+      flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
     __builtin_unreachable();
     // return;
   }
@@ -244,23 +250,28 @@ void __global__ calc_event_count_noosc(
     const_vec_span xsec_numu, const_vec_span xsec_numubar,
     const_vec_span xsec_nue, const_vec_span xsec_nuebar,
     span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
-    span_2d_hist_t ret_nuebar, size_t E_rebin_factor, size_t costh_rebin_factor,
-    size_t costh_bins, size_t e_bins) {
+    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
+    size_t costh_rebin_factor) {
+  auto costh_bins = ret_numu.extent(0);
+  auto e_bins = ret_numu.extent(1);
   auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
   if (this_thread_id >= (costh_bins * e_bins)) {
     return;
   }
 
+  // just tell compiler the extra information that we know the sizes
   if (flux_numu.extents() != flux_numubar.extents() ||
       flux_numu.extents() != flux_nue.extents() ||
-      flux_numu.extents() != flux_nuebar.extents()) {
-    __builtin_unreachable();
-  }
-
-  if (flux_numu.extent(1) != xsec_numu.size() ||
+      flux_numu.extents() != flux_nuebar.extents() ||
+      flux_numu.extent(1) != xsec_numu.size() ||
       flux_numu.extent(1) != xsec_numubar.size() ||
       flux_numu.extent(1) != xsec_nue.size() ||
-      flux_numu.extent(1) != xsec_nuebar.size()) {
+      flux_numu.extent(1) != xsec_nuebar.size() ||
+      ret_numu.extents() != ret_numubar.extents() ||
+      ret_numu.extents() != ret_nue.extents() ||
+      ret_numu.extents() != ret_nuebar.extents() ||
+      flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
+      flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
     __builtin_unreachable();
   }
 
@@ -567,7 +578,7 @@ void ParBinned::UpdatePrediction() {
       vec2span_analysis(Prediction_hist_numubar),
       vec2span_analysis(Prediction_hist_nue),
       vec2span_analysis(Prediction_hist_nuebar), E_rebin_factor,
-      costh_rebin_factor, costh_analysis_bin_count, E_analysis_bin_count);
+      costh_rebin_factor);
   CUERR
 
   cudaDeviceSynchronize();
@@ -655,18 +666,15 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
       vec2span_analysis(no_osc_hist_numu),
       vec2span_analysis(no_osc_hist_numubar),
       vec2span_analysis(no_osc_hist_nue), vec2span_analysis(no_osc_hist_nuebar),
-      E_rebin_factor, costh_rebin_factor, costh_analysis_bin_count,
-      E_analysis_bin_count);
-  CUERR
-
-  cudaDeviceSynchronize();
+      E_rebin_factor, costh_rebin_factor);
   CUERR
 
   data.hist_numu = vec2hist_analysis(no_osc_hist_numu);
   data.hist_numubar = vec2hist_analysis(no_osc_hist_numubar);
   data.hist_nue = vec2hist_analysis(no_osc_hist_nue);
   data.hist_nuebar = vec2hist_analysis(no_osc_hist_nuebar);
-
+  cudaDeviceSynchronize();
+  CUERR
   return data;
 }
 
