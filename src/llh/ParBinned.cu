@@ -150,8 +150,8 @@ using const_vec_span = cuda::std::span<const oscillaton_calc_precision>;
 void __global__ calc_event_count_and_rebin(
     ParProb3ppOscillation::oscillaton_span_t oscProb,
     ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
-    span_2d_hist_t flux_numu, span_2d_hist_t flux_numubar,
-    span_2d_hist_t flux_nue, span_2d_hist_t flux_nuebar,
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
     const_vec_span xsec_numu, const_vec_span xsec_numubar,
     const_vec_span xsec_nue, const_vec_span xsec_nuebar,
     span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
@@ -257,6 +257,101 @@ void __global__ calc_event_count_noosc(
     }
   }
 }
+
+auto vec2span_1d(auto &vec) {
+  return cuda::std::span<std::remove_reference_t<decltype(*vec.data().get())>>(
+      vec.data().get(), vec.size());
+}
+
+// xsec and flux can be considered
+// as constant for the lifetime of the object
+// so we can use a global device input instance
+class global_device_input_instance {
+public:
+  static global_device_input_instance &
+  get_instance(const std::vector<double> &Ebins = {},
+               const std::vector<double> &costheta_bins = {},
+               double scale_ = 1.) {
+    static global_device_input_instance instance{Ebins, costheta_bins, scale_};
+    return instance;
+  }
+
+private:
+  [[nodiscard]] auto vec2span_fine(auto &vec) const {
+    return cuda::std::mdspan<
+        std::remove_reference_t<decltype(*vec.data().get())>,
+        cuda::std::extents<size_t, cuda::std::dynamic_extent,
+                           cuda::std::dynamic_extent>>(
+        vec.data().get(), costh_fine_bin_count, E_fine_bin_count);
+  }
+
+public:
+  [[nodiscard]] auto get_flux_numu() const {
+    return vec2span_fine(flux_hist_numu);
+  }
+  [[nodiscard]] auto get_flux_numubar() const {
+    return vec2span_fine(flux_hist_numubar);
+  }
+  [[nodiscard]] auto get_flux_nue() const {
+    return vec2span_fine(flux_hist_nue);
+  }
+  [[nodiscard]] auto get_flux_nuebar() const {
+    return vec2span_fine(flux_hist_nuebar);
+  }
+
+  [[nodiscard]] auto get_xsec_numu() const {
+    return vec2span_1d(xsec_hist_numu);
+  }
+  [[nodiscard]] auto get_xsec_numubar() const {
+    return vec2span_1d(xsec_hist_numubar);
+  }
+  [[nodiscard]] auto get_xsec_nue() const { return vec2span_1d(xsec_hist_nue); }
+  [[nodiscard]] auto get_xsec_nuebar() const {
+    return vec2span_1d(xsec_hist_nuebar);
+  }
+
+  ~global_device_input_instance() = default;
+  global_device_input_instance(const global_device_input_instance &) = delete;
+  global_device_input_instance(global_device_input_instance &&) = delete;
+  global_device_input_instance &
+  operator=(const global_device_input_instance &) = delete;
+  global_device_input_instance &
+  operator=(global_device_input_instance &&) = delete;
+
+private:
+  global_device_input_instance(const std::vector<double> &Ebins,
+                               const std::vector<double> &costheta_bins,
+                               double scale_ = 1.)
+      : flux_hist_numu(TH2D_to_hist(
+            flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) * scale_)),
+        flux_hist_numubar(TH2D_to_hist(
+            flux_input.GetFlux_Hist(Ebins, costheta_bins, -14) * scale_)),
+        flux_hist_nue(TH2D_to_hist(
+            flux_input.GetFlux_Hist(Ebins, costheta_bins, 12) * scale_)),
+        flux_hist_nuebar(TH2D_to_hist(
+            flux_input.GetFlux_Hist(Ebins, costheta_bins, -12) * scale_)),
+        xsec_hist_numu(TH1_to_hist(xsec_input.GetXsecHistMixture(
+            Ebins, 14, {{1000060120, 1.0}, {2212, H_to_C}}))),
+        xsec_hist_numubar(TH1_to_hist(xsec_input.GetXsecHistMixture(
+            Ebins, -14, {{1000060120, 1.0}, {2212, H_to_C}}))),
+        xsec_hist_nue(TH1_to_hist(xsec_input.GetXsecHistMixture(
+            Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}}))),
+        xsec_hist_nuebar(TH1_to_hist(xsec_input.GetXsecHistMixture(
+            Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}}))),
+        E_fine_bin_count(Ebins.size() - 1),
+        costh_fine_bin_count(costheta_bins.size() - 1) {}
+
+  // index: [cosine, energy]
+  thrust::device_vector<oscillaton_calc_precision> flux_hist_numu,
+      flux_hist_numubar, flux_hist_nue, flux_hist_nuebar;
+
+  // 1D in energy
+  thrust::device_vector<oscillaton_calc_precision> xsec_hist_numu,
+      xsec_hist_numubar, xsec_hist_nue, xsec_hist_nuebar;
+
+  size_t E_fine_bin_count, costh_fine_bin_count;
+};
+
 } // namespace
 
 class ParBinned : public propgator_type, public ModelDataLLH {
@@ -266,9 +361,9 @@ public:
             size_t costh_rebin_factor = 1, double IH_Bias = 1.0);
 
   ParBinned(const ParBinned &) = default;
-  ParBinned(ParBinned &&) = default;
+  ParBinned(ParBinned &&) noexcept = default;
   ParBinned &operator=(const ParBinned &) = default;
-  ParBinned &operator=(ParBinned &&) = default;
+  ParBinned &operator=(ParBinned &&) noexcept = default;
   ~ParBinned() override = default;
 
   void proposeStep() final;
@@ -344,17 +439,17 @@ private:
   std::vector<double> Ebins, costheta_bins;
   std::vector<double> Ebins_analysis, costheta_analysis;
 
-  // index: [cosine, energy]
-  thrust::device_vector<oscillaton_calc_precision> flux_hist_numu,
-      flux_hist_numubar, flux_hist_nue, flux_hist_nuebar;
+  // // index: [cosine, energy]
+  // thrust::device_vector<oscillaton_calc_precision> flux_hist_numu,
+  //     flux_hist_numubar, flux_hist_nue, flux_hist_nuebar;
 
-  // 1D in energy
-  thrust::device_vector<oscillaton_calc_precision> xsec_hist_numu,
-      xsec_hist_numubar, xsec_hist_nue, xsec_hist_nuebar;
+  // // 1D in energy
+  // thrust::device_vector<oscillaton_calc_precision> xsec_hist_numu,
+  //     xsec_hist_numubar, xsec_hist_nue, xsec_hist_nuebar;
 
-  // index: [cosine, energy]
-  thrust::device_vector<oscillaton_calc_precision> no_osc_hist_numu,
-      no_osc_hist_numubar, no_osc_hist_nue, no_osc_hist_nuebar;
+  // // index: [cosine, energy]
+  // thrust::device_vector<oscillaton_calc_precision> no_osc_hist_numu,
+  //     no_osc_hist_numubar, no_osc_hist_nue, no_osc_hist_nuebar;
 
   size_t E_rebin_factor;
   size_t costh_rebin_factor;
@@ -386,22 +481,6 @@ ParBinned::ParBinned(std::vector<double> Ebins_,
       costheta_analysis(costheta_bins |
                         std::views::stride(costh_rebin_factor_) |
                         std::ranges::to<std::vector>()),
-      flux_hist_numu(TH2D_to_hist(
-          flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) * scale_)),
-      flux_hist_numubar(TH2D_to_hist(
-          flux_input.GetFlux_Hist(Ebins, costheta_bins, -14) * scale_)),
-      flux_hist_nue(TH2D_to_hist(
-          flux_input.GetFlux_Hist(Ebins, costheta_bins, 12) * scale_)),
-      flux_hist_nuebar(TH2D_to_hist(
-          flux_input.GetFlux_Hist(Ebins, costheta_bins, -12) * scale_)),
-      xsec_hist_numu(TH1_to_hist(xsec_input.GetXsecHistMixture(
-          Ebins, 14, {{1000060120, 1.0}, {2212, H_to_C}}))),
-      xsec_hist_numubar(TH1_to_hist(xsec_input.GetXsecHistMixture(
-          Ebins, -14, {{1000060120, 1.0}, {2212, H_to_C}}))),
-      xsec_hist_nue(TH1_to_hist(xsec_input.GetXsecHistMixture(
-          Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}}))),
-      xsec_hist_nuebar(TH1_to_hist(xsec_input.GetXsecHistMixture(
-          Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}}))),
       E_rebin_factor(E_rebin_factor_), costh_rebin_factor(costh_rebin_factor_),
       E_fine_bin_count(Ebins.size() - 1),
       costh_fine_bin_count(costheta_bins.size() - 1),
@@ -411,15 +490,9 @@ ParBinned::ParBinned(std::vector<double> Ebins_,
       Prediction_hist_numubar(E_analysis_bin_count * costh_analysis_bin_count),
       Prediction_hist_nue(E_analysis_bin_count * costh_analysis_bin_count),
       Prediction_hist_nuebar(E_analysis_bin_count * costh_analysis_bin_count),
-      log_ih_bias(std::log(IH_bias_))
-
-{
+      log_ih_bias(std::log(IH_bias_)) {
+  global_device_input_instance::get_instance(Ebins, costheta_bins, scale_);
   UpdatePrediction();
-}
-
-auto vec2span_1d(auto &vec) {
-  return cuda::std::span<std::remove_reference_t<decltype(*vec.data().get())>>(
-      vec.data().get(), vec.size());
 }
 
 void ParBinned::UpdatePrediction() {
@@ -430,12 +503,18 @@ void ParBinned::UpdatePrediction() {
 
   dim3 block_size(E_analysis_bin_count, costh_analysis_bin_count);
 
+  auto &flux_xsec_device_input = global_device_input_instance::get_instance();
   calc_event_count_and_rebin<<<1, block_size>>>(
-      span_prob_neutrino, span_prob_antineutrino, vec2span_fine(flux_hist_numu),
-      vec2span_fine(flux_hist_numubar), vec2span_fine(flux_hist_nue),
-      vec2span_fine(flux_hist_nuebar), vec2span_1d(xsec_hist_numu),
-      vec2span_1d(xsec_hist_numubar), vec2span_1d(xsec_hist_nue),
-      vec2span_1d(xsec_hist_nuebar), vec2span_analysis(Prediction_hist_numu),
+      span_prob_neutrino, span_prob_antineutrino,
+      flux_xsec_device_input.get_flux_numu(),
+      flux_xsec_device_input.get_flux_numubar(),
+      flux_xsec_device_input.get_flux_nue(),
+      flux_xsec_device_input.get_flux_nuebar(),
+      flux_xsec_device_input.get_xsec_numu(),
+      flux_xsec_device_input.get_xsec_numubar(),
+      flux_xsec_device_input.get_xsec_nue(),
+      flux_xsec_device_input.get_xsec_nuebar(),
+      vec2span_analysis(Prediction_hist_numu),
       vec2span_analysis(Prediction_hist_numubar),
       vec2span_analysis(Prediction_hist_nue),
       vec2span_analysis(Prediction_hist_nuebar), E_rebin_factor,
@@ -512,11 +591,16 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
       E_analysis_bin_count * costh_analysis_bin_count, 0);
 
   dim3 block_size(E_analysis_bin_count, costh_analysis_bin_count);
+  auto &flux_xsec_device_input = global_device_input_instance::get_instance();
   calc_event_count_noosc<<<1, block_size>>>(
-      vec2span_fine(flux_hist_numu), vec2span_fine(flux_hist_numubar),
-      vec2span_fine(flux_hist_nue), vec2span_fine(flux_hist_nuebar),
-      vec2span_1d(xsec_hist_numu), vec2span_1d(xsec_hist_numubar),
-      vec2span_1d(xsec_hist_nue), vec2span_1d(xsec_hist_nuebar),
+      flux_xsec_device_input.get_flux_numu(),
+      flux_xsec_device_input.get_flux_numubar(),
+      flux_xsec_device_input.get_flux_nue(),
+      flux_xsec_device_input.get_flux_nuebar(),
+      flux_xsec_device_input.get_xsec_numu(),
+      flux_xsec_device_input.get_xsec_numubar(),
+      flux_xsec_device_input.get_xsec_nue(),
+      flux_xsec_device_input.get_xsec_nuebar(),
       vec2span_analysis(no_osc_hist_numu),
       vec2span_analysis(no_osc_hist_numubar),
       vec2span_analysis(no_osc_hist_nue), vec2span_analysis(no_osc_hist_nuebar),
