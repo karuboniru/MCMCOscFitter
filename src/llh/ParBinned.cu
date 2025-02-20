@@ -10,6 +10,7 @@
 #include <SimpleDataHist.h>
 #include <TF3.h>
 #include <TH2.h>
+#include <cmath>
 #include <ranges>
 #include <type_traits>
 #include <utility>
@@ -147,6 +148,13 @@ TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
 using vec_span = cuda::std::span<oscillaton_calc_precision>;
 using const_vec_span = cuda::std::span<const oscillaton_calc_precision>;
 
+constexpr auto get_indexes(size_t costh_bins, size_t current_thread_id) {
+  auto current_costh_analysis_bin = current_thread_id % costh_bins;
+  auto current_energy_analysis_bin = current_thread_id / costh_bins;
+  return std::make_pair(current_costh_analysis_bin,
+                        current_energy_analysis_bin);
+}
+
 void __global__ calc_event_count_and_rebin(
     ParProb3ppOscillation::oscillaton_span_t oscProb,
     ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
@@ -155,16 +163,35 @@ void __global__ calc_event_count_and_rebin(
     const_vec_span xsec_numu, const_vec_span xsec_numubar,
     const_vec_span xsec_nue, const_vec_span xsec_nuebar,
     span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
-    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
-    size_t costh_rebin_factor) {
+    span_2d_hist_t ret_nuebar, size_t E_rebin_factor, size_t costh_rebin_factor,
+    size_t costh_bins, size_t e_bins) {
+  auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
+  if (this_thread_id >= (costh_bins * e_bins)) {
+    return;
+  }
+  auto [current_costh_analysis_bin, current_energy_analysis_bin] =
+      get_indexes(costh_bins, this_thread_id);
 
-  auto current_energy_analysis_bin = threadIdx.x;
-  auto current_costh_analysis_bin = threadIdx.y;
-  ret_numu[current_costh_analysis_bin, current_energy_analysis_bin] =
-      ret_numubar[current_costh_analysis_bin, current_energy_analysis_bin] =
-          ret_nue[current_costh_analysis_bin, current_energy_analysis_bin] =
-              ret_nuebar[current_costh_analysis_bin,
-                         current_energy_analysis_bin] = 0;
+  // just tell compiler that the extents are aligned
+
+  if (flux_numu.extents() != flux_numubar.extents() ||
+      flux_numu.extents() != flux_nue.extents() ||
+      flux_numu.extents() != flux_nuebar.extents() ||
+      flux_numu.extent(1) != xsec_numu.size() ||
+      flux_numu.extent(1) != xsec_numubar.size() ||
+      flux_numu.extent(1) != xsec_nue.size() ||
+      flux_numu.extent(1) != xsec_nuebar.size() ||
+      oscProb.extents() != oscProb_anti.extents() ||
+      oscProb.extent(2) != flux_numu.extent(0) ||
+      oscProb.extent(3) != flux_numu.extent(1)) {
+    __builtin_unreachable();
+    // return;
+  }
+
+  ret_numu[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
+  ret_numubar[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
+  ret_nue[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
+  ret_nuebar[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
 
   for (size_t offset_costh = 0; offset_costh < costh_rebin_factor;
        offset_costh++) {
@@ -217,15 +244,33 @@ void __global__ calc_event_count_noosc(
     const_vec_span xsec_numu, const_vec_span xsec_numubar,
     const_vec_span xsec_nue, const_vec_span xsec_nuebar,
     span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
-    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
-    size_t costh_rebin_factor) {
-  auto current_energy_analysis_bin = threadIdx.x;
-  auto current_costh_analysis_bin = threadIdx.y;
-  ret_numu[current_costh_analysis_bin, current_energy_analysis_bin] =
-      ret_numubar[current_costh_analysis_bin, current_energy_analysis_bin] =
-          ret_nue[current_costh_analysis_bin, current_energy_analysis_bin] =
-              ret_nuebar[current_costh_analysis_bin,
-                         current_energy_analysis_bin] = 0;
+    span_2d_hist_t ret_nuebar, size_t E_rebin_factor, size_t costh_rebin_factor,
+    size_t costh_bins, size_t e_bins) {
+  auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
+  if (this_thread_id >= (costh_bins * e_bins)) {
+    return;
+  }
+
+  if (flux_numu.extents() != flux_numubar.extents() ||
+      flux_numu.extents() != flux_nue.extents() ||
+      flux_numu.extents() != flux_nuebar.extents()) {
+    __builtin_unreachable();
+  }
+
+  if (flux_numu.extent(1) != xsec_numu.size() ||
+      flux_numu.extent(1) != xsec_numubar.size() ||
+      flux_numu.extent(1) != xsec_nue.size() ||
+      flux_numu.extent(1) != xsec_nuebar.size()) {
+    __builtin_unreachable();
+  }
+
+  auto [current_costh_analysis_bin, current_energy_analysis_bin] =
+      get_indexes(costh_bins, this_thread_id);
+
+  ret_numu[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
+  ret_numubar[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
+  ret_nue[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
+  ret_nuebar[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
 
   for (size_t offset_costh = 0; offset_costh < costh_rebin_factor;
        offset_costh++) {
@@ -351,6 +396,8 @@ private:
 
   size_t E_fine_bin_count, costh_fine_bin_count;
 };
+
+constexpr size_t warp_size = 32;
 
 } // namespace
 
@@ -504,7 +551,9 @@ void ParBinned::UpdatePrediction() {
   dim3 block_size(E_analysis_bin_count, costh_analysis_bin_count);
 
   auto &flux_xsec_device_input = global_device_input_instance::get_instance();
-  calc_event_count_and_rebin<<<1, block_size>>>(
+  auto warp_count = cuda::ceil_div(
+      costh_analysis_bin_count * E_analysis_bin_count, warp_size);
+  calc_event_count_and_rebin<<<warp_count, warp_size>>>(
       span_prob_neutrino, span_prob_antineutrino,
       flux_xsec_device_input.get_flux_numu(),
       flux_xsec_device_input.get_flux_numubar(),
@@ -518,7 +567,7 @@ void ParBinned::UpdatePrediction() {
       vec2span_analysis(Prediction_hist_numubar),
       vec2span_analysis(Prediction_hist_nue),
       vec2span_analysis(Prediction_hist_nuebar), E_rebin_factor,
-      costh_rebin_factor);
+      costh_rebin_factor, costh_analysis_bin_count, E_analysis_bin_count);
   CUERR
 
   cudaDeviceSynchronize();
@@ -590,9 +639,11 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
   thrust::device_vector<oscillaton_calc_precision> no_osc_hist_nuebar(
       E_analysis_bin_count * costh_analysis_bin_count, 0);
 
-  dim3 block_size(E_analysis_bin_count, costh_analysis_bin_count);
+  // dim3 block_size(E_analysis_bin_count, costh_analysis_bin_count);
   auto &flux_xsec_device_input = global_device_input_instance::get_instance();
-  calc_event_count_noosc<<<1, block_size>>>(
+  auto warp_count = cuda::ceil_div(
+      costh_analysis_bin_count * E_analysis_bin_count, warp_size);
+  calc_event_count_noosc<<<warp_count, warp_size>>>(
       flux_xsec_device_input.get_flux_numu(),
       flux_xsec_device_input.get_flux_numubar(),
       flux_xsec_device_input.get_flux_nue(),
@@ -604,7 +655,8 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
       vec2span_analysis(no_osc_hist_numu),
       vec2span_analysis(no_osc_hist_numubar),
       vec2span_analysis(no_osc_hist_nue), vec2span_analysis(no_osc_hist_nuebar),
-      E_rebin_factor, costh_rebin_factor);
+      E_rebin_factor, costh_rebin_factor, costh_analysis_bin_count,
+      E_analysis_bin_count);
   CUERR
 
   cudaDeviceSynchronize();
