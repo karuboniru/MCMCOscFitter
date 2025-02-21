@@ -30,7 +30,7 @@
 
 #include "OscillationParameters.h"
 #include "ParBinned.cuh"
-
+#include "ParBinnedKernels.cuh"
 
 #define CUERR                                                                  \
   {                                                                            \
@@ -118,337 +118,6 @@ TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
   }
   return ret;
 }
-
-using vec_span = cuda::std::span<oscillaton_calc_precision>;
-using const_vec_span = cuda::std::span<const oscillaton_calc_precision>;
-
-constexpr auto __device__ __host__ get_indexes(size_t costh_bins, size_t current_thread_id) {
-  auto current_costh_analysis_bin = current_thread_id % costh_bins;
-  auto current_energy_analysis_bin = current_thread_id / costh_bins;
-  return std::make_pair(current_costh_analysis_bin,
-                        current_energy_analysis_bin);
-}
-
-#ifdef __cpp_multidimensional_subscript
-
-void __global__ calc_event_count_and_rebin(
-    ParProb3ppOscillation::oscillaton_span_t oscProb,
-    ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
-    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
-    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
-    const_vec_span xsec_numu, const_vec_span xsec_numubar,
-    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
-    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
-    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
-    size_t costh_rebin_factor) {
-  auto costh_bins = ret_numu.extent(0);
-  auto e_bins = ret_numu.extent(1);
-  auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
-  if (this_thread_id >= (costh_bins * e_bins)) {
-    return;
-  }
-  auto [current_costh_analysis_bin, current_energy_analysis_bin] =
-      get_indexes(costh_bins, this_thread_id);
-
-  // just tell compiler the extra information that we know the sizes
-  if (flux_numu.extents() != flux_numubar.extents() ||
-      flux_numu.extents() != flux_nue.extents() ||
-      flux_numu.extents() != flux_nuebar.extents() ||
-      flux_numu.extent(1) != xsec_numu.size() ||
-      flux_numu.extent(1) != xsec_numubar.size() ||
-      flux_numu.extent(1) != xsec_nue.size() ||
-      flux_numu.extent(1) != xsec_nuebar.size() ||
-      oscProb.extents() != oscProb_anti.extents() ||
-      oscProb.extent(2) != flux_numu.extent(0) ||
-      oscProb.extent(3) != flux_numu.extent(1) ||
-      ret_numu.extents() != ret_numubar.extents() ||
-      ret_numu.extents() != ret_nue.extents() ||
-      ret_numu.extents() != ret_nuebar.extents() ||
-      flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
-      flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
-    __builtin_unreachable();
-    // return;
-  }
-
-  ret_numu[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
-  ret_numubar[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
-  ret_nue[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
-  ret_nuebar[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
-
-  for (size_t offset_costh = 0; offset_costh < costh_rebin_factor;
-       offset_costh++) {
-    for (size_t offset_energy = 0; offset_energy < E_rebin_factor;
-         offset_energy++) {
-      auto this_index_costh =
-          (current_costh_analysis_bin * costh_rebin_factor) +
-          offset_costh; // fine bin index
-      auto this_index_E = (current_energy_analysis_bin * E_rebin_factor) +
-                          offset_energy; // fine bin index
-      auto event_count_numu_final =
-          (oscProb[0, 1, this_index_costh, this_index_E] *
-               flux_nue[this_index_costh, this_index_E] +
-           oscProb[1, 1, this_index_costh, this_index_E] *
-               flux_numu[this_index_costh, this_index_E]) *
-          xsec_numu[this_index_E];
-      auto event_count_numubar_final =
-          (oscProb_anti[0, 1, this_index_costh, this_index_E] *
-               flux_nuebar[this_index_costh, this_index_E] +
-           oscProb_anti[1, 1, this_index_costh, this_index_E] *
-               flux_numubar[this_index_costh, this_index_E]) *
-          xsec_numubar[this_index_E];
-      auto event_count_nue_final =
-          (oscProb[0, 0, this_index_costh, this_index_E] *
-               flux_nue[this_index_costh, this_index_E] +
-           oscProb[1, 0, this_index_costh, this_index_E] *
-               flux_numu[this_index_costh, this_index_E]) *
-          xsec_nue[this_index_E];
-      auto event_count_nuebar_final =
-          (oscProb_anti[0, 0, this_index_costh, this_index_E] *
-               flux_nuebar[this_index_costh, this_index_E] +
-           oscProb_anti[1, 0, this_index_costh, this_index_E] *
-               flux_numubar[this_index_costh, this_index_E]) *
-          xsec_nuebar[this_index_E];
-      ret_numu[current_costh_analysis_bin, current_energy_analysis_bin] +=
-          event_count_numu_final;
-      ret_numubar[current_costh_analysis_bin, current_energy_analysis_bin] +=
-          event_count_numubar_final;
-      ret_nue[current_costh_analysis_bin, current_energy_analysis_bin] +=
-          event_count_nue_final;
-      ret_nuebar[current_costh_analysis_bin, current_energy_analysis_bin] +=
-          event_count_nuebar_final;
-    }
-  }
-}
-
-void __global__ calc_event_count_noosc(
-    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
-    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
-    const_vec_span xsec_numu, const_vec_span xsec_numubar,
-    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
-    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
-    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
-    size_t costh_rebin_factor) {
-  auto costh_bins = ret_numu.extent(0);
-  auto e_bins = ret_numu.extent(1);
-  auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
-  if (this_thread_id >= (costh_bins * e_bins)) {
-    return;
-  }
-
-  // just tell compiler the extra information that we know the sizes
-  if (flux_numu.extents() != flux_numubar.extents() ||
-      flux_numu.extents() != flux_nue.extents() ||
-      flux_numu.extents() != flux_nuebar.extents() ||
-      flux_numu.extent(1) != xsec_numu.size() ||
-      flux_numu.extent(1) != xsec_numubar.size() ||
-      flux_numu.extent(1) != xsec_nue.size() ||
-      flux_numu.extent(1) != xsec_nuebar.size() ||
-      ret_numu.extents() != ret_numubar.extents() ||
-      ret_numu.extents() != ret_nue.extents() ||
-      ret_numu.extents() != ret_nuebar.extents() ||
-      flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
-      flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
-    __builtin_unreachable();
-  }
-
-  auto [current_costh_analysis_bin, current_energy_analysis_bin] =
-      get_indexes(costh_bins, this_thread_id);
-
-  ret_numu[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
-  ret_numubar[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
-  ret_nue[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
-  ret_nuebar[current_costh_analysis_bin, current_energy_analysis_bin] = 0;
-
-  for (size_t offset_costh = 0; offset_costh < costh_rebin_factor;
-       offset_costh++) {
-    for (size_t offset_energy = 0; offset_energy < E_rebin_factor;
-         offset_energy++) {
-      auto this_index_costh =
-          (current_costh_analysis_bin * costh_rebin_factor) +
-          offset_costh; // fine bin index
-      auto this_index_E = (current_energy_analysis_bin * E_rebin_factor) +
-                          offset_energy; // fine bin index
-      auto event_count_numu_final =
-          flux_numu[this_index_costh, this_index_E] * xsec_numu[this_index_E];
-      auto event_count_numubar_final =
-          flux_numubar[this_index_costh, this_index_E] *
-          xsec_numubar[this_index_E];
-      auto event_count_nue_final =
-          flux_nue[this_index_costh, this_index_E] * xsec_nue[this_index_E];
-      auto event_count_nuebar_final =
-          flux_nuebar[this_index_costh, this_index_E] *
-          xsec_nuebar[this_index_E];
-      ret_numu[current_costh_analysis_bin, current_energy_analysis_bin] +=
-          event_count_numu_final;
-      ret_numubar[current_costh_analysis_bin, current_energy_analysis_bin] +=
-          event_count_numubar_final;
-      ret_nue[current_costh_analysis_bin, current_energy_analysis_bin] +=
-          event_count_nue_final;
-      ret_nuebar[current_costh_analysis_bin, current_energy_analysis_bin] +=
-          event_count_nuebar_final;
-    }
-  }
-}
-#else
-void __global__ calc_event_count_and_rebin(
-    ParProb3ppOscillation::oscillaton_span_t oscProb,
-    ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
-    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
-    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
-    const_vec_span xsec_numu, const_vec_span xsec_numubar,
-    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
-    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
-    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
-    size_t costh_rebin_factor) {
-  auto costh_bins = ret_numu.extent(0);
-  auto e_bins = ret_numu.extent(1);
-  auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
-  if (this_thread_id >= (costh_bins * e_bins)) {
-    return;
-  }
-  auto [current_costh_analysis_bin, current_energy_analysis_bin] =
-      get_indexes(costh_bins, this_thread_id);
-
-  // just tell compiler the extra information that we know the sizes
-  if (flux_numu.extents() != flux_numubar.extents() ||
-      flux_numu.extents() != flux_nue.extents() ||
-      flux_numu.extents() != flux_nuebar.extents() ||
-      flux_numu.extent(1) != xsec_numu.size() ||
-      flux_numu.extent(1) != xsec_numubar.size() ||
-      flux_numu.extent(1) != xsec_nue.size() ||
-      flux_numu.extent(1) != xsec_nuebar.size() ||
-      oscProb.extents() != oscProb_anti.extents() ||
-      oscProb.extent(2) != flux_numu.extent(0) ||
-      oscProb.extent(3) != flux_numu.extent(1) ||
-      ret_numu.extents() != ret_numubar.extents() ||
-      ret_numu.extents() != ret_nue.extents() ||
-      ret_numu.extents() != ret_nuebar.extents() ||
-      flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
-      flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
-    __builtin_unreachable();
-    // return;
-  }
-
-  ret_numu(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-  ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-  ret_nue(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-  ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-
-  for (size_t offset_costh = 0; offset_costh < costh_rebin_factor;
-       offset_costh++) {
-    for (size_t offset_energy = 0; offset_energy < E_rebin_factor;
-         offset_energy++) {
-      auto this_index_costh =
-          (current_costh_analysis_bin * costh_rebin_factor) +
-          offset_costh; // fine bin index
-      auto this_index_E = (current_energy_analysis_bin * E_rebin_factor) +
-                          offset_energy; // fine bin index
-      auto event_count_numu_final =
-          (oscProb(0, 1, this_index_costh, this_index_E) *
-               flux_nue(this_index_costh, this_index_E) +
-           oscProb(1, 1, this_index_costh, this_index_E) *
-               flux_numu(this_index_costh, this_index_E)) *
-          xsec_numu[this_index_E];
-      auto event_count_numubar_final =
-          (oscProb_anti(0, 1, this_index_costh, this_index_E) *
-               flux_nuebar(this_index_costh, this_index_E) +
-           oscProb_anti(1, 1, this_index_costh, this_index_E) *
-               flux_numubar(this_index_costh, this_index_E)) *
-          xsec_numubar[this_index_E];
-      auto event_count_nue_final =
-          (oscProb(0, 0, this_index_costh, this_index_E) *
-               flux_nue(this_index_costh, this_index_E) +
-           oscProb(1, 0, this_index_costh, this_index_E) *
-               flux_numu(this_index_costh, this_index_E)) *
-          xsec_nue[this_index_E];
-      auto event_count_nuebar_final =
-          (oscProb_anti(0, 0, this_index_costh, this_index_E) *
-               flux_nuebar(this_index_costh, this_index_E) +
-           oscProb_anti(1, 0, this_index_costh, this_index_E) *
-               flux_numubar(this_index_costh, this_index_E)) *
-          xsec_nuebar[this_index_E];
-      ret_numu(current_costh_analysis_bin, current_energy_analysis_bin) +=
-          event_count_numu_final;
-      ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin) +=
-          event_count_numubar_final;
-      ret_nue(current_costh_analysis_bin, current_energy_analysis_bin) +=
-          event_count_nue_final;
-      ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin) +=
-          event_count_nuebar_final;
-    }
-  }
-}
-
-void __global__ calc_event_count_noosc(
-    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
-    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
-    const_vec_span xsec_numu, const_vec_span xsec_numubar,
-    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
-    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
-    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
-    size_t costh_rebin_factor) {
-  auto costh_bins = ret_numu.extent(0);
-  auto e_bins = ret_numu.extent(1);
-  auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
-  if (this_thread_id >= (costh_bins * e_bins)) {
-    return;
-  }
-
-  // just tell compiler the extra information that we know the sizes
-  if (flux_numu.extents() != flux_numubar.extents() ||
-      flux_numu.extents() != flux_nue.extents() ||
-      flux_numu.extents() != flux_nuebar.extents() ||
-      flux_numu.extent(1) != xsec_numu.size() ||
-      flux_numu.extent(1) != xsec_numubar.size() ||
-      flux_numu.extent(1) != xsec_nue.size() ||
-      flux_numu.extent(1) != xsec_nuebar.size() ||
-      ret_numu.extents() != ret_numubar.extents() ||
-      ret_numu.extents() != ret_nue.extents() ||
-      ret_numu.extents() != ret_nuebar.extents() ||
-      flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
-      flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
-    __builtin_unreachable();
-  }
-
-  auto [current_costh_analysis_bin, current_energy_analysis_bin] =
-      get_indexes(costh_bins, this_thread_id);
-
-  ret_numu(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-  ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-  ret_nue(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-  ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-
-  for (size_t offset_costh = 0; offset_costh < costh_rebin_factor;
-       offset_costh++) {
-    for (size_t offset_energy = 0; offset_energy < E_rebin_factor;
-         offset_energy++) {
-      auto this_index_costh =
-          (current_costh_analysis_bin * costh_rebin_factor) +
-          offset_costh; // fine bin index
-      auto this_index_E = (current_energy_analysis_bin * E_rebin_factor) +
-                          offset_energy; // fine bin index
-      auto event_count_numu_final =
-          flux_numu(this_index_costh, this_index_E) * xsec_numu[this_index_E];
-      auto event_count_numubar_final =
-          flux_numubar(this_index_costh, this_index_E) *
-          xsec_numubar[this_index_E];
-      auto event_count_nue_final =
-          flux_nue(this_index_costh, this_index_E) * xsec_nue[this_index_E];
-      auto event_count_nuebar_final =
-          flux_nuebar(this_index_costh, this_index_E) *
-          xsec_nuebar[this_index_E];
-      ret_numu(current_costh_analysis_bin, current_energy_analysis_bin) +=
-          event_count_numu_final;
-      ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin) +=
-          event_count_numubar_final;
-      ret_nue(current_costh_analysis_bin, current_energy_analysis_bin) +=
-          event_count_nue_final;
-      ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin) +=
-          event_count_nuebar_final;
-    }
-  }
-}
-#endif
 
 auto vec2span_1d(auto &vec) {
   return cuda::std::span<std::remove_reference_t<decltype(*vec.data().get())>>(
@@ -545,8 +214,6 @@ private:
 };
 
 constexpr size_t warp_size = 32;
-
-
 
 template <class T>
 std::vector<T> stride(const std::vector<T> &vec, size_t stride) {
@@ -747,7 +414,7 @@ void ParBinned::SaveAs(const char *filename) const {
   // delete file;
 }
 
-void ParBinned::flip_hierarchy(){
+void ParBinned::flip_hierarchy() {
   OscillationParameters::flip_hierarchy();
   if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
     re_calculate();
@@ -755,7 +422,7 @@ void ParBinned::flip_hierarchy(){
   UpdatePrediction();
 }
 
-void ParBinned::Save_prob_hist(const std::string &name){
+void ParBinned::Save_prob_hist(const std::string &name) {
   // if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
   auto file = TFile::Open(name.c_str(), "RECREATE");
   file->cd();
@@ -778,50 +445,4 @@ void ParBinned::Save_prob_hist(const std::string &name){
   file->Close();
   delete file;
   // }
-}
-
-ParBinnedInterface::ParBinnedInterface(std::vector<double> Ebins,
-                                       std::vector<double> costheta_bins,
-                                       double scale_, size_t E_rebin_factor,
-                                       size_t costh_rebin_factor,
-                                       double IH_Bias)
-    : pImpl(std::make_unique<ParBinned>(
-          std::move(Ebins), std::move(costheta_bins), scale_, E_rebin_factor,
-          costh_rebin_factor, IH_Bias)) {}
-
-ParBinnedInterface::~ParBinnedInterface() = default;
-ParBinnedInterface::ParBinnedInterface(ParBinnedInterface &&) noexcept =
-    default;
-
-ParBinnedInterface::ParBinnedInterface(const ParBinnedInterface &other)
-    : pImpl(std::make_unique<ParBinned>(*other.pImpl)) {}
-
-ParBinnedInterface &
-ParBinnedInterface::operator=(ParBinnedInterface &&) noexcept = default;
-
-ParBinnedInterface &
-ParBinnedInterface::operator=(const ParBinnedInterface &other) {
-  if (this != &other) {
-    pImpl = std::make_unique<ParBinned>(*other.pImpl);
-  }
-  return *this;
-}
-
-void ParBinnedInterface::proposeStep() { pImpl->proposeStep(); }
-
-[[nodiscard]] double ParBinnedInterface::GetLogLikelihood() const {
-  return pImpl->GetLogLikelihood();
-}
-
-[[nodiscard]] double
-ParBinnedInterface::GetLogLikelihoodAgainstData(const StateI &dataset) const {
-  return pImpl->GetLogLikelihoodAgainstData(dataset);
-}
-
-[[nodiscard]] SimpleDataHist ParBinnedInterface::GenerateData() const {
-  return pImpl->GenerateData();
-}
-
-[[nodiscard]] SimpleDataHist ParBinnedInterface::GenerateData_NoOsc() const {
-  return pImpl->GenerateData_NoOsc();
 }

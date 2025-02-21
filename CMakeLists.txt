@@ -23,6 +23,7 @@ if (ENABLE_CUDA)
     if (CMAKE_CUDA_COMPILER_ID STREQUAL "NVIDIA")
         set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr")
     endif()
+    add_definitions(-D__MDSPAN_USE_PAREN_OPERATOR=1)
 endif()
 
 set(DATA_PATH "${CMAKE_SOURCE_DIR}")
