@@ -57,6 +57,30 @@ std::vector<T> to_center_g(const std::vector<U> &vec) {
   return ret;
 }
 
+template <class T, typename U = T>
+std::vector<T> divide_bins_log(const std::vector<U> &vec, size_t multiplier) {
+  std::vector<T> ret((vec.size() - 1) * multiplier + 1);
+  for (size_t i = 0; i < vec.size() - 1; i++) {
+    auto step = (log(vec[i + 1]) - log(vec[i])) / (multiplier);
+    for (size_t j = 0; j < multiplier + 1; j++) {
+      ret[i * multiplier + j] = exp(log(vec[i]) + step * j);
+    }
+  }
+  return ret;
+}
+
+template <class T, typename U = T>
+std::vector<T> divide_bins(const std::vector<U> &vec, size_t multiplier) {
+  std::vector<T> ret((vec.size() - 1) * multiplier + 1);
+  for (size_t i = 0; i < vec.size() - 1; i++) {
+    auto step = (vec[i + 1] - vec[i]) / (multiplier);
+    for (size_t j = 0; j < multiplier + 1; j++) {
+      ret[i * multiplier + j] = vec[i] + step * j;
+    }
+  }
+  return ret;
+}
+
 // template <class T, typename U = T>
 // std::vector<T> to_center(const std::vector<U> &vec, size_t multiplier) {
 //   std::vector<T> ret((vec.size() - 1) * multiplier);

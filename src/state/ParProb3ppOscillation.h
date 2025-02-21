@@ -5,6 +5,7 @@
 #endif
 #include "OscillationParameters.h"
 #include "constants.h"
+#include "propagator.hpp"
 #include <memory>
 
 #ifdef __CUDA__
@@ -12,13 +13,13 @@
 #include <cuda/std/span>
 #endif
 
-namespace cudaprob3 {
-#ifndef __CUDA__
-template <class oscillaton_calc_precision_T> class CpuPropagator;
-#else
-template <class oscillaton_calc_precision_T> class CudaPropagatorSingle;
-#endif
-} // namespace cudaprob3
+// namespace cudaprob3 {
+// #ifndef __CUDA__
+// template <class oscillaton_calc_precision_T> class CpuPropagator;
+// #else
+// template <class oscillaton_calc_precision_T> class CudaPropagatorSingle;
+// #endif
+// } // namespace cudaprob3
 class ParProb3ppOscillation : public OscillationParameters {
 public:
   ParProb3ppOscillation(const std::vector<oscillaton_calc_precision> &Ebin,
@@ -60,22 +61,29 @@ public:
 #endif
 
 private:
-#ifndef __CUDA__
-  std::shared_ptr<cudaprob3::CpuPropagator<oscillaton_calc_precision>>
+  std::shared_ptr<cudaprob3::Propagator<oscillaton_calc_precision>>
       propagator_neutrino;
-  std::shared_ptr<cudaprob3::CpuPropagator<oscillaton_calc_precision>>
+  std::shared_ptr<cudaprob3::Propagator<oscillaton_calc_precision>>
       propagator_antineutrino;
-  void load_state(cudaprob3::CpuPropagator<oscillaton_calc_precision> &to_load,
+  void load_state(cudaprob3::Propagator<oscillaton_calc_precision> &to_load,
                   bool init = false);
-#else
-  std::shared_ptr<cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>
-      propagator_neutrino;
-  std::shared_ptr<cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>
-      propagator_antineutrino;
-  void load_state(
-      cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision> &to_load,
-      bool init = false);
+  // #ifndef __CUDA__
+  //   std::shared_ptr<cudaprob3::CpuPropagator<oscillaton_calc_precision>>
+  //       propagator_neutrino;
+  //   std::shared_ptr<cudaprob3::CpuPropagator<oscillaton_calc_precision>>
+  //       propagator_antineutrino;
+  //   void load_state(cudaprob3::CpuPropagator<oscillaton_calc_precision>
+  //   &to_load,
+  //                   bool init = false);
+  // #else
+  //   std::shared_ptr<cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>
+  //       propagator_neutrino;
+  //   std::shared_ptr<cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>>
+  //       propagator_antineutrino;
+  //   void load_state(
+  //       cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision> &to_load,
+  //       bool init = false);
 
-#endif
+  // #endif
   std::vector<oscillaton_calc_precision> Ebins, costheta_bins;
 };

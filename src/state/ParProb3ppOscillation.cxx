@@ -1,4 +1,5 @@
 #include "ParProb3ppOscillation.h"
+#include "propagator.hpp"
 #include <print>
 #ifndef __CUDA__
 #include <cpupropagator.hpp> // include openmp propagator
@@ -151,14 +152,14 @@ ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
 
 ParProb3ppOscillation::~ParProb3ppOscillation() = default;
 
-#ifndef __CUDA__
+// #ifndef __CUDA__
+// void ParProb3ppOscillation::load_state(
+//     cudaprob3::CpuPropagator<oscillaton_calc_precision> &to_load, bool init)
+// #else
 void ParProb3ppOscillation::load_state(
-    cudaprob3::CpuPropagator<oscillaton_calc_precision> &to_load, bool init)
-#else
-void ParProb3ppOscillation::load_state(
-    cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision> &to_load,
+    cudaprob3::Propagator<oscillaton_calc_precision> &to_load,
     bool init)
-#endif
+// #endif
 {
   if (init) {
     to_load.setCosineList(costheta_bins);
@@ -178,11 +179,12 @@ void ParProb3ppOscillation::load_state(
 // span index [from] [to] [cosine] [energy]
 ParProb3ppOscillation::oscillaton_span_t
 ParProb3ppOscillation::get_dev_span_neutrino() {
-  return propagator_neutrino->GetDevResultMdSpan();
+  return ((cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>*)(propagator_neutrino.get()))->GetDevResultMdSpan();
 }
 // span index [from] [to] [cosine] [energy]
 ParProb3ppOscillation::oscillaton_span_t
 ParProb3ppOscillation::get_dev_span_antineutrino() {
-  return propagator_antineutrino->GetDevResultMdSpan();
+  // return propagator_antineutrino->GetDevResultMdSpan();
+  return ((cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>*)(propagator_antineutrino.get()))->GetDevResultMdSpan();
 }
 #endif

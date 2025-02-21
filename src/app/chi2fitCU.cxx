@@ -1,5 +1,5 @@
 #include "OscillationParameters.h"
-#include "ParBinned.h"
+#include "ParBinnedInterface.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "constants.h"

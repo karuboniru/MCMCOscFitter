@@ -57,6 +57,7 @@ if (ENABLE_CUDA)
     ParBinned
     STATIC
     ParBinned.cu
+    ParBinnedInterface.cu
   )
 
   target_link_directories(

@@ -1,6 +1,3 @@
-
-#include "OscillationParameters.h"
-#include "ParBinned.h"
 #include "ParProb3ppOscillation.h"
 #include "binning_tool.hpp"
 #include "constants.h"
@@ -31,7 +28,9 @@
 #include <format>
 #include <functional>
 
-using propgator_type = ParProb3ppOscillation;
+#include "OscillationParameters.h"
+#include "ParBinned.cuh"
+
 
 #define CUERR                                                                  \
   {                                                                            \
@@ -51,50 +50,13 @@ using const_span_2d_hist_t =
     cuda::std::mdspan<const oscillaton_calc_precision,
                       cuda::std::extents<size_t, cuda::std::dynamic_extent,
                                          cuda::std::dynamic_extent>>;
-// just to avoid any potential conflict
-namespace {
-template <typename T>
-concept is_hist = std::is_base_of_v<TH1, T>;
-
-template <typename T>
-concept is_hist2D = std::is_base_of_v<TH2, T>;
-
-template <is_hist T> T operator*(const T &lhs, const T &rhs) {
-  T ret = lhs;
-  ret.Multiply(&rhs);
-  return ret;
-}
-
-TH2D operator*(const TH2D &lhs, const TH1D &rhs) {
-  TH2D ret = lhs;
-
-  assert(lhs.GetNbinsX() == rhs.GetNbinsX());
-
-  for (int x_index = 1; x_index <= lhs.GetNbinsX(); x_index++) {
-    for (int y_index = 1; y_index <= lhs.GetNbinsY(); y_index++) {
-      ret.SetBinContent(x_index, y_index,
-                        ret.GetBinContent(x_index, y_index) *
-                            rhs.GetBinContent(x_index));
-    }
-  }
-  return ret;
-}
-
-template <is_hist T> T operator+(const T &lhs, const T &rhs) {
-  T ret = lhs;
-  ret.Add(&rhs);
-  return ret;
-}
-
-template <is_hist T> T operator*(const T &lhs, double rhs) {
+template <class T> T operator*(const T &lhs, double rhs) {
   T ret = lhs;
   ret.Scale(rhs);
   return ret;
 }
 
-template <is_hist T> T operator*(double lhs, const T &&rhs) {
-  return rhs * lhs;
-}
+template <class T> T operator*(double lhs, const T &&rhs) { return rhs * lhs; }
 
 thrust::host_vector<oscillaton_calc_precision> TH1_to_hist(const TH1D &hist) {
   thrust::host_vector<oscillaton_calc_precision> ret(hist.GetNbinsX());
@@ -112,7 +74,11 @@ thrust::host_vector<oscillaton_calc_precision> TH2D_to_hist(const TH2D &hist) {
   // but in TH2D, its E then costh
   for (int x = 1; x <= hist.GetNbinsX(); x++) {
     for (int y = 1; y <= hist.GetNbinsY(); y++) {
+#if __cpp_multidimensional_subscript
       ret_span[y - 1, x - 1] = hist.GetBinContent(x, y);
+#else
+      ret_span(y - 1, x - 1) = hist.GetBinContent(x, y);
+#endif
     }
   }
   return ret;
@@ -124,7 +90,11 @@ TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
   const_span_2d_hist_t ret_span(from_vec.data(), costh_bins, e_bins);
   for (int x = 1; x <= e_bins; x++) {
     for (int y = 1; y <= costh_bins; y++) {
+#if __cpp_multidimensional_subscript
       ret.SetBinContent(x, y, ret_span[y - 1, x - 1]);
+#else
+      ret.SetBinContent(x, y, ret_span(y - 1, x - 1));
+#endif
     }
   }
   return ret;
@@ -139,7 +109,11 @@ TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
   const_span_2d_hist_t ret_span(from_vec.data(), costh_bins, e_bins);
   for (int x = 1; x <= e_bins; x++) {
     for (int y = 1; y <= costh_bins; y++) {
+#if __cpp_multidimensional_subscript
       ret.SetBinContent(x, y, ret_span[y - 1, x - 1]);
+#else
+      ret.SetBinContent(x, y, ret_span(y - 1, x - 1));
+#endif
     }
   }
   return ret;
@@ -148,12 +122,14 @@ TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
 using vec_span = cuda::std::span<oscillaton_calc_precision>;
 using const_vec_span = cuda::std::span<const oscillaton_calc_precision>;
 
-constexpr auto get_indexes(size_t costh_bins, size_t current_thread_id) {
+constexpr auto __device__ __host__ get_indexes(size_t costh_bins, size_t current_thread_id) {
   auto current_costh_analysis_bin = current_thread_id % costh_bins;
   auto current_energy_analysis_bin = current_thread_id / costh_bins;
   return std::make_pair(current_costh_analysis_bin,
                         current_energy_analysis_bin);
 }
+
+#ifdef __cpp_multidimensional_subscript
 
 void __global__ calc_event_count_and_rebin(
     ParProb3ppOscillation::oscillaton_span_t oscProb,
@@ -313,6 +289,166 @@ void __global__ calc_event_count_noosc(
     }
   }
 }
+#else
+void __global__ calc_event_count_and_rebin(
+    ParProb3ppOscillation::oscillaton_span_t oscProb,
+    ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
+    size_t costh_rebin_factor) {
+  auto costh_bins = ret_numu.extent(0);
+  auto e_bins = ret_numu.extent(1);
+  auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
+  if (this_thread_id >= (costh_bins * e_bins)) {
+    return;
+  }
+  auto [current_costh_analysis_bin, current_energy_analysis_bin] =
+      get_indexes(costh_bins, this_thread_id);
+
+  // just tell compiler the extra information that we know the sizes
+  if (flux_numu.extents() != flux_numubar.extents() ||
+      flux_numu.extents() != flux_nue.extents() ||
+      flux_numu.extents() != flux_nuebar.extents() ||
+      flux_numu.extent(1) != xsec_numu.size() ||
+      flux_numu.extent(1) != xsec_numubar.size() ||
+      flux_numu.extent(1) != xsec_nue.size() ||
+      flux_numu.extent(1) != xsec_nuebar.size() ||
+      oscProb.extents() != oscProb_anti.extents() ||
+      oscProb.extent(2) != flux_numu.extent(0) ||
+      oscProb.extent(3) != flux_numu.extent(1) ||
+      ret_numu.extents() != ret_numubar.extents() ||
+      ret_numu.extents() != ret_nue.extents() ||
+      ret_numu.extents() != ret_nuebar.extents() ||
+      flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
+      flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
+    __builtin_unreachable();
+    // return;
+  }
+
+  ret_numu(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
+  ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
+  ret_nue(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
+  ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
+
+  for (size_t offset_costh = 0; offset_costh < costh_rebin_factor;
+       offset_costh++) {
+    for (size_t offset_energy = 0; offset_energy < E_rebin_factor;
+         offset_energy++) {
+      auto this_index_costh =
+          (current_costh_analysis_bin * costh_rebin_factor) +
+          offset_costh; // fine bin index
+      auto this_index_E = (current_energy_analysis_bin * E_rebin_factor) +
+                          offset_energy; // fine bin index
+      auto event_count_numu_final =
+          (oscProb(0, 1, this_index_costh, this_index_E) *
+               flux_nue(this_index_costh, this_index_E) +
+           oscProb(1, 1, this_index_costh, this_index_E) *
+               flux_numu(this_index_costh, this_index_E)) *
+          xsec_numu[this_index_E];
+      auto event_count_numubar_final =
+          (oscProb_anti(0, 1, this_index_costh, this_index_E) *
+               flux_nuebar(this_index_costh, this_index_E) +
+           oscProb_anti(1, 1, this_index_costh, this_index_E) *
+               flux_numubar(this_index_costh, this_index_E)) *
+          xsec_numubar[this_index_E];
+      auto event_count_nue_final =
+          (oscProb(0, 0, this_index_costh, this_index_E) *
+               flux_nue(this_index_costh, this_index_E) +
+           oscProb(1, 0, this_index_costh, this_index_E) *
+               flux_numu(this_index_costh, this_index_E)) *
+          xsec_nue[this_index_E];
+      auto event_count_nuebar_final =
+          (oscProb_anti(0, 0, this_index_costh, this_index_E) *
+               flux_nuebar(this_index_costh, this_index_E) +
+           oscProb_anti(1, 0, this_index_costh, this_index_E) *
+               flux_numubar(this_index_costh, this_index_E)) *
+          xsec_nuebar[this_index_E];
+      ret_numu(current_costh_analysis_bin, current_energy_analysis_bin) +=
+          event_count_numu_final;
+      ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin) +=
+          event_count_numubar_final;
+      ret_nue(current_costh_analysis_bin, current_energy_analysis_bin) +=
+          event_count_nue_final;
+      ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin) +=
+          event_count_nuebar_final;
+    }
+  }
+}
+
+void __global__ calc_event_count_noosc(
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
+    size_t costh_rebin_factor) {
+  auto costh_bins = ret_numu.extent(0);
+  auto e_bins = ret_numu.extent(1);
+  auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
+  if (this_thread_id >= (costh_bins * e_bins)) {
+    return;
+  }
+
+  // just tell compiler the extra information that we know the sizes
+  if (flux_numu.extents() != flux_numubar.extents() ||
+      flux_numu.extents() != flux_nue.extents() ||
+      flux_numu.extents() != flux_nuebar.extents() ||
+      flux_numu.extent(1) != xsec_numu.size() ||
+      flux_numu.extent(1) != xsec_numubar.size() ||
+      flux_numu.extent(1) != xsec_nue.size() ||
+      flux_numu.extent(1) != xsec_nuebar.size() ||
+      ret_numu.extents() != ret_numubar.extents() ||
+      ret_numu.extents() != ret_nue.extents() ||
+      ret_numu.extents() != ret_nuebar.extents() ||
+      flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
+      flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
+    __builtin_unreachable();
+  }
+
+  auto [current_costh_analysis_bin, current_energy_analysis_bin] =
+      get_indexes(costh_bins, this_thread_id);
+
+  ret_numu(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
+  ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
+  ret_nue(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
+  ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
+
+  for (size_t offset_costh = 0; offset_costh < costh_rebin_factor;
+       offset_costh++) {
+    for (size_t offset_energy = 0; offset_energy < E_rebin_factor;
+         offset_energy++) {
+      auto this_index_costh =
+          (current_costh_analysis_bin * costh_rebin_factor) +
+          offset_costh; // fine bin index
+      auto this_index_E = (current_energy_analysis_bin * E_rebin_factor) +
+                          offset_energy; // fine bin index
+      auto event_count_numu_final =
+          flux_numu(this_index_costh, this_index_E) * xsec_numu[this_index_E];
+      auto event_count_numubar_final =
+          flux_numubar(this_index_costh, this_index_E) *
+          xsec_numubar[this_index_E];
+      auto event_count_nue_final =
+          flux_nue(this_index_costh, this_index_E) * xsec_nue[this_index_E];
+      auto event_count_nuebar_final =
+          flux_nuebar(this_index_costh, this_index_E) *
+          xsec_nuebar[this_index_E];
+      ret_numu(current_costh_analysis_bin, current_energy_analysis_bin) +=
+          event_count_numu_final;
+      ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin) +=
+          event_count_numubar_final;
+      ret_nue(current_costh_analysis_bin, current_energy_analysis_bin) +=
+          event_count_nue_final;
+      ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin) +=
+          event_count_nuebar_final;
+    }
+  }
+}
+#endif
 
 auto vec2span_1d(auto &vec) {
   return cuda::std::span<std::remove_reference_t<decltype(*vec.data().get())>>(
@@ -410,121 +546,17 @@ private:
 
 constexpr size_t warp_size = 32;
 
-} // namespace
 
-class ParBinned : public propgator_type, public ModelDataLLH {
-public:
-  ParBinned(std::vector<double> Ebins, std::vector<double> costheta_bins,
-            double scale_ = 1., size_t E_rebin_factor = 1,
-            size_t costh_rebin_factor = 1, double IH_Bias = 1.0);
 
-  ParBinned(const ParBinned &) = default;
-  ParBinned(ParBinned &&) noexcept = default;
-  ParBinned &operator=(const ParBinned &) = default;
-  ParBinned &operator=(ParBinned &&) noexcept = default;
-  ~ParBinned() override = default;
-
-  void proposeStep() final;
-
-  // virtual double GetLogLikelihood() const override;
-  [[nodiscard]] double
-  GetLogLikelihoodAgainstData(const StateI &dataset) const final;
-
-  [[nodiscard]] SimpleDataHist GenerateData() const;
-  [[nodiscard]] SimpleDataHist GenerateData_NoOsc() const;
-
-  void Print() const {
-    // flux_hist_numu.Print();
-    // xsec_hist_numu.Print();
+template <class T>
+std::vector<T> stride(const std::vector<T> &vec, size_t stride) {
+  std::vector<T> ret;
+  ret.reserve(vec.size() / stride);
+  for (size_t i = 0; i < vec.size(); i += stride) {
+    ret.push_back(vec[i]);
   }
-
-  void flip_hierarchy() {
-    OscillationParameters::flip_hierarchy();
-    if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
-      re_calculate();
-    }
-    UpdatePrediction();
-  }
-
-  void Save_prob_hist(const std::string &name) {
-    // if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
-    auto file = TFile::Open(name.c_str(), "RECREATE");
-    file->cd();
-    auto prob_hist = GetProb_Hists_3F(Ebins, costheta_bins);
-    auto id_2_name = std::to_array({"nue", "numu", "nutau"});
-    // prob_hist: [0 neutrino, 1 antineutrino][from: 0-nue, 1-mu][to: 0-e,
-    // 1-mu]
-    for (int i = 0; i < 2; ++i) {
-      for (int j = 0; j < 3; ++j) {
-        for (int k = 0; k < 3; ++k) {
-          prob_hist[i][j][k].SetName(
-              std::format("{}_{}_{}", i == 0 ? "neutrino" : "antineutrino",
-                          id_2_name[j], id_2_name[k])
-                  .c_str());
-          prob_hist[i][j][k].Write();
-        }
-      }
-    }
-    // file->Write();
-    file->Close();
-    delete file;
-    // }
-  }
-
-  [[nodiscard]] double GetLogLikelihood() const final;
-
-  void UpdatePrediction();
-
-  void SaveAs(const char *filename) const;
-
-  auto vec2span_fine(auto &vec) const {
-    return cuda::std::mdspan<
-        std::remove_reference_t<decltype(*vec.data().get())>,
-        cuda::std::extents<size_t, cuda::std::dynamic_extent,
-                           cuda::std::dynamic_extent>>(
-        vec.data().get(), costh_fine_bin_count, E_fine_bin_count);
-  }
-
-  auto vec2span_analysis(auto &vec) const {
-    return cuda::std::mdspan<
-        std::remove_reference_t<decltype(*vec.data().get())>,
-        cuda::std::extents<size_t, cuda::std::dynamic_extent,
-                           cuda::std::dynamic_extent>>(
-        vec.data().get(), costh_analysis_bin_count, E_analysis_bin_count);
-  }
-
-private:
-  std::vector<double> Ebins, costheta_bins;
-  std::vector<double> Ebins_analysis, costheta_analysis;
-
-  // // index: [cosine, energy]
-  // thrust::device_vector<oscillaton_calc_precision> flux_hist_numu,
-  //     flux_hist_numubar, flux_hist_nue, flux_hist_nuebar;
-
-  // // 1D in energy
-  // thrust::device_vector<oscillaton_calc_precision> xsec_hist_numu,
-  //     xsec_hist_numubar, xsec_hist_nue, xsec_hist_nuebar;
-
-  // // index: [cosine, energy]
-  // thrust::device_vector<oscillaton_calc_precision> no_osc_hist_numu,
-  //     no_osc_hist_numubar, no_osc_hist_nue, no_osc_hist_nuebar;
-
-  size_t E_rebin_factor;
-  size_t costh_rebin_factor;
-
-  size_t E_fine_bin_count, costh_fine_bin_count, E_analysis_bin_count,
-      costh_analysis_bin_count;
-
-  // index: [cosine, energy]
-  thrust::device_vector<oscillaton_calc_precision> Prediction_hist_numu,
-      Prediction_hist_numubar, Prediction_hist_nue, Prediction_hist_nuebar;
-
-  auto vec2hist_analysis(const auto &vec) const {
-    return vec_to_hist(vec, costheta_analysis, Ebins_analysis);
-  }
-
-  double log_ih_bias;
-};
+  return ret;
+}
 
 ParBinned::ParBinned(std::vector<double> Ebins_,
                      std::vector<double> costheta_bins_, double scale_,
@@ -534,11 +566,16 @@ ParBinned::ParBinned(std::vector<double> Ebins_,
                      to_center<oscillaton_calc_precision>(costheta_bins_)},
       ModelDataLLH(), Ebins(std::move(Ebins_)),
       costheta_bins(std::move(costheta_bins_)),
-      Ebins_analysis(Ebins | std::views::stride(E_rebin_factor_) |
-                     std::ranges::to<std::vector>()),
-      costheta_analysis(costheta_bins |
-                        std::views::stride(costh_rebin_factor_) |
-                        std::ranges::to<std::vector>()),
+      Ebins_analysis(stride(Ebins, E_rebin_factor_)
+                     // Ebins | std::views::stride(E_rebin_factor_) |
+                     //              std::ranges::to<std::vector>()
+                     ),
+      costheta_analysis(
+          stride(costheta_bins, costh_rebin_factor_)
+          // costheta_bins |
+          //                 std::views::stride(costh_rebin_factor_)
+          //                 | std::ranges::to<std::vector>()
+          ),
       E_rebin_factor(E_rebin_factor_), costh_rebin_factor(costh_rebin_factor_),
       E_fine_bin_count(Ebins.size() - 1),
       costh_fine_bin_count(costheta_bins.size() - 1),
@@ -579,10 +616,10 @@ void ParBinned::UpdatePrediction() {
       vec2span_analysis(Prediction_hist_nue),
       vec2span_analysis(Prediction_hist_nuebar), E_rebin_factor,
       costh_rebin_factor);
-  CUERR
+  // CUERR
 
-  cudaDeviceSynchronize();
-  CUERR
+  // cudaDeviceSynchronize();
+  // CUERR
 }
 
 void ParBinned::proposeStep() {
@@ -667,14 +704,14 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
       vec2span_analysis(no_osc_hist_numubar),
       vec2span_analysis(no_osc_hist_nue), vec2span_analysis(no_osc_hist_nuebar),
       E_rebin_factor, costh_rebin_factor);
-  CUERR
+  // CUERR
 
   data.hist_numu = vec2hist_analysis(no_osc_hist_numu);
   data.hist_numubar = vec2hist_analysis(no_osc_hist_numubar);
   data.hist_nue = vec2hist_analysis(no_osc_hist_nue);
   data.hist_nuebar = vec2hist_analysis(no_osc_hist_nuebar);
-  cudaDeviceSynchronize();
-  CUERR
+  // cudaDeviceSynchronize();
+  // CUERR
   return data;
 }
 
@@ -708,6 +745,39 @@ void ParBinned::SaveAs(const char *filename) const {
   // file->Write();
   // file->Close();
   // delete file;
+}
+
+void ParBinned::flip_hierarchy(){
+  OscillationParameters::flip_hierarchy();
+  if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
+    re_calculate();
+  }
+  UpdatePrediction();
+}
+
+void ParBinned::Save_prob_hist(const std::string &name){
+  // if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
+  auto file = TFile::Open(name.c_str(), "RECREATE");
+  file->cd();
+  auto prob_hist = GetProb_Hists_3F(Ebins, costheta_bins);
+  auto id_2_name = std::to_array({"nue", "numu", "nutau"});
+  // prob_hist: [0 neutrino, 1 antineutrino][from: 0-nue, 1-mu][to: 0-e,
+  // 1-mu]
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      for (int k = 0; k < 3; ++k) {
+        prob_hist[i][j][k].SetName(
+            std::format("{}_{}_{}", i == 0 ? "neutrino" : "antineutrino",
+                        id_2_name[j], id_2_name[k])
+                .c_str());
+        prob_hist[i][j][k].Write();
+      }
+    }
+  }
+  // file->Write();
+  file->Close();
+  delete file;
+  // }
 }
 
 ParBinnedInterface::ParBinnedInterface(std::vector<double> Ebins,
@@ -754,34 +824,4 @@ ParBinnedInterface::GetLogLikelihoodAgainstData(const StateI &dataset) const {
 
 [[nodiscard]] SimpleDataHist ParBinnedInterface::GenerateData_NoOsc() const {
   return pImpl->GenerateData_NoOsc();
-}
-
-void ParBinnedInterface::Print() const { pImpl->Print(); }
-
-void ParBinnedInterface::flip_hierarchy() { pImpl->flip_hierarchy(); }
-
-void ParBinnedInterface::Save_prob_hist(const std::string &name) {
-  pImpl->Save_prob_hist(name);
-}
-
-void ParBinnedInterface::SaveAs(const char *filename) const {
-  pImpl->SaveAs(filename);
-}
-
-void ParBinnedInterface::UpdatePrediction() { pImpl->UpdatePrediction(); }
-
-double ParBinnedInterface::GetDM32sq() const { return pImpl->GetDM32sq(); }
-double ParBinnedInterface::GetDM21sq() const { return pImpl->GetDM21sq(); }
-double ParBinnedInterface::GetT23() const { return pImpl->GetT23(); }
-double ParBinnedInterface::GetT13() const { return pImpl->GetT13(); }
-double ParBinnedInterface::GetT12() const { return pImpl->GetT12(); }
-double ParBinnedInterface::GetDeltaCP() const { return pImpl->GetDeltaCP(); }
-
-void ParBinnedInterface::set_param(const param &p) { pImpl->set_param(p); }
-
-void ParBinnedInterface::set_toggle(const pull_toggle &t) {
-  pImpl->set_toggle(t);
-}
-const pull_toggle &ParBinnedInterface::get_toggle() const {
-  return pImpl->get_toggle();
 }

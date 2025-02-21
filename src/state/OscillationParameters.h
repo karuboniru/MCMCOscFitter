@@ -19,8 +19,7 @@ struct param {
 class pull_toggle {
 public:
   std::array<bool, 6> flags{};
-  constexpr static auto names =
-      std::to_array<std::string>({"DM32", "DM21", "T23", "T13", "T12", "DCP"});
+  const static std::array<std::string,6> names;
   [[nodiscard]] std::vector<std::string> get_active() const {
     std::vector<std::string> active;
     for (size_t i = 0; i < flags.size(); ++i) {

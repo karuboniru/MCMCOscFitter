@@ -1,4 +1,4 @@
-#include "ParBinned.h"
+#include "ParBinnedInterface.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "constants.h"
@@ -24,7 +24,7 @@ void report(std::string_view title, const std::array<double, 4> &result,
                "Diff");
   std::println("{}", hline);
   for (auto &&[name, res, ref] : std::ranges::views::zip(name, result, ref)) {
-    std::println("|{:^10}|{:^8.1f}|{:^8.0f}|{:^6.2f}%|", name, res, ref,
+    std::println("|{:^10}|{:^8.3f}|{:^8.3f}|{:^6.2f}%|", name, res, ref,
                  100. * (res - ref) / ref);
   }
   std::println("{}\n", hline);

@@ -105,3 +105,5 @@ void OscillationParameters::set_param(const param &p) {
   }
   re_calculate();
 }
+
+const std::array<std::string,6> pull_toggle::names{"DM32", "DM21", "T23", "T13", "T12", "DCP"};
