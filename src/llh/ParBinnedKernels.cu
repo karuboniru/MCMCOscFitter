@@ -1,8 +1,8 @@
+// #include <__clang_cuda_intrinsics.h>
 #define __MDSPAN_USE_PAREN_OPERATOR 1
 
-
-#include "constants.h"
 #include "ParBinnedKernels.cuh"
+#include "constants.h"
 
 constexpr size_t warp_size = 32;
 
@@ -173,195 +173,210 @@ void __global__ calc_event_count_noosc(
   }
 }
 
-// void __global__ calc_event_count_and_rebin_ver_calc_bin(
-//     ParProb3ppOscillation::oscillaton_span_t oscProb,
-//     ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
-//     const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
-//     const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
-//     const_vec_span xsec_numu, const_vec_span xsec_numubar,
-//     const_vec_span xsec_nue, const_vec_span xsec_nuebar,
-//     span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t
-//     ret_nue, span_2d_hist_t ret_nuebar, size_t E_rebin_factor, size_t
-//     costh_rebin_factor) {
-// //   __shared__ oscillaton_calc_precision per_thread_event_count[4 *
-// warp_size];
-// //   auto shared_result_span =
-// //       cuda::std::mdspan<oscillaton_calc_precision,
-// //                         cuda::std::extents<size_t, 4, warp_size>>(
-// //           per_thread_event_count);
+void __global__ calc_event_count(
+    ParProb3ppOscillation::oscillaton_span_t oscProb,
+    ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar) {
 
-//   auto costh_bins_fine = flux_numu.extent(0);
-//   auto e_bins_fine = flux_numu.extent(1);
-//   auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
-//   if (this_thread_id >= (costh_bins_fine * e_bins_fine)) {
-//     return;
-//   }
-//   auto [current_costh_fine_bin, current_energy_fine_bin] =
-//       get_indexes(costh_bins_fine, this_thread_id);
-//   auto current_costh_analysis_bin =
-//       current_costh_fine_bin / costh_rebin_factor; // coarse bin index
-//   auto current_energy_analysis_bin =
-//       current_energy_fine_bin / E_rebin_factor; // coarse bin index
+  if (flux_numu.extents() != flux_numubar.extents() ||
+      flux_numu.extents() != flux_nue.extents() ||
+      flux_numu.extents() != flux_nuebar.extents() ||
+      flux_numu.extent(1) != xsec_numu.size() ||
+      flux_numu.extent(1) != xsec_numubar.size() ||
+      flux_numu.extent(1) != xsec_nue.size() ||
+      flux_numu.extent(1) != xsec_nuebar.size() ||
+      oscProb.extents() != oscProb_anti.extents() ||
+      oscProb.extent(2) != flux_numu.extent(0) ||
+      oscProb.extent(3) != flux_numu.extent(1) ||
+      ret_numu.extents() != ret_numubar.extents() ||
+      ret_numu.extents() != ret_nue.extents() ||
+      ret_numu.extents() != ret_nuebar.extents() ||
+      flux_numu.extents() != ret_numu.extents()
 
-//   // just tell compiler the extra information that we know the sizes
-//   if (flux_numu.extents() != flux_numubar.extents() ||
-//       flux_numu.extents() != flux_nue.extents() ||
-//       flux_numu.extents() != flux_nuebar.extents() ||
-//       flux_numu.extent(1) != xsec_numu.size() ||
-//       flux_numu.extent(1) != xsec_numubar.size() ||
-//       flux_numu.extent(1) != xsec_nue.size() ||
-//       flux_numu.extent(1) != xsec_nuebar.size() ||
-//       oscProb.extents() != oscProb_anti.extents() ||
-//       oscProb.extent(2) != flux_numu.extent(0) ||
-//       oscProb.extent(3) != flux_numu.extent(1) ||
-//       ret_numu.extents() != ret_numubar.extents() ||
-//       ret_numu.extents() != ret_nue.extents() ||
-//       ret_numu.extents() != ret_nuebar.extents() ||
-//       flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
-//       flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
-//     __builtin_unreachable();
-//     // return;
-//   }
+  ) {
+    __builtin_unreachable();
+    // return;
+  }
+  auto global_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
+  auto costh_bins = flux_numu.extent(0);
+  auto e_bins = flux_numu.extent(1);
+  if (global_thread_id >= (costh_bins * e_bins)) {
+    return;
+  }
+  auto [this_index_costh, this_index_E] =
+      get_indexes(costh_bins, global_thread_id);
+  auto event_count_numu_final =
+      (oscProb(0, 1, this_index_costh, this_index_E) *
+           flux_nue(this_index_costh, this_index_E) +
+       oscProb(1, 1, this_index_costh, this_index_E) *
+           flux_numu(this_index_costh, this_index_E)) *
+      xsec_numu[this_index_E];
+  auto event_count_numubar_final =
+      (oscProb_anti(0, 1, this_index_costh, this_index_E) *
+           flux_nuebar(this_index_costh, this_index_E) +
+       oscProb_anti(1, 1, this_index_costh, this_index_E) *
+           flux_numubar(this_index_costh, this_index_E)) *
+      xsec_numubar[this_index_E];
+  auto event_count_nue_final = (oscProb(0, 0, this_index_costh, this_index_E) *
+                                    flux_nue(this_index_costh, this_index_E) +
+                                oscProb(1, 0, this_index_costh, this_index_E) *
+                                    flux_numu(this_index_costh, this_index_E)) *
+                               xsec_nue[this_index_E];
+  auto event_count_nuebar_final =
+      (oscProb_anti(0, 0, this_index_costh, this_index_E) *
+           flux_nuebar(this_index_costh, this_index_E) +
+       oscProb_anti(1, 0, this_index_costh, this_index_E) *
+           flux_numubar(this_index_costh, this_index_E)) *
+      xsec_nuebar[this_index_E];
+  ret_numu(this_index_costh, this_index_E) = event_count_numu_final;
+  ret_numubar(this_index_costh, this_index_E) = event_count_numubar_final;
+  ret_nue(this_index_costh, this_index_E) = event_count_nue_final;
+  ret_nuebar(this_index_costh, this_index_E) = event_count_nuebar_final;
+}
 
-//   ret_numu(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-//   ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-//   ret_nue(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-//   ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-//   auto this_index_costh = current_costh_fine_bin; // fine bin index
-//   auto this_index_E = current_energy_fine_bin;    // fine bin index
+void __global__ rebinner_1(span_2d_hist_t fine_bin_numu,
+                           span_2d_hist_t fine_bin_numubar,
+                           span_2d_hist_t fine_bin_nue,
+                           span_2d_hist_t fine_bin_nuebar,
+                           size_t E_rebin_factor, size_t costh_rebin_factor) {
+  auto costh_fine_bins = fine_bin_numu.extent(0);
+  auto e_fine_bins = fine_bin_numu.extent(1);
+  auto e_coarse_bins = e_fine_bins / E_rebin_factor;
 
-//   auto event_count_numu_final =
-//       (oscProb(0, 1, this_index_costh, this_index_E) *
-//            flux_nue(this_index_costh, this_index_E) +
-//        oscProb(1, 1, this_index_costh, this_index_E) *
-//            flux_numu(this_index_costh, this_index_E)) *
-//       xsec_numu[this_index_E];
-//   auto event_count_numubar_final =
-//       (oscProb_anti(0, 1, this_index_costh, this_index_E) *
-//            flux_nuebar(this_index_costh, this_index_E) +
-//        oscProb_anti(1, 1, this_index_costh, this_index_E) *
-//            flux_numubar(this_index_costh, this_index_E)) *
-//       xsec_numubar[this_index_E];
-//   auto event_count_nue_final = (oscProb(0, 0, this_index_costh, this_index_E)
-//   *
-//                                     flux_nue(this_index_costh, this_index_E)
-//                                     +
-//                                 oscProb(1, 0, this_index_costh, this_index_E)
-//                                 *
-//                                     flux_numu(this_index_costh,
-//                                     this_index_E)) *
-//                                xsec_nue[this_index_E];
-//   auto event_count_nuebar_final =
-//       (oscProb_anti(0, 0, this_index_costh, this_index_E) *
-//            flux_nuebar(this_index_costh, this_index_E) +
-//        oscProb_anti(1, 0, this_index_costh, this_index_E) *
-//            flux_numubar(this_index_costh, this_index_E)) *
-//       xsec_nuebar[this_index_E];
+  auto global_id = threadIdx.x + (blockDim.x * blockIdx.x);
 
-// //   shared_result_span(0, threadIdx.x) = event_count_numu_final;
-// //   shared_result_span(1, threadIdx.x) = event_count_numubar_final;
-// //   shared_result_span(2, threadIdx.x) = event_count_nue_final;
-// //   shared_result_span(3, threadIdx.x) = event_count_nuebar_final;
-//     atomicAdd(&ret_numu(current_costh_analysis_bin,
-//     current_energy_analysis_bin),
-//               event_count_numu_final);
-//     atomicAdd(
-//         &ret_numubar(current_costh_analysis_bin,
-//         current_energy_analysis_bin), event_count_numubar_final);
-//     atomicAdd(&ret_nue(current_costh_analysis_bin,
-//     current_energy_analysis_bin),
-//               event_count_nue_final);
-//     atomicAdd(
-//         &ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin),
-//         event_count_nuebar_final);
-// //   __syncthreads();
-// //   if (threadIdx.x == 0) {
-// //     for (auto thid = 0; thid < warp_size; thid++) {
-// //       auto new_thid = thid + this_thread_id;
-// //       auto [current_costh_fine_bin, current_energy_fine_bin] =
-// //           get_indexes(costh_bins_fine, new_thid);
-// //       auto current_costh_analysis_bin =
-// //           current_costh_fine_bin / costh_rebin_factor; // coarse bin index
-// //       auto current_energy_analysis_bin =
-// //           current_energy_fine_bin / E_rebin_factor; // coarse bin index
-// //       ret_numu(current_costh_analysis_bin, current_energy_analysis_bin) +=
-// //           shared_result_span(0, thid);
-// //       ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin)
-// +=
-// //           shared_result_span(1, thid);
-// //       ret_nue(current_costh_analysis_bin, current_energy_analysis_bin) +=
-// //           shared_result_span(2, thid);
-// //       ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin)
-// +=
-// //           shared_result_span(3, thid);
-// //     }
-// //   }
-// }
+  if (global_id < (costh_fine_bins * e_fine_bins / E_rebin_factor)) {
+    auto [current_costh_fine_bin, current_energy_coarse_bin] =
+        get_indexes(costh_fine_bins, global_id);
+    auto current_energy_fine_bin = current_energy_coarse_bin * E_rebin_factor;
+    for (size_t e_offset = 1; e_offset < E_rebin_factor; e_offset++) {
+      auto current_energy_fine_bin_from = current_energy_fine_bin + e_offset;
+      fine_bin_numu(current_costh_fine_bin, current_energy_fine_bin) +=
+          fine_bin_numu(current_costh_fine_bin, current_energy_fine_bin_from);
+      fine_bin_numubar(current_costh_fine_bin, current_energy_fine_bin) +=
+          fine_bin_numubar(current_costh_fine_bin,
+                           current_energy_fine_bin_from);
+      fine_bin_nue(current_costh_fine_bin, current_energy_fine_bin) +=
+          fine_bin_nue(current_costh_fine_bin, current_energy_fine_bin_from);
+      fine_bin_nuebar(current_costh_fine_bin, current_energy_fine_bin) +=
+          fine_bin_nuebar(current_costh_fine_bin, current_energy_fine_bin_from);
+    }
+  }
+}
 
-// void __global__ calc_event_count_noosc_ver_calc_bin(
-//     const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
-//     const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
-//     const_vec_span xsec_numu, const_vec_span xsec_numubar,
-//     const_vec_span xsec_nue, const_vec_span xsec_nuebar,
-//     span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t
-//     ret_nue, span_2d_hist_t ret_nuebar, size_t E_rebin_factor, size_t
-//     costh_rebin_factor) {
-//   auto costh_bins_fine = flux_numu.extent(0);
-//   auto e_bins_fine = flux_numu.extent(1);
-//   auto this_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
-//   if (this_thread_id >= (costh_bins_fine * e_bins_fine)) {
-//     return;
-//   }
-//   auto [current_costh_fine_bin, current_energy_fine_bin] =
-//       get_indexes(costh_bins_fine, this_thread_id);
-//   auto current_costh_analysis_bin =
-//       current_costh_fine_bin / costh_rebin_factor; // coarse bin index
-//   auto current_energy_analysis_bin =
-//       current_energy_fine_bin / E_rebin_factor; // coarse bin index
-//   // just tell compiler the extra information that we know the sizes
-//   if (flux_numu.extents() != flux_numubar.extents() ||
-//       flux_numu.extents() != flux_nue.extents() ||
-//       flux_numu.extents() != flux_nuebar.extents() ||
-//       flux_numu.extent(1) != xsec_numu.size() ||
-//       flux_numu.extent(1) != xsec_numubar.size() ||
-//       flux_numu.extent(1) != xsec_nue.size() ||
-//       flux_numu.extent(1) != xsec_nuebar.size() ||
-//       ret_numu.extents() != ret_numubar.extents() ||
-//       ret_numu.extents() != ret_nue.extents() ||
-//       ret_numu.extents() != ret_nuebar.extents() ||
-//       flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
-//       flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
-//     __builtin_unreachable();
-//   }
+void __global__
+rebinner_2(span_2d_hist_t fine_bin_numu, span_2d_hist_t fine_bin_numubar,
+           span_2d_hist_t fine_bin_nue, span_2d_hist_t fine_bin_nuebar,
+           span_2d_hist_t coarse_bin_numu, span_2d_hist_t coarse_bin_numubar,
+           span_2d_hist_t coarse_bin_nue, span_2d_hist_t coarse_bin_nuebar,
+           size_t E_rebin_factor, size_t costh_rebin_factor) {
+  auto costh_coarse_bins = coarse_bin_numu.extent(0);
+  auto e_coarse_bins = coarse_bin_numu.extent(1);
 
-//   ret_numu(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-//   ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-//   ret_nue(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
-//   ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin) = 0;
+  auto global_id = threadIdx.x + (blockDim.x * blockIdx.x);
+  // rebin again along cost, this time save to coarse bin span
+  if (global_id < (costh_coarse_bins * e_coarse_bins)) {
+    auto [current_costh_coarse_bin, current_energy_coarse_bin] =
+        get_indexes(costh_coarse_bins, global_id);
+    auto current_energy_fine_bin = current_energy_coarse_bin * E_rebin_factor;
+    auto current_costh_fine_bin = current_costh_coarse_bin * costh_rebin_factor;
+    coarse_bin_numu(current_costh_coarse_bin, current_energy_coarse_bin) = 0;
+    coarse_bin_numubar(current_costh_coarse_bin, current_energy_coarse_bin) = 0;
+    coarse_bin_nue(current_costh_coarse_bin, current_energy_coarse_bin) = 0;
+    coarse_bin_nuebar(current_costh_coarse_bin, current_energy_coarse_bin) = 0;
+    for (size_t costh_offset = 0; costh_offset < costh_rebin_factor;
+         costh_offset++) {
+      auto current_costh_fine_bin_from = current_costh_fine_bin + costh_offset;
+      coarse_bin_numu(current_costh_coarse_bin, current_energy_coarse_bin) +=
+          fine_bin_numu(current_costh_fine_bin_from, current_energy_fine_bin);
+      coarse_bin_numubar(current_costh_coarse_bin, current_energy_coarse_bin) +=
+          fine_bin_numubar(current_costh_fine_bin_from,
+                           current_energy_fine_bin);
+      coarse_bin_nue(current_costh_coarse_bin, current_energy_coarse_bin) +=
+          fine_bin_nue(current_costh_fine_bin_from, current_energy_fine_bin);
+      coarse_bin_nuebar(current_costh_coarse_bin, current_energy_coarse_bin) +=
+          fine_bin_nuebar(current_costh_fine_bin_from, current_energy_fine_bin);
+    }
+  }
+}
 
-//   auto this_index_costh = current_costh_fine_bin; // fine bin index
-//   auto this_index_E = current_energy_fine_bin;    // fine bin index
+void __global__ calc_event_count_atomic_add(
+    ParProb3ppOscillation::oscillaton_span_t oscProb,
+    ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
+    size_t costh_rebin_factor) {
 
-//   auto event_count_numu_final =
-//       flux_numu(this_index_costh, this_index_E) * xsec_numu[this_index_E];
-//   auto event_count_numubar_final =
-//       flux_numubar(this_index_costh, this_index_E) *
-//       xsec_numubar[this_index_E];
-//   auto event_count_nue_final =
-//       flux_nue(this_index_costh, this_index_E) * xsec_nue[this_index_E];
-//   auto event_count_nuebar_final =
-//       flux_nuebar(this_index_costh, this_index_E) *
-//       xsec_nuebar[this_index_E];
-//   atomicAdd(&ret_numu(current_costh_analysis_bin,
-//   current_energy_analysis_bin),
-//             event_count_numu_final);
-//   atomicAdd(
-//       &ret_numubar(current_costh_analysis_bin, current_energy_analysis_bin),
-//       event_count_numubar_final);
-//   atomicAdd(&ret_nue(current_costh_analysis_bin,
-//   current_energy_analysis_bin),
-//             event_count_nue_final);
-//   atomicAdd(
-//       &ret_nuebar(current_costh_analysis_bin, current_energy_analysis_bin),
-//       event_count_nuebar_final);
-// }
+  if (flux_numu.extents() != flux_numubar.extents() ||
+      flux_numu.extents() != flux_nue.extents() ||
+      flux_numu.extents() != flux_nuebar.extents() ||
+      flux_numu.extent(1) != xsec_numu.size() ||
+      flux_numu.extent(1) != xsec_numubar.size() ||
+      flux_numu.extent(1) != xsec_nue.size() ||
+      flux_numu.extent(1) != xsec_nuebar.size() ||
+      oscProb.extents() != oscProb_anti.extents() ||
+      oscProb.extent(2) != flux_numu.extent(0) ||
+      oscProb.extent(3) != flux_numu.extent(1) ||
+      ret_numu.extents() != ret_numubar.extents() ||
+      ret_numu.extents() != ret_nue.extents() ||
+      ret_numu.extents() != ret_nuebar.extents() ||
+      flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
+      flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
+    __builtin_unreachable();
+    // return;
+  }
+  auto global_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
+  auto costh_bins = flux_numu.extent(0);
+  auto e_bins = flux_numu.extent(1);
+  if (global_thread_id >= (costh_bins * e_bins)) {
+    return;
+  }
+  auto [this_index_costh, this_index_E] =
+      get_indexes(costh_bins, global_thread_id);
+  auto event_count_numu_final =
+      (oscProb(0, 1, this_index_costh, this_index_E) *
+           flux_nue(this_index_costh, this_index_E) +
+       oscProb(1, 1, this_index_costh, this_index_E) *
+           flux_numu(this_index_costh, this_index_E)) *
+      xsec_numu[this_index_E];
+  auto event_count_numubar_final =
+      (oscProb_anti(0, 1, this_index_costh, this_index_E) *
+           flux_nuebar(this_index_costh, this_index_E) +
+       oscProb_anti(1, 1, this_index_costh, this_index_E) *
+           flux_numubar(this_index_costh, this_index_E)) *
+      xsec_numubar[this_index_E];
+  auto event_count_nue_final = (oscProb(0, 0, this_index_costh, this_index_E) *
+                                    flux_nue(this_index_costh, this_index_E) +
+                                oscProb(1, 0, this_index_costh, this_index_E) *
+                                    flux_numu(this_index_costh, this_index_E)) *
+                               xsec_nue[this_index_E];
+  auto event_count_nuebar_final =
+      (oscProb_anti(0, 0, this_index_costh, this_index_E) *
+           flux_nuebar(this_index_costh, this_index_E) +
+       oscProb_anti(1, 0, this_index_costh, this_index_E) *
+           flux_numubar(this_index_costh, this_index_E)) *
+      xsec_nuebar[this_index_E];
+  // ret_numu(this_index_costh, this_index_E) = event_count_numu_final;
+  // ret_numubar(this_index_costh, this_index_E) = event_count_numubar_final;
+  // ret_nue(this_index_costh, this_index_E) = event_count_nue_final;
+  // ret_nuebar(this_index_costh, this_index_E) = event_count_nuebar_final;
+  auto target_index_costh = this_index_costh / costh_rebin_factor;
+  auto target_index_E = this_index_E / E_rebin_factor;
+  atomicAdd(&ret_numu(target_index_costh, target_index_E),
+            event_count_numu_final);
+  atomicAdd(&ret_numubar(target_index_costh, target_index_E),
+            event_count_numubar_final);
+  atomicAdd(&ret_nue(target_index_costh, target_index_E),
+            event_count_nue_final);
+  atomicAdd(&ret_nuebar(target_index_costh, target_index_E),
+            event_count_nuebar_final);
+}

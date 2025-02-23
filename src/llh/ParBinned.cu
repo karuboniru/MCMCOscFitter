@@ -50,13 +50,6 @@ using const_span_2d_hist_t =
     cuda::std::mdspan<const oscillaton_calc_precision,
                       cuda::std::extents<size_t, cuda::std::dynamic_extent,
                                          cuda::std::dynamic_extent>>;
-template <class T> T operator*(const T &lhs, double rhs) {
-  T ret = lhs;
-  ret.Scale(rhs);
-  return ret;
-}
-
-template <class T> T operator*(double lhs, const T &&rhs) { return rhs * lhs; }
 
 thrust::host_vector<oscillaton_calc_precision> TH1_to_hist(const TH1D &hist) {
   thrust::host_vector<oscillaton_calc_precision> ret(hist.GetNbinsX());
@@ -263,30 +256,35 @@ void ParBinned::UpdatePrediction() {
   auto span_prob_antineutrino = propgator_type::get_dev_span_antineutrino();
   CUERR
 
-  dim3 block_size(E_analysis_bin_count, costh_analysis_bin_count);
-
   auto &flux_xsec_device_input = global_device_input_instance::get_instance();
-  auto warp_count = cuda::ceil_div(
-      costh_analysis_bin_count * E_analysis_bin_count, warp_size);
-  calc_event_count_and_rebin<<<warp_count, warp_size>>>(
-      span_prob_neutrino, span_prob_antineutrino,
-      flux_xsec_device_input.get_flux_numu(),
-      flux_xsec_device_input.get_flux_numubar(),
-      flux_xsec_device_input.get_flux_nue(),
-      flux_xsec_device_input.get_flux_nuebar(),
-      flux_xsec_device_input.get_xsec_numu(),
-      flux_xsec_device_input.get_xsec_numubar(),
-      flux_xsec_device_input.get_xsec_nue(),
-      flux_xsec_device_input.get_xsec_nuebar(),
-      vec2span_analysis(Prediction_hist_numu),
-      vec2span_analysis(Prediction_hist_numubar),
-      vec2span_analysis(Prediction_hist_nue),
-      vec2span_analysis(Prediction_hist_nuebar), E_rebin_factor,
-      costh_rebin_factor);
-  // CUERR
-
-  // cudaDeviceSynchronize();
-  // CUERR
+  cudaMemsetAsync(Prediction_hist_numu.data().get(), 0,
+                  sizeof(oscillaton_calc_precision) *
+                      Prediction_hist_numu.size());
+  cudaMemsetAsync(Prediction_hist_numubar.data().get(), 0,
+                  sizeof(oscillaton_calc_precision) *
+                      Prediction_hist_numubar.size());
+  cudaMemsetAsync(Prediction_hist_nue.data().get(), 0,
+                  sizeof(oscillaton_calc_precision) *
+                      Prediction_hist_nue.size());
+  cudaMemsetAsync(Prediction_hist_nuebar.data().get(), 0,
+                  sizeof(oscillaton_calc_precision) *
+                      Prediction_hist_nuebar.size());
+  calc_event_count_atomic_add<<<
+      cuda::ceil_div(E_fine_bin_count * costh_fine_bin_count, warp_size),
+      warp_size>>>(span_prob_neutrino, span_prob_antineutrino,
+                   flux_xsec_device_input.get_flux_numu(),
+                   flux_xsec_device_input.get_flux_numubar(),
+                   flux_xsec_device_input.get_flux_nue(),
+                   flux_xsec_device_input.get_flux_nuebar(),
+                   flux_xsec_device_input.get_xsec_numu(),
+                   flux_xsec_device_input.get_xsec_numubar(),
+                   flux_xsec_device_input.get_xsec_nue(),
+                   flux_xsec_device_input.get_xsec_nuebar(),
+                   vec2span_analysis(Prediction_hist_numu),
+                   vec2span_analysis(Prediction_hist_numubar),
+                   vec2span_analysis(Prediction_hist_nue),
+                   vec2span_analysis(Prediction_hist_nuebar), E_rebin_factor,
+                   costh_rebin_factor);
 }
 
 void ParBinned::proposeStep() {
