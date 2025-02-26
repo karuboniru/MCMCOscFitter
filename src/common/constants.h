@@ -3,10 +3,11 @@
 // constexpr double H_to_C = 120. / 73.;
 // constexpr double H_to_C = 1.67;
 
+// atom mass
 constexpr double H1_da = 1.0078250322;
-constexpr double C12_da = 12.0;
+constexpr double C12_da = 12.0106;
 
-constexpr double H_mass_perc = 12.01;
+constexpr double H_mass_perc = 12.00;
 constexpr double H_to_C =
     (H_mass_perc / H1_da) / ((100 - H_mass_perc) / C12_da);
 

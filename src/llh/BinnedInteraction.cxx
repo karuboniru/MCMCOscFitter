@@ -65,10 +65,11 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
                                      double scale_, size_t E_rebin_factor_,
                                      size_t costh_rebin_factor_,
                                      double IH_bias_)
-    : propgator_type{to_center<oscillaton_calc_precision>(Ebins_),
-                     to_center<oscillaton_calc_precision>(costheta_bins_)},
-      ModelDataLLH(), Ebins(std::move(Ebins_)),
-      costheta_bins(std::move(costheta_bins_)),
+    : ModelDataLLH(),
+      propagator{std::make_shared<propgator_type>(
+          to_center<oscillaton_calc_precision>(Ebins_),
+          to_center<oscillaton_calc_precision>(costheta_bins_))},
+      Ebins(std::move(Ebins_)), costheta_bins(std::move(costheta_bins_)),
       flux_hist_numu(flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) *
                      scale_),
       flux_hist_numubar(flux_input.GetFlux_Hist(Ebins, costheta_bins, -14) *
@@ -91,7 +92,7 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
 
 void BinnedInteraction::UpdatePrediction() {
   // [0-neutrino, 1-antineutrino][from: 0-nue, 1-mu][to: 0-e, 1-mu]
-  auto oscHists = GetProb_Hists(Ebins, costheta_bins);
+  auto oscHists = propagator->GetProb_Hists(Ebins, costheta_bins, *this);
 
   // auto oscHist = GetProb_Hist(Ebins, costheta_bins, 1);
   // auto oscHist_anti = GetProb_Hist(Ebins, costheta_bins, -1);
@@ -120,7 +121,7 @@ void BinnedInteraction::UpdatePrediction() {
 }
 
 void BinnedInteraction::proposeStep() {
-  propgator_type::proposeStep();
+  OscillationParameters::proposeStep();
   UpdatePrediction();
 }
 
@@ -129,7 +130,7 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
   auto binsx = data.GetNbinsX();
   auto binsy = data.GetNbinsY();
   double chi2{};
-// #pragma omp parallel for reduction(+ : chi2) collapse(2)
+  // #pragma omp parallel for reduction(+ : chi2) collapse(2)
   for (int x = 1; x <= binsx; x++) {
     for (int y = 1; y <= binsy; y++) {
       auto bin_data = data.GetBinContent(x, y);
@@ -207,6 +208,29 @@ void BinnedInteraction::SaveAs(const char *filename) const {
   file->Add(Prediction_hist_nuebar.Clone("Prediction_hist_nuebar"));
 
   file->Write();
+  file->Close();
+  delete file;
+}
+
+void BinnedInteraction::Save_prob_hist(const std::string &name) {
+  // if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
+  auto file = TFile::Open(name.c_str(), "RECREATE");
+  file->cd();
+  auto prob_hist = propagator->GetProb_Hists_3F(Ebins, costheta_bins, *this);
+  auto id_2_name = std::to_array({"nue", "numu", "nutau"});
+  // prob_hist: [0 neutrino, 1 antineutrino][from: 0-nue, 1-mu][to: 0-e,
+  // 1-mu]
+  for (int i = 0; i < 2; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      for (int k = 0; k < 3; ++k) {
+        prob_hist[i][j][k].SetName(
+            std::format("{}_{}_{}", i == 0 ? "neutrino" : "antineutrino",
+                        id_2_name[j], id_2_name[k])
+                .c_str());
+        prob_hist[i][j][k].Write();
+      }
+    }
+  }
   file->Close();
   delete file;
 }

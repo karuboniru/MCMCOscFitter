@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ModelDataLLH.h"
+#include "OscillationParameters.h"
 #include "ParProb3ppOscillation.h"
 #include "Prob3ppOscillation.h"
 #include "SimpleDataHist.h"
@@ -16,7 +17,7 @@
 using propgator_type = ParProb3ppOscillation;
 // using propgator_type = Prob3ppOscillation;
 
-class BinnedInteraction : public propgator_type, public ModelDataLLH {
+class BinnedInteraction : public OscillationParameters, public ModelDataLLH {
 public:
   BinnedInteraction(std::vector<double> Ebins,
                     std::vector<double> costheta_bins, double scale_ = 1.,
@@ -45,36 +46,10 @@ public:
 
   void flip_hierarchy() {
     OscillationParameters::flip_hierarchy();
-    if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
-      re_calculate();
-    }
     UpdatePrediction();
   }
 
-  void Save_prob_hist(const std::string &name) {
-    // if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
-    auto file = TFile::Open(name.c_str(), "RECREATE");
-    file->cd();
-    auto prob_hist = GetProb_Hists_3F(Ebins, costheta_bins);
-    auto id_2_name = std::to_array({"nue", "numu", "nutau"});
-    // prob_hist: [0 neutrino, 1 antineutrino][from: 0-nue, 1-mu][to: 0-e,
-    // 1-mu]
-    for (int i = 0; i < 2; ++i) {
-      for (int j = 0; j < 3; ++j) {
-        for (int k = 0; k < 3; ++k) {
-          prob_hist[i][j][k].SetName(
-              std::format("{}_{}_{}", i == 0 ? "neutrino" : "antineutrino",
-                          id_2_name[j], id_2_name[k])
-                  .c_str());
-          prob_hist[i][j][k].Write();
-        }
-      }
-    }
-    // file->Write();
-    file->Close();
-    delete file;
-    // }
-  }
+  void Save_prob_hist(const std::string &name);
 
   [[nodiscard]] double GetLogLikelihood() const final;
 
@@ -83,6 +58,7 @@ public:
   void SaveAs(const char *filename) const;
 
 private:
+  std::shared_ptr<propgator_type> propagator;
   std::vector<double> Ebins, costheta_bins;
   // std::vector<double> Ebins_calc, costheta_bins_calc;
   TH2D flux_hist_numu, flux_hist_numubar, flux_hist_nue, flux_hist_nuebar;

@@ -19,7 +19,7 @@ struct param {
 class pull_toggle {
 public:
   std::array<bool, 6> flags{};
-  const static std::array<std::string,6> names;
+  const static std::array<std::string, 6> names;
   [[nodiscard]] std::vector<std::string> get_active() const {
     std::vector<std::string> active;
     for (size_t i = 0; i < flags.size(); ++i) {
@@ -64,8 +64,8 @@ public:
   [[nodiscard]] double GetLogLikelihood() const override;
   [[nodiscard]] double GetLogLikelihood(const pull_toggle &) const;
 
-  [[nodiscard]] virtual std::array<std::array<double, 3>, 3>
-  GetProb(int flavor, double E, double costheta) const = 0;
+  // [[nodiscard]] virtual std::array<std::array<double, 3>, 3>
+  // GetProb(int flavor, double E, double costheta) const = 0;
 
   [[nodiscard, gnu::pure]] auto GetDM32sq() const {
     return is_NH ? NH_DM2 : IH_DM2;
@@ -90,7 +90,7 @@ public:
 
   void set_param(const param &p);
 
-  virtual void re_calculate() = 0;
+  // virtual void re_calculate() = 0;
 
   void set_toggle(const pull_toggle &toggle) { current_toggle = toggle; }
 

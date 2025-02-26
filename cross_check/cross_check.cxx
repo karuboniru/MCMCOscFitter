@@ -9,26 +9,23 @@
 #include <ranges>
 
 const char *const ziou_normal =
-    "/var/home/yan/.var/app/com.tencent.WeChat/xwechat_files/yanqiyu1_074d/msg/"
-    "file/2024-12/event_qiyu_normal.root";
+    "/var/home/yan/codes/MCMCOscFitter/build/ziou/NO_event.root";
 const char *const ziou_inverted =
-    "/var/home/yan/.var/app/com.tencent.WeChat/xwechat_files/yanqiyu1_074d/msg/"
-    "file/2024-12/event_qiyu_invert.root";
+    "/var/home/yan/codes/MCMCOscFitter/build/ziou/IO_event.root";
 const char *const ziou_no_osc =
-    "/var/home/yan/.var/app/com.tencent.WeChat/xwechat_files/yanqiyu1_074d/msg/"
-    "file/2024-12/event_new_noosc.root";
+    "/var/home/yan/codes/MCMCOscFitter/build/ziou/noosc_event.root";
 const auto ziou_file_array =
     std::to_array({ziou_normal, ziou_inverted, ziou_no_osc});
-const auto ziou_hist_name =
-    std::to_array({"final_numu_flux", "final_nue_flux", "final_numubar_flux",
-                   "final_nuebar_flux"});
+const auto ziou_hist_name = std::to_array(
+    {"final_numu_flux_rebinned", "final_nue_flux_rebinned",
+     "final_numubar_flux_rebinned", "final_nuebar_flux_rebinned"});
 
 const char *const qiyu_normal =
-    "/var/home/yan/code/MCMCOscFitter/build/src/app/Event_rate_NH.root";
+    "/var/home/yan/codes/MCMCOscFitter/build/Event_rate_NH.root";
 const char *const qiyu_inverted =
-    "/var/home/yan/code/MCMCOscFitter/build/src/app/Event_rate_IH.root";
+    "/var/home/yan/codes/MCMCOscFitter/build/Event_rate_IH.root";
 const char *const qiyu_no_osc =
-    "/var/home/yan/code/MCMCOscFitter/build/src/app/No_Osc.root";
+    "/var/home/yan/codes/MCMCOscFitter/build/No_Osc.root";
 const auto qiyu_file_array =
     std::to_array({qiyu_normal, qiyu_inverted, qiyu_no_osc});
 const auto qiyu_hist_name = std::to_array({"numu", "nue", "numubar", "nuebar"});
@@ -39,9 +36,9 @@ const auto qiyu_hist_name = std::to_array({"numu", "nue", "numubar", "nuebar"});
 // }
 
 int main() {
-  auto costheta_bins = linspace(-1., 1., 401);
+  //   auto costheta_bins = linspace(-1., 1., 11);
 
-  auto Ebins = logspace(0.1, 20., 401);
+  //   auto Ebins = logspace(0.1, 20., 10);
   TFile output = TFile("cross_check.root", "RECREATE");
 
   for (const auto &[ziou_file, qiyu_file, tag] :
@@ -54,9 +51,13 @@ int main() {
     for (const auto &[ziou_hist_name, qiyu_hist_name] :
          std::views::zip(ziou_hist_name, qiyu_hist_name)) {
       auto ziou_hist = dynamic_cast<TH2D *>(ziou.Get(ziou_hist_name));
-      ziou_hist->SetBins(Ebins.size() - 1, Ebins.data(),
-                         costheta_bins.size() - 1, costheta_bins.data());
+      //   ziou_hist->SetBins(Ebins.size() - 1, Ebins.data(),
+      //                      costheta_bins.size() - 1, costheta_bins.data());
       auto qiyu_hist = dynamic_cast<TH2D *>(qiyu.Get(qiyu_hist_name));
+      ziou_hist->SetBins(qiyu_hist->GetNbinsX(),
+                         qiyu_hist->GetXaxis()->GetXbins()->GetArray(),
+                         qiyu_hist->GetNbinsY(),
+                         qiyu_hist->GetYaxis()->GetXbins()->GetArray());
       ziou_hist->Write(std::format("ziou_{}", qiyu_hist_name).c_str());
       qiyu_hist->Write(std::format("qiyu_{}", qiyu_hist_name).c_str());
       auto hist_diff = dynamic_cast<TH2D *>(

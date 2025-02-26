@@ -1,3 +1,4 @@
+#include "OscillationParameters.h"
 #include "ParBinnedInterface.h"
 #include <ParProb3ppOscillation.h>
 
@@ -11,7 +12,7 @@ TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
 TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
                  const std::vector<double> &costh_bins_v,
                  const std::vector<double> &e_bins_v);
-class ParBinned : public propgator_type, public ModelDataLLH {
+class ParBinned : public OscillationParameters, public ModelDataLLH {
 public:
   ParBinned(std::vector<double> Ebins, std::vector<double> costheta_bins,
             double scale_ = 1., size_t E_rebin_factor = 1,
@@ -64,20 +65,10 @@ public:
   }
 
 private:
+  std::shared_ptr<propgator_type> propagator;
+
   std::vector<double> Ebins, costheta_bins;
   std::vector<double> Ebins_analysis, costheta_analysis;
-
-  // // index: [cosine, energy]
-  // thrust::device_vector<oscillaton_calc_precision> flux_hist_numu,
-  //     flux_hist_numubar, flux_hist_nue, flux_hist_nuebar;
-
-  // // 1D in energy
-  // thrust::device_vector<oscillaton_calc_precision> xsec_hist_numu,
-  //     xsec_hist_numubar, xsec_hist_nue, xsec_hist_nuebar;
-
-  // // index: [cosine, energy]
-  // thrust::device_vector<oscillaton_calc_precision> no_osc_hist_numu,
-  //     no_osc_hist_numubar, no_osc_hist_nue, no_osc_hist_nuebar;
 
   size_t E_rebin_factor;
   size_t costh_rebin_factor;

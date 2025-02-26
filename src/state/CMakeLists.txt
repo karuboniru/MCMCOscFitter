@@ -46,15 +46,6 @@ if (ENABLE_CUDA)
     ParProb3ppOscillation.cu
   )
 
-  # set_target_properties(ParProb3ppOscillation PROPERTIES CUDA_ARCHITECTURES "native")
-
-
-  # set_target_properties(
-  #   ParProb3ppOscillation
-  #   PROPERTIES
-  #   CUDA_SEPARABLE_COMPILATION ON
-  # )
-
   target_link_directories(
     ParProb3ppOscillation
     PUBLIC
@@ -71,7 +62,6 @@ else()
 
 endif()
 find_package(OpenMP REQUIRED)
-# target_link_libraries(CUDAProb3 INTERFACE OpenMP::OpenMP_CXX)
 
 target_link_libraries(
   ParProb3ppOscillation
@@ -79,4 +69,10 @@ target_link_libraries(
   CUDAProb3
   OscillationParameters
   OpenMP::OpenMP_CXX
+)
+
+target_include_directories(
+  ParProb3ppOscillation
+  PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}
 )

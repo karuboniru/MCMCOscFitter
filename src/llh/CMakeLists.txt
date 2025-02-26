@@ -75,4 +75,10 @@ if (ENABLE_CUDA)
     HondaFlux2D
     GENIE_XSEC
   )
+
+  target_include_directories(
+    ParBinned
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+  )
 endif()

@@ -103,7 +103,7 @@ void OscillationParameters::set_param(const param &p) {
     IH_DCP = p.DCP;
     is_NH = false;
   }
-  re_calculate();
+  // re_calculate();
 }
 
 const std::array<std::string,6> pull_toggle::names{"DM32", "DM21", "T23", "T13", "T12", "DCP"};

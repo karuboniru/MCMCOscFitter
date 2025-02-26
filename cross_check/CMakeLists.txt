@@ -16,3 +16,11 @@ target_link_libraries(prob_check
   ROOT::MathMore
 )
 
+add_executable(root2hist root2hist.cxx)
+
+target_link_libraries(root2hist 
+  ROOT::ROOTDataFrame
+  ROOT::MathMore
+  SimpleDataHist
+)
+

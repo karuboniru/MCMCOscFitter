@@ -222,10 +222,11 @@ ParBinned::ParBinned(std::vector<double> Ebins_,
                      std::vector<double> costheta_bins_, double scale_,
                      size_t E_rebin_factor_, size_t costh_rebin_factor_,
                      double IH_bias_)
-    : propgator_type{to_center<oscillaton_calc_precision>(Ebins_),
-                     to_center<oscillaton_calc_precision>(costheta_bins_)},
-      ModelDataLLH(), Ebins(std::move(Ebins_)),
-      costheta_bins(std::move(costheta_bins_)),
+    : ModelDataLLH(),
+      propagator{std::make_shared<ParProb3ppOscillation>(
+          to_center<oscillaton_calc_precision>(Ebins_),
+          to_center<oscillaton_calc_precision>(costheta_bins_))},
+      Ebins(std::move(Ebins_)), costheta_bins(std::move(costheta_bins_)),
       Ebins_analysis(stride(Ebins, E_rebin_factor_)
                      // Ebins | std::views::stride(E_rebin_factor_) |
                      //              std::ranges::to<std::vector>()
@@ -251,12 +252,14 @@ ParBinned::ParBinned(std::vector<double> Ebins_,
 }
 
 void ParBinned::UpdatePrediction() {
-  auto span_prob_neutrino = propgator_type::get_dev_span_neutrino();
+  propagator->re_calculate(*this);
+  auto span_prob_neutrino = propagator->get_dev_span_neutrino();
   CUERR
-  auto span_prob_antineutrino = propgator_type::get_dev_span_antineutrino();
+  auto span_prob_antineutrino = propagator->get_dev_span_antineutrino();
   CUERR
 
   auto &flux_xsec_device_input = global_device_input_instance::get_instance();
+  // #ifndef __clang__
   cudaMemsetAsync(Prediction_hist_numu.data().get(), 0,
                   sizeof(oscillaton_calc_precision) *
                       Prediction_hist_numu.size());
@@ -288,7 +291,7 @@ void ParBinned::UpdatePrediction() {
 }
 
 void ParBinned::proposeStep() {
-  propgator_type::proposeStep();
+  OscillationParameters::proposeStep();
   UpdatePrediction();
 }
 
@@ -414,9 +417,6 @@ void ParBinned::SaveAs(const char *filename) const {
 
 void ParBinned::flip_hierarchy() {
   OscillationParameters::flip_hierarchy();
-  if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
-    re_calculate();
-  }
   UpdatePrediction();
 }
 
@@ -424,7 +424,7 @@ void ParBinned::Save_prob_hist(const std::string &name) {
   // if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
   auto file = TFile::Open(name.c_str(), "RECREATE");
   file->cd();
-  auto prob_hist = GetProb_Hists_3F(Ebins, costheta_bins);
+  auto prob_hist = propagator->GetProb_Hists_3F(Ebins, costheta_bins, *this);
   auto id_2_name = std::to_array({"nue", "numu", "nutau"});
   // prob_hist: [0 neutrino, 1 antineutrino][from: 0-nue, 1-mu][to: 0-e,
   // 1-mu]

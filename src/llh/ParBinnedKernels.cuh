@@ -72,3 +72,18 @@ void __global__ calc_event_count_atomic_add(
     span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
     span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
     size_t costh_rebin_factor);
+
+void __global__ calc_event_count_atomic_add(
+    ParProb3ppOscillation::oscillaton_span_t oscProb,
+    const oscillaton_calc_precision *oscProb_anti,
+    const oscillaton_calc_precision *flux_numu,
+    const oscillaton_calc_precision *flux_numubar,
+    const oscillaton_calc_precision *flux_nue,
+    const oscillaton_calc_precision *flux_nuebar,
+    const oscillaton_calc_precision *xsec_numu,
+    const oscillaton_calc_precision *xsec_numubar,
+    const oscillaton_calc_precision *xsec_nue,
+    const oscillaton_calc_precision *xsec_nuebar,
+    oscillaton_calc_precision *ret_numu, oscillaton_calc_precision *ret_numubar,
+    oscillaton_calc_precision *ret_nue, oscillaton_calc_precision *ret_nuebar,
+    size_t E_rebin_factor, size_t costh_rebin_factor);

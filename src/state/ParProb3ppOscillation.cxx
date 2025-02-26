@@ -15,6 +15,15 @@
 
 const size_t n_threads_propagator = std::thread::hardware_concurrency() / 2;
 
+void ParProb3ppOscillation::load_state(
+    cudaprob3::Propagator<oscillaton_calc_precision> &to_load, bool init) {
+  to_load.setCosineList(costheta_bins);
+  to_load.setEnergyList(Ebins);
+  to_load.setDensity({0, 1220, 3480, 5701, 6371},
+                     {13 * .936, 13 * .936, 11.3 * .936, 5 * .994, 3.3 * .994});
+  to_load.setProductionHeight(15.0);
+}
+
 ParProb3ppOscillation::ParProb3ppOscillation(
     const std::vector<oscillaton_calc_precision> &Ebin,
     const std::vector<oscillaton_calc_precision> &costhbin)
@@ -49,21 +58,22 @@ ParProb3ppOscillation::ParProb3ppOscillation(
 ParProb3ppOscillation &
 ParProb3ppOscillation::operator=(const ParProb3ppOscillation &from) = default;
 
-void ParProb3ppOscillation::proposeStep() {
-  OscillationParameters::proposeStep();
-  re_calculate();
-}
+// void ParProb3ppOscillation::proposeStep() {
+//   OscillationParameters::proposeStep();
+//   re_calculate();
+// }
 
-void ParProb3ppOscillation::re_calculate() {
-  load_state(*propagator_neutrino, false);
+void ParProb3ppOscillation::re_calculate(const OscillationParameters &p) {
+  load_state(*propagator_neutrino, p, false);
   propagator_neutrino->calculateProbabilities(cudaprob3::Neutrino);
 
-  load_state(*propagator_antineutrino, false);
+  load_state(*propagator_antineutrino, p, false);
   propagator_antineutrino->calculateProbabilities(cudaprob3::Antineutrino);
 }
 
 std::array<std::array<double, 3>, 3>
-ParProb3ppOscillation::GetProb(int flavor, double E, double costheta) const {
+ParProb3ppOscillation::GetProb(int flavor, double E, double costheta,
+                               const OscillationParameters &p) const {
   throw std::runtime_error("Not implemented");
 }
 
@@ -71,7 +81,9 @@ ParProb3ppOscillation::GetProb(int flavor, double E, double costheta) const {
 ///> [0-neutrino, 1-antineutrino][from: 0-nue, 1-mu][to: 0-e, 1-mu]
 [[nodiscard]] std::array<std::array<std::array<TH2D, 2>, 2>, 2>
 ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
-                                     const std::vector<double> &costhbin) {
+                                     const std::vector<double> &costhbin,
+                                     const OscillationParameters &p) {
+  re_calculate(p);
   std::array<std::array<std::array<TH2D, 2>, 2>, 2> ret{};
   constexpr auto type_matrix = std::to_array(
       {std::to_array({cudaprob3::ProbType::e_e, cudaprob3::ProbType::e_m}),
@@ -111,7 +123,9 @@ ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
 /// 2-tau]
 [[nodiscard]] std::array<std::array<std::array<TH2D, 3>, 3>, 2>
 ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
-                                        const std::vector<double> &costhbin) {
+                                        const std::vector<double> &costhbin,
+                                        const OscillationParameters &p) {
+  re_calculate(p);
   std::array<std::array<std::array<TH2D, 3>, 3>, 2> ret{};
   constexpr auto type_matrix = std::to_array(
       {std::to_array({cudaprob3::ProbType::e_e, cudaprob3::ProbType::e_m,
@@ -152,15 +166,9 @@ ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
 
 ParProb3ppOscillation::~ParProb3ppOscillation() = default;
 
-// #ifndef __CUDA__
-// void ParProb3ppOscillation::load_state(
-//     cudaprob3::CpuPropagator<oscillaton_calc_precision> &to_load, bool init)
-// #else
 void ParProb3ppOscillation::load_state(
     cudaprob3::Propagator<oscillaton_calc_precision> &to_load,
-    bool init)
-// #endif
-{
+    const OscillationParameters &p, bool init) {
   if (init) {
     to_load.setCosineList(costheta_bins);
     to_load.setEnergyList(Ebins);
@@ -170,21 +178,25 @@ void ParProb3ppOscillation::load_state(
     to_load.setProductionHeight(15.0);
   }
 
-  to_load.setMNSMatrix(asin(sqrt(GetT12())), asin(sqrt(GetT13())),
-                       asin(sqrt(GetT23())), GetDeltaCP());
-  to_load.setNeutrinoMasses(GetDM21sq(), GetDM32sq());
+  to_load.setMNSMatrix(asin(sqrt(p.GetT12())), asin(sqrt(p.GetT13())),
+                       asin(sqrt(p.GetT23())), p.GetDeltaCP());
+  to_load.setNeutrinoMasses(p.GetDM21sq(), p.GetDM32sq());
 }
 
 #ifdef __CUDA__
 // span index [from] [to] [cosine] [energy]
 ParProb3ppOscillation::oscillaton_span_t
 ParProb3ppOscillation::get_dev_span_neutrino() {
-  return ((cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>*)(propagator_neutrino.get()))->GetDevResultMdSpan();
+  return ((cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>
+               *)(propagator_neutrino.get()))
+      ->GetDevResultMdSpan();
 }
 // span index [from] [to] [cosine] [energy]
 ParProb3ppOscillation::oscillaton_span_t
 ParProb3ppOscillation::get_dev_span_antineutrino() {
   // return propagator_antineutrino->GetDevResultMdSpan();
-  return ((cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>*)(propagator_antineutrino.get()))->GetDevResultMdSpan();
+  return ((cudaprob3::CudaPropagatorSingle<oscillaton_calc_precision>
+               *)(propagator_antineutrino.get()))
+      ->GetDevResultMdSpan();
 }
 #endif

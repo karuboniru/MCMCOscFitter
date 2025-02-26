@@ -32,12 +32,23 @@ void report(std::string_view title, const std::array<double, 4> &result,
 
 int main(int argc, char **argv) {
   TH1::AddDirectory(false);
-  auto Ebins = logspace(0.1, 20., 401);
-  auto costheta_bins = linspace(-1., 1., 481);
+  constexpr size_t e_rebin_frac = 40;
+  constexpr size_t e_bin_count = 10;
+  constexpr size_t costh_rebin_frac = 40;
+  constexpr size_t costh_bin_count = 12;
+  auto e_bin_wing =
+      std::vector<double>{0.1, 0.6, 0.8, 1.0, 1.35, 1.75, 2.2, 3.0, 4.6, 20.0};
+  auto costh_bin_wing = linspace(-1., 1., 10 + 1);
+
+  //   auto Ebins = divide_bins<double>(e_bin_wing, e_rebin_frac);
+  auto Ebins = logspace(0.1, 20., (e_bin_count * e_rebin_frac) + 1);
+  auto costheta_bins =
+      linspace(-1., 1., (costh_rebin_frac * costh_bin_count) + 1);
 
   constexpr double scale_factor = scale_factor_6y;
 
-  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, 40, 40};
+  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, e_rebin_frac,
+                          costh_rebin_frac};
   auto cdata = bint.GenerateData();
   bint.SaveAs("flux_xsec.root");
   auto cdata_noOsc = bint.GenerateData_NoOsc();
@@ -54,10 +65,10 @@ int main(int argc, char **argv) {
 
   report("Non-Oscillated Event Rates",
          {no_osc_numu, no_osc_numu_bar, no_osc_nue, no_osc_nue_bar},
-         {7012.66, 2600.31, 3622.82, 1172.16});
+         {7004.60, 2591.95, 3618.78, 1168.26});
 
   report("Normal Hierarchy Event Rates", {numu, numu_bar, nue, nue_bar},
-         {4820.17, 1805.62, 3739.65, 1153.6});
+         {4814.72, 1800.04, 3735.50, 1149.77});
   cdata_noOsc.SaveAs("No_Osc.root");
   cdata.SaveAs("Event_rate_NH.root");
   bint.Save_prob_hist("NH.root");
@@ -74,7 +85,7 @@ int main(int argc, char **argv) {
 
   report("Inverted Hierarchy Event Rates",
          {numu_IH, numu_bar_IH, nue_IH, nue_bar_IH},
-         {4829.29, 1791.67, 3686.88, 1171.33});
+         {4829.87, 1788.41, 3682.56, 1167.63});
 
   bint.Save_prob_hist("IH.root");
 

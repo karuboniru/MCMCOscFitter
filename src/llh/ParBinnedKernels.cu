@@ -14,6 +14,14 @@ constexpr auto __device__ __host__ get_indexes(size_t costh_bins,
                         current_energy_analysis_bin);
 }
 
+constexpr auto __device__ __host__ get_indexes_alt(size_t e_bins,
+                                                   size_t current_thread_id) {
+  auto current_costh_analysis_bin = current_thread_id / e_bins;
+  auto current_energy_analysis_bin = current_thread_id % e_bins;
+  return std::make_pair(current_costh_analysis_bin,
+                        current_energy_analysis_bin);
+}
+
 void __global__ calc_event_count_and_rebin(
     ParProb3ppOscillation::oscillaton_span_t oscProb,
     ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
@@ -341,7 +349,7 @@ void __global__ calc_event_count_atomic_add(
     return;
   }
   auto [this_index_costh, this_index_E] =
-      get_indexes(costh_bins, global_thread_id);
+        get_indexes(costh_bins, global_thread_id);
   auto event_count_numu_final =
       (oscProb(0, 1, this_index_costh, this_index_E) *
            flux_nue(this_index_costh, this_index_E) +
@@ -380,3 +388,60 @@ void __global__ calc_event_count_atomic_add(
   atomicAdd(&ret_nuebar(target_index_costh, target_index_E),
             event_count_nuebar_final);
 }
+
+// void __global__ calc_event_count_atomic_add(
+//     ParProb3ppOscillation::oscillaton_span_t oscProb,
+//     const oscillaton_calc_precision *oscProb_anti,
+//     const oscillaton_calc_precision *flux_numu,
+//     const oscillaton_calc_precision *flux_numubar,
+//     const oscillaton_calc_precision *flux_nue,
+//     const oscillaton_calc_precision *flux_nuebar,
+//     const oscillaton_calc_precision *xsec_numu,
+//     const oscillaton_calc_precision *xsec_numubar,
+//     const oscillaton_calc_precision *xsec_nue,
+//     const oscillaton_calc_precision *xsec_nuebar,
+//     oscillaton_calc_precision *ret_numu, oscillaton_calc_precision
+//     *ret_numubar, oscillaton_calc_precision *ret_nue,
+//     oscillaton_calc_precision *ret_nuebar, size_t E_rebin_factor, size_t
+//     costh_rebin_factor) {
+//   auto global_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
+//   auto costh_bins = oscProb.extent(2);
+//   auto e_bins = oscProb.extent(3);
+//   if (global_thread_id >= (costh_bins * e_bins)) {
+//     return;
+//   }
+
+//   auto oscProb_anti_span = cuda::std::mdspan<
+//       const float,
+//       cuda::std::extents<unsigned long, 3, 3, cuda::std::dynamic_extent>>(
+//       oscProb_anti, 3, 3, costh_bins * e_bins);
+//   auto oscProb_span = cuda::std::mdspan<
+//       const float,
+//       cuda::std::extents<unsigned long, 3, 3, cuda::std::dynamic_extent>>(
+//       oscProb.data_handle(), 3, 3, costh_bins * e_bins);
+
+//   auto offset_2D = global_thread_id;
+//   auto offset_xsec = offset_2D % e_bins;
+
+//   auto event_count_numu_final =
+//       (oscProb_span(0, 1, offset_2D) * flux_nue[offset_2D] +
+//        oscProb_span(1, 1, offset_2D) * flux_numu[offset_2D]) *
+//       xsec_numu[offset_xsec];
+//   auto event_count_numubar_final =
+//       (oscProb_anti_span(0, 1, offset_2D) * flux_nuebar[offset_2D] +
+//        oscProb_anti_span(1, 1, offset_2D) * flux_numubar[offset_2D]) *
+//       xsec_numubar[offset_xsec];
+//   auto event_count_nue_final =
+//       (oscProb_span(0, 0, offset_2D) * flux_nue[offset_2D] +
+//        oscProb_span(1, 0, offset_2D) * flux_numu[offset_2D]) *
+//       xsec_nue[offset_xsec];
+//   auto event_count_nuebar_final =
+//       (oscProb_anti_span(0, 0, offset_2D) * flux_nuebar[offset_2D] +
+//        oscProb_anti_span(1, 0, offset_2D) * flux_numubar[offset_2D]) *
+//       xsec_nuebar[offset_xsec];
+//   auto this_offset_analysis_bin =
+//   atomicAdd(&ret_nuebar[offset_2D], event_count_nuebar_final);
+//   atomicAdd(&ret_nue[offset_2D], event_count_nue_final);
+//   atomicAdd(&ret_numubar[offset_2D], event_count_numubar_final);
+//   atomicAdd(&ret_numu[offset_2D], event_count_numu_final);
+// }

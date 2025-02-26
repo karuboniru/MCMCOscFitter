@@ -43,7 +43,7 @@ int main(int argc, char **argv) {
   for (size_t i = 0; i < nth; i++) {
     state_pool.emplace_back(bint, cdata).proposeStep();
   }
-  auto rawdf = ROOT::RDataFrame{235000};
+  auto rawdf = ROOT::RDataFrame{1250000};
   ROOT::RDF::Experimental::AddProgressBar(rawdf);
   std::atomic<size_t> count{};
   auto df =
@@ -51,8 +51,8 @@ int main(int argc, char **argv) {
           .Define("tuple",
                   [&state_pool, &count](unsigned int id) -> vals {
                     auto &current_state = state_pool[id];
-                    //     TimeCount timer{"3 step"};
-                    for (size_t i = 0; i < 3; i++) {
+                //     TimeCount timer{"5 step"};
+                    for (size_t i = 0; i < 5; i++) {
                       auto new_state = current_state;
                       new_state.proposeStep();
                       if (MCMCAcceptState(current_state, new_state)) {

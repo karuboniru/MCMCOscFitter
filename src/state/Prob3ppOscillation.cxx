@@ -1,17 +1,19 @@
 #include "Prob3ppOscillation.h"
 #include "BargerPropagator.h"
+#include "OscillationParameters.h"
 #include <array>
 
 [[gnu::const]]
 std::array<std::array<double, 3>, 3>
-Prob3ppOscillation::GetProb(int flavor, double E, double costheta) const {
+Prob3ppOscillation::GetProb(int flavor, double E, double costheta,
+                            const OscillationParameters &p) const {
   flavor = flavor / abs(flavor);
   BargerPropagator b(DATA_PATH "/data/density.txt");
   b.SetOneMassScaleMode(false);
   b.SetWarningSuppression(true);
   b.SetDefaultOctant(23, 2);
-  b.SetMNS(GetT12(), GetT13(), GetT23(), GetDM21sq(), GetDM32sq(),
-           GetDeltaCP() /*delta cp*/, E, true, flavor);
+  b.SetMNS(p.GetT12(), p.GetT13(), p.GetT23(), p.GetDM21sq(), p.GetDM32sq(),
+           p.GetDeltaCP() /*delta cp*/, E, true, flavor);
   // b.de
   b.DefinePath(costheta, 15);
   b.propagate(flavor);
@@ -25,8 +27,10 @@ Prob3ppOscillation::GetProb(int flavor, double E, double costheta) const {
 }
 
 [[gnu::const]]
-std::array<std::array<TH2D, 2>, 2> Prob3ppOscillation::GetProb_Hist(
-    std::vector<double> Ebin, std::vector<double> costhbin, int flavor) const {
+std::array<std::array<TH2D, 2>, 2>
+Prob3ppOscillation::GetProb_Hist(std::vector<double> Ebin,
+                                 std::vector<double> costhbin, int flavor,
+                                 const OscillationParameters &p) const {
   std::array<std::array<TH2D, 2>, 2> ret{};
   for (int i = 0; i < 2; ++i) {
     for (int j = 0; j < 2; ++j) {
@@ -40,7 +44,7 @@ std::array<std::array<TH2D, 2>, 2> Prob3ppOscillation::GetProb_Hist(
     const double emax = ret[0][0].GetXaxis()->GetBinUpEdge(i);
     for (int j = 1; j <= ret[0][0].GetNbinsY(); j++) {
       const double costh = ret[0][0].GetYaxis()->GetBinCenter(j);
-      auto prob = GetProb(flavor, (emin + emax) / 2, costh);
+      auto prob = GetProb(flavor, (emin + emax) / 2, costh, p);
       for (int k = 0; k < 2; ++k) {
         for (int l = 0; l < 2; ++l) {
           ret[k][l].SetBinContent(i, j, prob[k][l]);
@@ -54,8 +58,10 @@ std::array<std::array<TH2D, 2>, 2> Prob3ppOscillation::GetProb_Hist(
 }
 
 [[gnu::const]]
-std::array<std::array<TH2D, 3>, 3> Prob3ppOscillation::GetProb_Hist_3F(
-    std::vector<double> Ebin, std::vector<double> costhbin, int flavor) const {
+std::array<std::array<TH2D, 3>, 3>
+Prob3ppOscillation::GetProb_Hist_3F(std::vector<double> Ebin,
+                                    std::vector<double> costhbin, int flavor,
+                                    const OscillationParameters &p) const {
   std::array<std::array<TH2D, 3>, 3> ret{};
   for (int i = 0; i < 3; ++i) {
     for (int j = 0; j < 3; ++j) {
@@ -69,7 +75,7 @@ std::array<std::array<TH2D, 3>, 3> Prob3ppOscillation::GetProb_Hist_3F(
     const double emax = ret[0][0].GetXaxis()->GetBinUpEdge(i);
     for (int j = 1; j <= ret[0][0].GetNbinsY(); j++) {
       const double costh = ret[0][0].GetYaxis()->GetBinCenter(j);
-      auto prob = GetProb(flavor, (emin + emax) / 2, costh);
+      auto prob = GetProb(flavor, (emin + emax) / 2, costh, p);
       for (int k = 0; k < 3; ++k) {
         for (int l = 0; l < 3; ++l) {
           ret[k][l].SetBinContent(i, j, prob[k][l]);
@@ -85,15 +91,17 @@ std::array<std::array<TH2D, 3>, 3> Prob3ppOscillation::GetProb_Hist_3F(
 [[gnu::const]]
 std::array<std::array<std::array<TH2D, 2>, 2>, 2>
 Prob3ppOscillation::GetProb_Hists(std::vector<double> Ebin,
-                                  std::vector<double> costhbin) const {
-  return std::to_array(
-      {GetProb_Hist(Ebin, costhbin, 1), GetProb_Hist(Ebin, costhbin, -1)});
+                                  std::vector<double> costhbin,
+                                  const OscillationParameters &p) const {
+  return std::to_array({GetProb_Hist(Ebin, costhbin, 1, p),
+                        GetProb_Hist(Ebin, costhbin, -1, p)});
 }
 
 [[gnu::const]]
 std::array<std::array<std::array<TH2D, 3>, 3>, 2>
 Prob3ppOscillation::GetProb_Hists_3F(std::vector<double> Ebin,
-                                     std::vector<double> costhbin) const {
-  return std::to_array({GetProb_Hist_3F(Ebin, costhbin, 1),
-                        GetProb_Hist_3F(Ebin, costhbin, -1)});
+                                     std::vector<double> costhbin,
+                                     const OscillationParameters &p) const {
+  return std::to_array({GetProb_Hist_3F(Ebin, costhbin, 1, p),
+                        GetProb_Hist_3F(Ebin, costhbin, -1, p)});
 }

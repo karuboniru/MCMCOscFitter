@@ -1,0 +1,37 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "default",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_CUDA_ARCHITECTURES": "native",
+        "ENABLE_CUDA": "On",
+        "CMAKE_CUDA_COMPILER": "nvcc",
+        "CMAKE_CUDA_HOST_COMPILER": "clang++",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "cuda-gcc",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_CUDA_ARCHITECTURES": "native",
+        "ENABLE_CUDA": "On",
+        "CMAKE_CUDA_COMPILER": "nvcc",
+        "CMAKE_CUDA_HOST_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_FLAGS": "-fuse-ld=bfd",
+        "CMAKE_C_FLAGS": "-fuse-ld=bfd",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    }
+  ]
+}

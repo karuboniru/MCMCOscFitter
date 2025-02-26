@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ModelDataLLH.h"
+#include "OscillationParameters.h"
 #include "Prob3ppOscillation.h"
 #include "SimpleDataPoint.h"
 #include "genie_xsec.h"
@@ -11,7 +12,7 @@
 // extern HondaFlux flux_input;
 // extern genie_xsec xsec_input;
 
-class SimpleInteraction : public Prob3ppOscillation, public ModelDataLLH {
+class SimpleInteraction : public OscillationParameters, public ModelDataLLH {
 public:
   SimpleInteraction() : ModelDataLLH() {}
   void proposeStep() override;
@@ -19,10 +20,11 @@ public:
   double GetLogLikelihoodAgainstData(const StateI &dataset) const override;
 
 private:
+  std::shared_ptr<Prob3ppOscillation> propagator;
   double weight_int{};
 };
 
-class BinnedInteraction : public Prob3ppOscillation, public ModelDataLLH {
+class BinnedInteraction : public OscillationParameters, public ModelDataLLH {
 public:
   BinnedInteraction(std::vector<double> Ebins,
                     std::vector<double> costheta_bins);
@@ -32,6 +34,7 @@ public:
   double GetLogLikelihoodAgainstData(const StateI &dataset) const final;
 
 private:
+  std::shared_ptr<Prob3ppOscillation> propagator;
   void UpdatePrediction();
 
   std::vector<double> Ebins, costheta_bins;
