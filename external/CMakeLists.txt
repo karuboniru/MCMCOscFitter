@@ -20,3 +20,5 @@ target_include_directories(CUDAProb3 INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/CUDAP
 ##### openmp required for CUDAProb3
 find_package(OpenMP REQUIRED)
 target_link_libraries(CUDAProb3 INTERFACE OpenMP::OpenMP_CXX)
+
+add_subdirectory(WingFlux)

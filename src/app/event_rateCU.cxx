@@ -35,12 +35,8 @@ int main(int argc, char **argv) {
   constexpr size_t e_rebin_frac = 40;
   constexpr size_t e_bin_count = 10;
   constexpr size_t costh_rebin_frac = 40;
-  constexpr size_t costh_bin_count = 12;
-  auto e_bin_wing =
-      std::vector<double>{0.1, 0.6, 0.8, 1.0, 1.35, 1.75, 2.2, 3.0, 4.6, 20.0};
-  auto costh_bin_wing = linspace(-1., 1., 10 + 1);
+  constexpr size_t costh_bin_count = 10;
 
-  //   auto Ebins = divide_bins<double>(e_bin_wing, e_rebin_frac);
   auto Ebins = logspace(0.1, 20., (e_bin_count * e_rebin_frac) + 1);
   auto costheta_bins =
       linspace(-1., 1., (costh_rebin_frac * costh_bin_count) + 1);
@@ -51,13 +47,13 @@ int main(int argc, char **argv) {
                           costh_rebin_frac};
   auto cdata = bint.GenerateData();
   bint.SaveAs("flux_xsec.root");
-  auto cdata_noOsc = bint.GenerateData_NoOsc();
 
   auto numu = cdata.hist_numu.Integral();
   auto numu_bar = cdata.hist_numubar.Integral();
   auto nue = cdata.hist_nue.Integral();
   auto nue_bar = cdata.hist_nuebar.Integral();
 
+  auto cdata_noOsc = bint.GenerateData_NoOsc();
   auto no_osc_numu = cdata_noOsc.hist_numu.Integral();
   auto no_osc_numu_bar = cdata_noOsc.hist_numubar.Integral();
   auto no_osc_nue = cdata_noOsc.hist_nue.Integral();
@@ -69,9 +65,9 @@ int main(int argc, char **argv) {
 
   report("Normal Hierarchy Event Rates", {numu, numu_bar, nue, nue_bar},
          {4814.72, 1800.04, 3735.50, 1149.77});
-  cdata_noOsc.SaveAs("No_Osc.root");
-  cdata.SaveAs("Event_rate_NH.root");
-  bint.Save_prob_hist("NH.root");
+  // cdata_noOsc.SaveAs("No_Osc.root");
+  // cdata.SaveAs("Event_rate_NH.root");
+  // bint.Save_prob_hist("NH.root");
 
   bint.flip_hierarchy();
   auto cdata_IH = bint.GenerateData();

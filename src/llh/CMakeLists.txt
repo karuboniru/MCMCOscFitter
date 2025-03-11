@@ -46,7 +46,8 @@ target_link_libraries(
   BinnedInteraction
   ModelDataLLH
   state
-  HondaFlux2D
+  # HondaFlux2D
+  WingFlux
   GENIE_XSEC
   Prob3ppOscillation
   ParProb3ppOscillation
@@ -72,7 +73,8 @@ if (ENABLE_CUDA)
     ParProb3ppOscillation
     ModelDataLLH
     state
-    HondaFlux2D
+    # HondaFlux2D
+    WingFlux
     GENIE_XSEC
   )
 

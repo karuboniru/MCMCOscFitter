@@ -24,7 +24,7 @@ void report(std::string_view title, const std::array<double, 4> &result,
                "Diff");
   std::println("{}", hline);
   for (auto &&[name, res, ref] : std::ranges::views::zip(name, result, ref)) {
-    std::println("|{:^10}|{:^8.1f}|{:^8.0f}|{:^6.2f}%|", name, res, ref,
+    std::println("|{:^10}|{:^8.3f}|{:^8.0f}|{:^6.2f}%|", name, res, ref,
                  100. * (res - ref) / ref);
   }
   std::println("{}\n", hline);
@@ -33,7 +33,7 @@ void report(std::string_view title, const std::array<double, 4> &result,
 int main(int argc, char **argv) {
   TH1::AddDirectory(false);
   auto Ebins = logspace(0.1, 20., 401);
-  auto costheta_bins = linspace(-1., 1., 481);
+  auto costheta_bins = linspace(-1., 1., 401);
 
   constexpr double scale_factor = scale_factor_6y;
 

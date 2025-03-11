@@ -113,6 +113,8 @@ TH1D genie_xsec::GetXsecHistMixture(
     ret.SetBinContent(
         i, f.Integral(ret.GetBinLowEdge(i), ret.GetBinLowEdge(i + 1)) /
                (ret.GetBinWidth(i)));
+    // ret.SetBinContent(i, f.Eval(TMath::Sqrt(ret.GetBinLowEdge(i) *
+    //                                         ret.GetBinLowEdge(i + 1))));
   }
   return ret;
 }
@@ -124,7 +126,7 @@ genie_xsec xsec_input([]() -> const char * {
   if (var)
     return var;
 
-  return DATA_PATH "/data/total_xsec.root";
+  return DATA_PATH "/data/genie_3_04_02_G18_10b_02_11b_k400_fine_grid.root";
 }()
 
 );

@@ -1,4 +1,6 @@
 // #include <__clang_cuda_intrinsics.h>
+#include <__clang_cuda_builtin_vars.h>
+#include <cstdio>
 #define __MDSPAN_USE_PAREN_OPERATOR 1
 
 #include "ParBinnedKernels.cuh"
@@ -349,7 +351,7 @@ void __global__ calc_event_count_atomic_add(
     return;
   }
   auto [this_index_costh, this_index_E] =
-        get_indexes(costh_bins, global_thread_id);
+      get_indexes(costh_bins, global_thread_id);
   auto event_count_numu_final =
       (oscProb(0, 1, this_index_costh, this_index_E) *
            flux_nue(this_index_costh, this_index_E) +
@@ -389,59 +391,181 @@ void __global__ calc_event_count_atomic_add(
             event_count_nuebar_final);
 }
 
-// void __global__ calc_event_count_atomic_add(
-//     ParProb3ppOscillation::oscillaton_span_t oscProb,
-//     const oscillaton_calc_precision *oscProb_anti,
-//     const oscillaton_calc_precision *flux_numu,
-//     const oscillaton_calc_precision *flux_numubar,
-//     const oscillaton_calc_precision *flux_nue,
-//     const oscillaton_calc_precision *flux_nuebar,
-//     const oscillaton_calc_precision *xsec_numu,
-//     const oscillaton_calc_precision *xsec_numubar,
-//     const oscillaton_calc_precision *xsec_nue,
-//     const oscillaton_calc_precision *xsec_nuebar,
-//     oscillaton_calc_precision *ret_numu, oscillaton_calc_precision
-//     *ret_numubar, oscillaton_calc_precision *ret_nue,
-//     oscillaton_calc_precision *ret_nuebar, size_t E_rebin_factor, size_t
-//     costh_rebin_factor) {
-//   auto global_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
-//   auto costh_bins = oscProb.extent(2);
-//   auto e_bins = oscProb.extent(3);
-//   if (global_thread_id >= (costh_bins * e_bins)) {
-//     return;
-//   }
+void __global__ calc_event_count_noosc_atomic(
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
+    size_t costh_rebin_factor) {
+  if (flux_numu.extents() != flux_numubar.extents() ||
+      flux_numu.extents() != flux_nue.extents() ||
+      flux_numu.extents() != flux_nuebar.extents() ||
+      flux_numu.extent(1) != xsec_numu.size() ||
+      flux_numu.extent(1) != xsec_numubar.size() ||
+      flux_numu.extent(1) != xsec_nue.size() ||
+      flux_numu.extent(1) != xsec_nuebar.size() ||
+      ret_numu.extents() != ret_numubar.extents() ||
+      ret_numu.extents() != ret_nue.extents() ||
+      ret_numu.extents() != ret_nuebar.extents() ||
+      flux_numu.extent(1) != E_rebin_factor * ret_numu.extent(1) ||
+      flux_numu.extent(0) != costh_rebin_factor * ret_numu.extent(0)) {
+    __builtin_unreachable();
+    // return;
+  }
+  auto global_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
+  auto costh_bins = flux_numu.extent(0);
+  auto e_bins = flux_numu.extent(1);
+  if (global_thread_id >= (costh_bins * e_bins)) {
+    return;
+  }
+  auto [this_index_costh, this_index_E] =
+      get_indexes(costh_bins, global_thread_id);
+  auto event_count_numu_final =
+      flux_numu(this_index_costh, this_index_E) * xsec_numu[this_index_E];
+  auto event_count_numubar_final =
+      flux_numubar(this_index_costh, this_index_E) * xsec_numubar[this_index_E];
+  auto event_count_nue_final =
+      flux_nue(this_index_costh, this_index_E) * xsec_nue[this_index_E];
+  auto event_count_nuebar_final =
+      flux_nuebar(this_index_costh, this_index_E) * xsec_nuebar[this_index_E];
+  auto target_index_costh = this_index_costh / costh_rebin_factor;
+  auto target_index_E = this_index_E / E_rebin_factor;
+  atomicAdd(&ret_numu(target_index_costh, target_index_E),
+            event_count_numu_final);
+  atomicAdd(&ret_numubar(target_index_costh, target_index_E),
+            event_count_numubar_final);
+  atomicAdd(&ret_nue(target_index_costh, target_index_E),
+            event_count_nue_final);
+  atomicAdd(&ret_nuebar(target_index_costh, target_index_E),
+            event_count_nuebar_final);
+}
 
-//   auto oscProb_anti_span = cuda::std::mdspan<
-//       const float,
-//       cuda::std::extents<unsigned long, 3, 3, cuda::std::dynamic_extent>>(
-//       oscProb_anti, 3, 3, costh_bins * e_bins);
-//   auto oscProb_span = cuda::std::mdspan<
-//       const float,
-//       cuda::std::extents<unsigned long, 3, 3, cuda::std::dynamic_extent>>(
-//       oscProb.data_handle(), 3, 3, costh_bins * e_bins);
+template <typename InType, typename OutType>
+__global__ void rebin_kernel(
+    cuda::std::mdspan<InType,
+                      cuda::std::extents<size_t, cuda::std::dynamic_extent,
+                                         cuda::std::dynamic_extent>>
+        input,
+    size_t rebin_x, size_t rebin_y,
+    cuda::std::mdspan<OutType,
+                      cuda::std::extents<size_t, cuda::std::dynamic_extent,
+                                         cuda::std::dynamic_extent>>
+        output) {
+  extern __shared__ InType s_data[];
 
-//   auto offset_2D = global_thread_id;
-//   auto offset_xsec = offset_2D % e_bins;
+  // Determine output bin coordinates (block indices)
+  size_t i = blockIdx.x;
+  size_t j = blockIdx.y;
 
-//   auto event_count_numu_final =
-//       (oscProb_span(0, 1, offset_2D) * flux_nue[offset_2D] +
-//        oscProb_span(1, 1, offset_2D) * flux_numu[offset_2D]) *
-//       xsec_numu[offset_xsec];
-//   auto event_count_numubar_final =
-//       (oscProb_anti_span(0, 1, offset_2D) * flux_nuebar[offset_2D] +
-//        oscProb_anti_span(1, 1, offset_2D) * flux_numubar[offset_2D]) *
-//       xsec_numubar[offset_xsec];
-//   auto event_count_nue_final =
-//       (oscProb_span(0, 0, offset_2D) * flux_nue[offset_2D] +
-//        oscProb_span(1, 0, offset_2D) * flux_numu[offset_2D]) *
-//       xsec_nue[offset_xsec];
-//   auto event_count_nuebar_final =
-//       (oscProb_anti_span(0, 0, offset_2D) * flux_nuebar[offset_2D] +
-//        oscProb_anti_span(1, 0, offset_2D) * flux_numubar[offset_2D]) *
-//       xsec_nuebar[offset_xsec];
-//   auto this_offset_analysis_bin =
-//   atomicAdd(&ret_nuebar[offset_2D], event_count_nuebar_final);
-//   atomicAdd(&ret_nue[offset_2D], event_count_nue_final);
-//   atomicAdd(&ret_numubar[offset_2D], event_count_numubar_final);
-//   atomicAdd(&ret_numu[offset_2D], event_count_numu_final);
-// }
+  // Compute block size (number of threads per block, rx * ry)
+  int block_size = rebin_x * rebin_y;
+
+  // Compute the input bin coordinates for this thread
+  size_t tx = threadIdx.x % rebin_x;
+  size_t ty = threadIdx.x / rebin_x;
+  size_t in_row = i * rebin_x + tx;
+  size_t in_col = j * rebin_y + ty;
+
+  // Load the input value into shared memory
+  s_data[threadIdx.x] = input(in_row, in_col);
+
+  __syncthreads();
+
+  // Reduction step to compute the sum in shared memory
+  for (int s = block_size / 2; s > 0; s >>= 1) {
+    if (threadIdx.x < s) {
+      s_data[threadIdx.x] += s_data[threadIdx.x + s];
+    }
+    __syncthreads();
+  }
+
+  // Write the result to the output bin
+  if (threadIdx.x == 0) {
+    output(i, j) = s_data[0];
+  }
+}
+
+void __global__ calc_event_count_reduction(
+    ParProb3ppOscillation::oscillaton_span_t oscProb,
+    ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
+    size_t costh_rebin_factor) {
+  extern __shared__ oscillaton_calc_precision s_data[];
+
+  // Determine output bin coordinates (block indices)
+  size_t i = blockIdx.x;
+  size_t j = blockIdx.y;
+
+  // Compute block size (number of threads per block, rx * ry)
+  int block_size = E_rebin_factor * costh_rebin_factor;
+
+  auto s_data_span = cuda::std::mdspan<
+      oscillaton_calc_precision,
+      cuda::std::extents<size_t, cuda::std::dynamic_extent, 4>>{s_data,
+                                                                block_size, 4};
+
+  // Compute the input bin coordinates for this thread
+  auto tx = threadIdx.x % E_rebin_factor;
+  auto ty = threadIdx.x / E_rebin_factor;
+  auto in_row = i * E_rebin_factor + tx;
+  auto in_col = j * costh_rebin_factor + ty;
+  if (threadIdx.x >= block_size) {
+    return;
+  }
+  auto this_index_E = in_row;
+  auto this_index_costh = in_col;
+
+  auto event_count_numu_final =
+      (oscProb(0, 1, this_index_costh, this_index_E) *
+           flux_nue(this_index_costh, this_index_E) +
+       oscProb(1, 1, this_index_costh, this_index_E) *
+           flux_numu(this_index_costh, this_index_E)) *
+      xsec_numu[this_index_E];
+  auto event_count_numubar_final =
+      (oscProb_anti(0, 1, this_index_costh, this_index_E) *
+           flux_nuebar(this_index_costh, this_index_E) +
+       oscProb_anti(1, 1, this_index_costh, this_index_E) *
+           flux_numubar(this_index_costh, this_index_E)) *
+      xsec_numubar[this_index_E];
+  auto event_count_nue_final = (oscProb(0, 0, this_index_costh, this_index_E) *
+                                    flux_nue(this_index_costh, this_index_E) +
+                                oscProb(1, 0, this_index_costh, this_index_E) *
+                                    flux_numu(this_index_costh, this_index_E)) *
+                               xsec_nue[this_index_E];
+  auto event_count_nuebar_final =
+      (oscProb_anti(0, 0, this_index_costh, this_index_E) *
+           flux_nuebar(this_index_costh, this_index_E) +
+       oscProb_anti(1, 0, this_index_costh, this_index_E) *
+           flux_numubar(this_index_costh, this_index_E)) *
+      xsec_nuebar[this_index_E];
+
+  s_data_span(threadIdx.x, 0) = event_count_numu_final;
+  s_data_span(threadIdx.x, 1) = event_count_numubar_final;
+  s_data_span(threadIdx.x, 2) = event_count_nue_final;
+  s_data_span(threadIdx.x, 3) = event_count_nuebar_final;
+  __syncthreads();
+  // Reduction step to compute the sum in shared memory
+  for (int s = block_size / 2; s > 0; s >>= 1) {
+    if (threadIdx.x < s) {
+      s_data_span(threadIdx.x, 0) += s_data_span(threadIdx.x + s, 0);
+      s_data_span(threadIdx.x, 1) += s_data_span(threadIdx.x + s, 1);
+      s_data_span(threadIdx.x, 2) += s_data_span(threadIdx.x + s, 2);
+      s_data_span(threadIdx.x, 3) += s_data_span(threadIdx.x + s, 3);
+    }
+    __syncthreads();
+  }
+  // Write the result to the output bin
+  if (threadIdx.x == 0) {
+    ret_numu(i, j) = s_data_span(0, 0);
+    ret_numubar(i, j) = s_data_span(0, 1);
+    ret_nue(i, j) = s_data_span(0, 2);
+    ret_nuebar(i, j) = s_data_span(0, 3);
+  }
+}

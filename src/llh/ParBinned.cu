@@ -2,12 +2,14 @@
 #include "binning_tool.hpp"
 #include "constants.h"
 #include "genie_xsec.h"
-#include "hondaflux2d.h"
+// #include "hondaflux2d.h"
+#include "WingFlux.h"
 
 #include <SimpleDataHist.h>
 #include <TF3.h>
 #include <TH2.h>
 #include <cmath>
+#include <print>
 #include <ranges>
 #include <type_traits>
 #include <utility>
@@ -16,6 +18,7 @@
 #include <cuda/std/span>
 
 #include <thrust/device_vector.h>
+#include <thrust/execution_policy.h>
 #include <thrust/host_vector.h>
 #include <thrust/transform.h>
 
@@ -24,7 +27,6 @@
 #include "SimpleDataHist.h"
 #include "constants.h"
 #include "genie_xsec.h"
-#include "hondaflux2d.h"
 #include <format>
 #include <functional>
 
@@ -98,6 +100,9 @@ TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
                  const std::vector<double> &e_bins_v) {
   auto e_bins = e_bins_v.size() - 1;
   auto costh_bins = costh_bins_v.size() - 1;
+  if (from_vec.size() != e_bins * costh_bins) {
+    throw std::runtime_error("from_vec size does not match the number of bins");
+  }
   TH2D ret("", "", e_bins, e_bins_v.data(), costh_bins, costh_bins_v.data());
   const_span_2d_hist_t ret_span(from_vec.data(), costh_bins, e_bins);
   for (int x = 1; x <= e_bins; x++) {
@@ -176,14 +181,18 @@ private:
   global_device_input_instance(const std::vector<double> &Ebins,
                                const std::vector<double> &costheta_bins,
                                double scale_ = 1.)
-      : flux_hist_numu(TH2D_to_hist(
-            flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) * scale_)),
-        flux_hist_numubar(TH2D_to_hist(
-            flux_input.GetFlux_Hist(Ebins, costheta_bins, -14) * scale_)),
-        flux_hist_nue(TH2D_to_hist(
-            flux_input.GetFlux_Hist(Ebins, costheta_bins, 12) * scale_)),
-        flux_hist_nuebar(TH2D_to_hist(
-            flux_input.GetFlux_Hist(Ebins, costheta_bins, -12) * scale_)),
+      : // flux_hist_numu(TH2D_to_hist(
+        //       flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) * scale_)),
+        //   flux_hist_numubar(TH2D_to_hist(
+        //       flux_input.GetFlux_Hist(Ebins, costheta_bins, -14) * scale_)),
+        //   flux_hist_nue(TH2D_to_hist(
+        //       flux_input.GetFlux_Hist(Ebins, costheta_bins, 12) * scale_)),
+        //   flux_hist_nuebar(TH2D_to_hist(
+        //       flux_input.GetFlux_Hist(Ebins, costheta_bins, -12) * scale_)),
+        flux_hist_numu(TH2D_to_hist(wingflux.GetFlux_Hist(14) * scale_)),
+        flux_hist_numubar(TH2D_to_hist(wingflux.GetFlux_Hist(-14) * scale_)),
+        flux_hist_nue(TH2D_to_hist(wingflux.GetFlux_Hist(12) * scale_)),
+        flux_hist_nuebar(TH2D_to_hist(wingflux.GetFlux_Hist(-12) * scale_)),
         xsec_hist_numu(TH1_to_hist(xsec_input.GetXsecHistMixture(
             Ebins, 14, {{1000060120, 1.0}, {2212, H_to_C}}))),
         xsec_hist_numubar(TH1_to_hist(xsec_input.GetXsecHistMixture(
@@ -193,7 +202,8 @@ private:
         xsec_hist_nuebar(TH1_to_hist(xsec_input.GetXsecHistMixture(
             Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}}))),
         E_fine_bin_count(Ebins.size() - 1),
-        costh_fine_bin_count(costheta_bins.size() - 1) {}
+        costh_fine_bin_count(costheta_bins.size() - 1) {
+  }
 
   // index: [cosine, energy]
   thrust::device_vector<oscillaton_calc_precision> flux_hist_numu,
@@ -345,6 +355,8 @@ SimpleDataHist ParBinned::GenerateData() const {
 }
 
 SimpleDataHist ParBinned::GenerateData_NoOsc() const {
+  auto &flux_xsec_device_input = global_device_input_instance::get_instance();
+
   SimpleDataHist data;
   thrust::device_vector<oscillaton_calc_precision> no_osc_hist_numu(
       E_analysis_bin_count * costh_analysis_bin_count, 0);
@@ -354,32 +366,27 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
       E_analysis_bin_count * costh_analysis_bin_count, 0);
   thrust::device_vector<oscillaton_calc_precision> no_osc_hist_nuebar(
       E_analysis_bin_count * costh_analysis_bin_count, 0);
-
-  // dim3 block_size(E_analysis_bin_count, costh_analysis_bin_count);
-  auto &flux_xsec_device_input = global_device_input_instance::get_instance();
-  auto warp_count = cuda::ceil_div(
-      costh_analysis_bin_count * E_analysis_bin_count, warp_size);
-  calc_event_count_noosc<<<warp_count, warp_size>>>(
-      flux_xsec_device_input.get_flux_numu(),
-      flux_xsec_device_input.get_flux_numubar(),
-      flux_xsec_device_input.get_flux_nue(),
-      flux_xsec_device_input.get_flux_nuebar(),
-      flux_xsec_device_input.get_xsec_numu(),
-      flux_xsec_device_input.get_xsec_numubar(),
-      flux_xsec_device_input.get_xsec_nue(),
-      flux_xsec_device_input.get_xsec_nuebar(),
-      vec2span_analysis(no_osc_hist_numu),
-      vec2span_analysis(no_osc_hist_numubar),
-      vec2span_analysis(no_osc_hist_nue), vec2span_analysis(no_osc_hist_nuebar),
-      E_rebin_factor, costh_rebin_factor);
-  // CUERR
+  calc_event_count_noosc_atomic<<<
+      cuda::ceil_div(costh_fine_bin_count * E_fine_bin_count, warp_size),
+      warp_size>>>(flux_xsec_device_input.get_flux_numu(),
+                   flux_xsec_device_input.get_flux_numubar(),
+                   flux_xsec_device_input.get_flux_nue(),
+                   flux_xsec_device_input.get_flux_nuebar(),
+                   flux_xsec_device_input.get_xsec_numu(),
+                   flux_xsec_device_input.get_xsec_numubar(),
+                   flux_xsec_device_input.get_xsec_nue(),
+                   flux_xsec_device_input.get_xsec_nuebar(),
+                   vec2span_analysis(no_osc_hist_numu),
+                   vec2span_analysis(no_osc_hist_numubar),
+                   vec2span_analysis(no_osc_hist_nue),
+                   vec2span_analysis(no_osc_hist_nuebar), E_rebin_factor,
+                   costh_rebin_factor);
 
   data.hist_numu = vec2hist_analysis(no_osc_hist_numu);
   data.hist_numubar = vec2hist_analysis(no_osc_hist_numubar);
   data.hist_nue = vec2hist_analysis(no_osc_hist_nue);
   data.hist_nuebar = vec2hist_analysis(no_osc_hist_nuebar);
-  // cudaDeviceSynchronize();
-  // CUERR
+
   return data;
 }
 
