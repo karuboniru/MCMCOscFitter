@@ -1,5 +1,3 @@
-// #include <__clang_cuda_intrinsics.h>
-#include <__clang_cuda_builtin_vars.h>
 #include <cstdio>
 #define __MDSPAN_USE_PAREN_OPERATOR 1
 
