@@ -52,6 +52,7 @@ public:
   double GetDeltaCP() const;
 
   void set_param(const param &p);
+  [[nodiscard]] param get_param() const;
 
   void set_toggle(const pull_toggle &toggle);
   [[nodiscard]] const pull_toggle & get_toggle() const;

@@ -63,6 +63,7 @@ public:
                            cuda::std::dynamic_extent>>(
         vec.data().get(), costh_analysis_bin_count, E_analysis_bin_count);
   }
+  void set_param(const param &p);
 
 private:
   std::shared_ptr<propgator_type> propagator;

@@ -10,6 +10,7 @@
 #include <TH2.h>
 #include <cmath>
 #include <print>
+#include <optional>
 #include <ranges>
 #include <type_traits>
 #include <utility>
@@ -168,6 +169,12 @@ public:
   [[nodiscard]] auto get_xsec_nuebar() const {
     return vec2span_1d(xsec_hist_nuebar);
   }
+  [[nodiscard]] auto get_xsec_nc_nu() const {
+    return vec2span_1d(xsec_hist_nc_nu);
+  }
+  [[nodiscard]] auto get_xsec_nc_nu_bar() const {
+    return vec2span_1d(xsec_hist_nc_nu_bar);
+  }
 
   ~global_device_input_instance() = default;
   global_device_input_instance(const global_device_input_instance &) = delete;
@@ -201,6 +208,10 @@ private:
             Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}}))),
         xsec_hist_nuebar(TH1_to_hist(xsec_input.GetXsecHistMixture(
             Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}}))),
+        xsec_hist_nc_nu(TH1_to_hist(xsec_input.GetXsecHistMixture(
+            Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}}, false))),
+        xsec_hist_nc_nu_bar(TH1_to_hist(xsec_input.GetXsecHistMixture(
+            Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}}, false))),
         E_fine_bin_count(Ebins.size() - 1),
         costh_fine_bin_count(costheta_bins.size() - 1) {
   }
@@ -212,6 +223,9 @@ private:
   // 1D in energy
   thrust::device_vector<oscillaton_calc_precision> xsec_hist_numu,
       xsec_hist_numubar, xsec_hist_nue, xsec_hist_nuebar;
+
+  thrust::device_vector<oscillaton_calc_precision> xsec_hist_nc_nu,
+      xsec_hist_nc_nu_bar;
 
   size_t E_fine_bin_count, costh_fine_bin_count;
 };
@@ -355,8 +369,6 @@ SimpleDataHist ParBinned::GenerateData() const {
 }
 
 SimpleDataHist ParBinned::GenerateData_NoOsc() const {
-  auto &flux_xsec_device_input = global_device_input_instance::get_instance();
-
   SimpleDataHist data;
   thrust::device_vector<oscillaton_calc_precision> no_osc_hist_numu(
       E_analysis_bin_count * costh_analysis_bin_count, 0);
@@ -366,27 +378,37 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
       E_analysis_bin_count * costh_analysis_bin_count, 0);
   thrust::device_vector<oscillaton_calc_precision> no_osc_hist_nuebar(
       E_analysis_bin_count * costh_analysis_bin_count, 0);
-  calc_event_count_noosc_atomic<<<
-      cuda::ceil_div(costh_fine_bin_count * E_fine_bin_count, warp_size),
-      warp_size>>>(flux_xsec_device_input.get_flux_numu(),
-                   flux_xsec_device_input.get_flux_numubar(),
-                   flux_xsec_device_input.get_flux_nue(),
-                   flux_xsec_device_input.get_flux_nuebar(),
-                   flux_xsec_device_input.get_xsec_numu(),
-                   flux_xsec_device_input.get_xsec_numubar(),
-                   flux_xsec_device_input.get_xsec_nue(),
-                   flux_xsec_device_input.get_xsec_nuebar(),
-                   vec2span_analysis(no_osc_hist_numu),
-                   vec2span_analysis(no_osc_hist_numubar),
-                   vec2span_analysis(no_osc_hist_nue),
-                   vec2span_analysis(no_osc_hist_nuebar), E_rebin_factor,
-                   costh_rebin_factor);
+  thrust::device_vector<oscillaton_calc_precision> nc(
+      E_analysis_bin_count * costh_analysis_bin_count, 0);
+
+  // dim3 block_size(E_analysis_bin_count, costh_analysis_bin_count);
+  auto &flux_xsec_device_input = global_device_input_instance::get_instance();
+  auto warp_count =
+      cuda::ceil_div(costh_fine_bin_count * E_fine_bin_count, warp_size);
+  calc_event_count_noosc_atomic_add<<<warp_count, warp_size>>>(
+      flux_xsec_device_input.get_flux_numu(),
+      flux_xsec_device_input.get_flux_numubar(),
+      flux_xsec_device_input.get_flux_nue(),
+      flux_xsec_device_input.get_flux_nuebar(),
+      flux_xsec_device_input.get_xsec_numu(),
+      flux_xsec_device_input.get_xsec_numubar(),
+      flux_xsec_device_input.get_xsec_nue(),
+      flux_xsec_device_input.get_xsec_nuebar(),
+      flux_xsec_device_input.get_xsec_nc_nu(),
+      flux_xsec_device_input.get_xsec_nc_nu_bar(),
+      vec2span_analysis(no_osc_hist_numu),
+      vec2span_analysis(no_osc_hist_numubar),
+      vec2span_analysis(no_osc_hist_nue), vec2span_analysis(no_osc_hist_nuebar),
+      vec2span_analysis(nc), E_rebin_factor, costh_rebin_factor);
+  // CUERR
 
   data.hist_numu = vec2hist_analysis(no_osc_hist_numu);
   data.hist_numubar = vec2hist_analysis(no_osc_hist_numubar);
   data.hist_nue = vec2hist_analysis(no_osc_hist_nue);
   data.hist_nuebar = vec2hist_analysis(no_osc_hist_nuebar);
-
+  data.hist_nc = std::make_optional<TH2D>(vec2hist_analysis(nc));
+  // cudaDeviceSynchronize();
+  // CUERR
   return data;
 }
 
@@ -450,4 +472,9 @@ void ParBinned::Save_prob_hist(const std::string &name) {
   file->Close();
   delete file;
   // }
+}
+
+void ParBinned::set_param(const param &p){
+  OscillationParameters::set_param(p);
+  UpdatePrediction();
 }

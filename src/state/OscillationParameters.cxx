@@ -106,4 +106,20 @@ void OscillationParameters::set_param(const param &p) {
   // re_calculate();
 }
 
-const std::array<std::string,6> pull_toggle::names{"DM32", "DM21", "T23", "T13", "T12", "DCP"};
+const std::array<std::string, 6> pull_toggle::names{"DM32", "DM21", "T23",
+                                                    "T13",  "T12",  "DCP"};
+
+param OscillationParameters::get_param() const {
+  return is_NH ? param{.DM2 = NH_DM2,
+                       .Dm2 = NH_Dm2,
+                       .T23 = NH_T23,
+                       .T13 = NH_T13,
+                       .T12 = NH_T12,
+                       .DCP = NH_DCP}
+               : param{.DM2 = IH_DM2,
+                       .Dm2 = IH_Dm2,
+                       .T23 = IH_T23,
+                       .T13 = IH_T13,
+                       .T12 = IH_T12,
+                       .DCP = IH_DCP};
+}

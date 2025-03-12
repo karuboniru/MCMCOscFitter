@@ -178,6 +178,11 @@ void ParProb3ppOscillation::load_state(
     to_load.setProductionHeight(15.0);
   }
 
+  // std::cerr << "Loading state\n"
+  //           << p.GetT12() << " " << p.GetT13() << " " << p.GetT23() << " "
+  //           << p.GetDeltaCP() << " " << p.GetDM21sq() << " " << p.GetDM32sq()
+  //           << std::endl;
+
   to_load.setMNSMatrix(asin(sqrt(p.GetT12())), asin(sqrt(p.GetT13())),
                        asin(sqrt(p.GetT23())), p.GetDeltaCP());
   to_load.setNeutrinoMasses(p.GetDM21sq(), p.GetDM32sq());

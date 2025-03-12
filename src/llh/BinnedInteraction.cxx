@@ -70,13 +70,6 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
           to_center<oscillaton_calc_precision>(Ebins_),
           to_center<oscillaton_calc_precision>(costheta_bins_))},
       Ebins(std::move(Ebins_)), costheta_bins(std::move(costheta_bins_)),
-      // flux_hist_numu(flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) *
-      //                scale_),
-      // flux_hist_numubar(flux_input.GetFlux_Hist(Ebins, costheta_bins, -14) *
-      //                   scale_),
-      // flux_hist_nue(flux_input.GetFlux_Hist(Ebins, costheta_bins, 12) * scale_),
-      // flux_hist_nuebar(flux_input.GetFlux_Hist(Ebins, costheta_bins, -12) *
-      //                  scale_),
       flux_hist_numu((wingflux.GetFlux_Hist(14) * scale_)),
       flux_hist_numubar((wingflux.GetFlux_Hist(-14) * scale_)),
       flux_hist_nue((wingflux.GetFlux_Hist(12) * scale_)),

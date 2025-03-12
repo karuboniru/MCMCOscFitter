@@ -5,6 +5,7 @@
 #include <array>
 
 #include <cmath>
+#include <format>
 #include <iostream>
 
 struct param {
@@ -14,6 +15,20 @@ struct param {
   double T13;
   double T12;
   double DCP;
+};
+
+template <> struct std::formatter<param> {
+  template <typename ParseContext> constexpr auto parse(ParseContext &ctx) {
+    return ctx.begin();
+  }
+  template <typename FormatContext>
+  auto format(const param &p, FormatContext &ctx) const {
+    return format_to(
+        ctx.out(),
+        "DM32sq: {:.2e} T23: {:.2e} T13: {:.2e} DM21sq: {:.2e} T12: "
+        "{:.2e} DCP: {:.2e}",
+        p.DM2, p.T23, p.T13, p.Dm2, p.T12, p.DCP);
+  }
 };
 
 class pull_toggle {
@@ -89,6 +104,7 @@ public:
   void flip_hierarchy() { is_NH = !is_NH; }
 
   void set_param(const param &p);
+  [[nodiscard]] param get_param() const;
 
   // virtual void re_calculate() = 0;
 

@@ -76,3 +76,5 @@ void ParBinnedInterface::set_toggle(const pull_toggle &t) {
 const pull_toggle &ParBinnedInterface::get_toggle() const {
   return pImpl->get_toggle();
 }
+
+param ParBinnedInterface::get_param() const { return pImpl->get_param(); }

@@ -1,8 +1,9 @@
 #pragma once
 
+#include <array>
+#include <cmath>
 #include <stdexcept>
 #include <vector>
-#include <cmath>
 
 template <class T> std::vector<T> linspace(T Emin, T Emax, unsigned int div) {
   if (div == 0)
@@ -92,3 +93,48 @@ std::vector<T> divide_bins(const std::vector<U> &vec, size_t multiplier) {
 //   }
 //   return ret;
 // }
+template <class T>
+std::vector<std::array<std::pair<size_t, T>, 2>>
+build_rebin_map(const std::vector<T> &fine_bins,
+                const std::vector<T> &new_bins) {
+  // std::vector<std::pair<size_t, double>> ret;
+  std::vector<std::array<std::pair<size_t, T>, 2>> ret;
+  for (size_t fine_bin_index = 0, current_new_bin_id = 0;
+       fine_bin_index < fine_bins.size() - 1; ++fine_bin_index) {
+    auto fine_bin_lower = fine_bins[fine_bin_index];
+    auto fine_bin_upper = fine_bins[fine_bin_index + 1];
+
+    auto new_bin_lower = new_bins[current_new_bin_id];
+    auto new_bin_upper = new_bins[current_new_bin_id + 1];
+
+    if (fine_bin_lower >= new_bin_lower && fine_bin_upper <= new_bin_upper) {
+      // the fine bin is fully contained in the new bin
+      ret.push_back(
+          std::to_array({std::pair<size_t, double>{current_new_bin_id, 1.0},
+                         std::pair<size_t, double>{0, 0}}));
+    } else if (fine_bin_lower < new_bin_lower) {
+      // the fine bin sits on the lower edge of the new bin
+      auto fraction =
+          (new_bin_lower - fine_bin_lower) / (fine_bin_upper - fine_bin_lower);
+      ret.push_back(std::to_array(
+          {std::pair<size_t, double>{current_new_bin_id, fraction},
+           std::pair<size_t, double>{current_new_bin_id - 1, 1 - fraction}}));
+    } else if (fine_bin_upper > new_bin_upper) {
+      // the fine bin sits on the upper edge of the new bin
+      auto fraction =
+          (fine_bin_upper - new_bin_upper) / (fine_bin_upper - fine_bin_lower);
+      ret.push_back(std::to_array(
+          {std::pair<size_t, double>{current_new_bin_id, 1 - fraction},
+           std::pair<size_t, double>{current_new_bin_id + 1, fraction}}));
+      current_new_bin_id++;
+    } else {
+      // the fine bin is fully outside the new bin
+      // should not happen
+      throw std::runtime_error("fine bin is fully outside the new bin");
+      // ret.push_back(std::to_array(
+      //     {std::pair<size_t, double>{0, 0}, std::pair<size_t, double>{0,
+      //     0}}));
+    }
+  }
+  return ret;
+}

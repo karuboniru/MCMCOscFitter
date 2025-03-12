@@ -4,8 +4,11 @@
 // constexpr double H_to_C = 1.67;
 
 // atom mass
-constexpr double H1_da = 1;
-constexpr double C12_da = 12;
+// constexpr double H1_da = 1;
+// constexpr double C12_da = 12;
+
+constexpr double H1_da = 1.;
+constexpr double C12_da = 12.;
 
 constexpr double H_mass_perc = 12.00;
 constexpr double H_to_C =

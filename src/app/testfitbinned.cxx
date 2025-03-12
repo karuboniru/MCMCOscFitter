@@ -22,10 +22,13 @@ int main(int argc, char **argv) {
   //   ROOT::EnableImplicitMT(10);
   TH1::AddDirectory(false);
   std::string outname = argc == 2 ? "testfit.root" : argv[1];
-  auto costheta_bins = linspace(-1., 1., 481);
-
-  auto Ebins = logspace(0.1, 20., 401);
-
+  constexpr size_t e_rebin_frac = 1;
+  constexpr size_t e_bin_count = 400;
+  constexpr size_t costh_rebin_frac = 10;
+  constexpr size_t costh_bin_count = 40;
+  auto Ebins = logspace(0.1, 20., (e_bin_count * e_rebin_frac) + 1);
+  auto costheta_bins =
+      linspace(-1., 1., (costh_rebin_frac * costh_bin_count) + 1);
   constexpr double scale_factor =
       (2e10 / (12 + H_to_C) * 6.02214076e23) * // number of target C12
       ((6 * 365) * 24 * 3600) /                // seconds in a year

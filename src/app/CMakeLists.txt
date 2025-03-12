@@ -144,3 +144,47 @@ target_link_libraries(chi2fittestCU
 
 
 install (TARGETS chi2fittestCU DESTINATION bin)
+
+
+add_executable(nofit_check nofit_check.cxx)
+
+target_link_libraries(nofit_check 
+  SimpleDataHist
+  ParBinned
+  walker
+  ROOT::ROOTDataFrame
+  ROOT::Minuit2
+)
+
+
+install (TARGETS nofit_check DESTINATION bin)
+
+add_executable(single_fit single_fit.cxx)
+target_link_libraries(single_fit 
+  SimpleDataHist
+  ParBinned
+  walker
+  ROOT::ROOTDataFrame
+  ROOT::Minuit2
+)
+install (TARGETS single_fit DESTINATION bin)
+
+add_executable(triple_fit triple_fit.cxx)
+target_link_libraries(triple_fit 
+  SimpleDataHist
+  ParBinned
+  walker
+  ROOT::ROOTDataFrame
+  ROOT::Minuit2
+)
+install (TARGETS triple_fit DESTINATION bin)
+
+add_executable(event_rate_xcheck_new event_rate_xcheck_new.cxx)
+target_link_libraries(event_rate_xcheck_new 
+  SimpleDataHist
+  ParBinned
+  walker
+  ROOT::ROOTDataFrame
+  ROOT::Minuit2
+)
+install (TARGETS event_rate_xcheck_new DESTINATION bin)

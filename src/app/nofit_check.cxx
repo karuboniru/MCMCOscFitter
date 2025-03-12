@@ -1,3 +1,4 @@
+#include "OscillationParameters.h"
 #include "ParBinnedInterface.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
@@ -8,6 +9,7 @@
 #include <TRandom.h>
 #include <array>
 #include <cmath>
+#include <fstream>
 #include <map>
 #include <print>
 #include <ranges>
@@ -41,14 +43,20 @@ double chi2_data(const SimpleDataHist &data, const SimpleDataHist &pred) {
   chi2 += TH2D_chi2(data.hist_nuebar, pred.hist_nuebar);
   return chi2;
 }
+void print_parameters(const param &p) {
+  std::println(
+      "DM2: {:.2e} T23: {:.2e} T13: {:.2e} Dm2: {:.2e} T12: {:.2e} DCP: {:.2e}",
+      p.DM2, p.T23, p.T13, p.Dm2, p.T12, p.DCP);
+}
+
 } // namespace
 
-SimpleDataHist rebin_new_method(SimpleDataHist &from,
+SimpleDataHist rebin_new_method(const SimpleDataHist &from,
                                 std::vector<double> ebin_edges,
                                 std::vector<double> costh_bin_edges) {
   SimpleDataHist ret{};
 
-  auto TH2D_rebin_new = [&](TH2D &from_hist) {
+  auto TH2D_rebin_new = [&](const TH2D &from_hist) {
     TH2D new_hist(from_hist.GetName(), from_hist.GetName(),
                   ebin_edges.size() - 1, ebin_edges.data(),
                   costh_bin_edges.size() - 1, costh_bin_edges.data());
@@ -129,24 +137,60 @@ int main(int argc, char **argv) {
   ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, e_rebin_frac,
                           costh_rebin_frac};
   auto cdata = bint.GenerateData();
-  auto cdata_NH_rebinned = rebin_new_method(cdata, e_bin_wing, costh_bin_wing);
-  cdata_NH_rebinned.SaveAs("Event_rate_NH.root");
-  auto cdata_noOsc = bint.GenerateData_NoOsc();
-  std::println("nc event count: {:.3f}",
-               cdata_noOsc.hist_nc->GetSumOfWeights());
-  auto cdata_noOsc_rebinned =
-      rebin_new_method(cdata_noOsc, e_bin_wing, costh_bin_wing);
-  cdata_noOsc_rebinned.SaveAs("No_Osc.root");
+  auto rebin_wing = [&](const SimpleDataHist &d) {
+    return rebin_new_method(d, e_bin_wing, costh_bin_wing);
+  };
+  auto cdata_NH_rebinned = rebin_wing(cdata);
+  auto param_NH = bint.get_param();
+  // print_parameters(param_NH);
+  std::println("{}", param_NH);
   bint.flip_hierarchy();
   auto cdata_IH = bint.GenerateData();
-  auto cdata_IH_rebinned =
-      rebin_new_method(cdata_IH, e_bin_wing, costh_bin_wing);
-  cdata_IH_rebinned.SaveAs("Event_rate_IH.root");
+  auto cdata_IH_rebinned = rebin_wing(cdata_IH);
+  auto param_IH = bint.get_param();
+  // print_parameters(param_IH);
 
   double chi2_pred_IH = chi2_data(cdata_NH_rebinned, cdata_IH_rebinned);
   double chi2_pred_NH = chi2_data(cdata_IH_rebinned, cdata_NH_rebinned);
 
   std::println("NH PRED: {:.2f}\nIH: PRED {:.2f}", chi2_pred_NH, chi2_pred_IH);
+
+  auto create_xcheck_file = [&](double param::*param_to_vary, double min,
+                                double max, size_t steps,
+                                const std::string &prefix) {
+    std::fstream NHtrue(prefix + "_NHtrue.txt",
+                        std::ios::trunc | std::ios::out);
+    std::fstream IHtrue(prefix + "_IHtrue.txt",
+                        std::ios::trunc | std::ios::out);
+    std::println(NHtrue, "#Asimov from: {}", param_NH);
+    std::println(IHtrue, "#Asimov from: {}", param_IH);
+
+    std::println(NHtrue, "var\t\t'chi2 (data: Asimov NH) pred: (varied IH)'");
+    std::println(IHtrue, "var\t'chi2 (data: Asimov IH) pred: (varied NH)'");
+
+    for (size_t i{}; i <= steps; i++) {
+      double var = min + ((max - min) / steps * i);
+      auto this_param_NH = param_NH;
+      this_param_NH.*param_to_vary = var;
+      bint.set_param(this_param_NH);
+      auto pred_NH = bint.GenerateData();
+      auto pred_rebinned_NH = rebin_wing(pred_NH);
+      double chi2_IHTRUE = chi2_data(cdata_IH_rebinned, pred_rebinned_NH);
+      auto this_param_IH = param_IH;
+      this_param_IH.*param_to_vary = var;
+      this_param_IH.DM2 = -std::abs(this_param_IH.DM2);
+      bint.set_param(this_param_IH);
+      auto pred_IH = bint.GenerateData();
+      auto pred_rebinned_IH = rebin_wing(pred_IH);
+      double chi2_NHTRUE = chi2_data(cdata_NH_rebinned, pred_rebinned_IH);
+      std::println(NHtrue, "{}\t\t{}", var, chi2_NHTRUE);
+      std::println(IHtrue, "{}\t\t{}", var, chi2_IHTRUE);
+    }
+  };
+
+  create_xcheck_file(&param::DCP, 0, 2 * M_PI, 100, "dcp_100");
+  create_xcheck_file(&param::DM2, 2e-3, 3e-3, 100, "dm32_100");
+  create_xcheck_file(&param::T23, 0.3, 0.7, 100, "t23_100");
 
   return 0;
 }
