@@ -103,6 +103,8 @@ int main(int argc, char **argv) {
   auto cdata_rebinned = rebin_new_method(cdata, e_bin_wing, costh_bin_wing);
   cdata_rebinned.SaveAs("Event_rate_NH.root");
   auto cdata_noOsc = bint.GenerateData_NoOsc();
+  std::println("nc event count: {:.3f}",
+               cdata_noOsc.hist_nc->GetSumOfWeights());
   auto cdata_noOsc_rebinned =
       rebin_new_method(cdata_noOsc, e_bin_wing, costh_bin_wing);
   cdata_noOsc_rebinned.SaveAs("No_Osc.root");

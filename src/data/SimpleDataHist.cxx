@@ -7,6 +7,9 @@ void SimpleDataHist::SaveAs(const char *filename) const {
   hist_nue.Write("nue");
   hist_numubar.Write("numubar");
   hist_nuebar.Write("nuebar");
+  if (hist_nc.has_value()) {
+    hist_nc->Write("nc");
+  }
   file.Write();
   file.Close();
 }
@@ -21,7 +24,7 @@ void SimpleDataHist::LoadFrom(const char *filename) {
 
 void SimpleDataHist::Round() {
   auto round_hist_2D = [](TH2D &hist) {
-// #pragma omp parallel for
+    // #pragma omp parallel for
     for (int i = 1; i <= hist.GetNbinsX(); i++) {
       for (int j = 1; j <= hist.GetNbinsY(); j++) {
         hist.SetBinContent(i, j, std::round(hist.GetBinContent(i, j)));

@@ -45,8 +45,9 @@ void __global__ calc_event_count_noosc(
     const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
     const_vec_span xsec_numu, const_vec_span xsec_numubar,
     const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    const_vec_span xsec_nc_nu, const_vec_span xsec_nc_nubar,
     span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
-    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
+    span_2d_hist_t ret_nuebar, span_2d_hist_t ret_nc, size_t E_rebin_factor,
     size_t costh_rebin_factor);
 
 void __global__ rebinner_1(span_2d_hist_t fine_bin_numu,
@@ -87,3 +88,13 @@ void __global__ calc_event_count_atomic_add(
     oscillaton_calc_precision *ret_numu, oscillaton_calc_precision *ret_numubar,
     oscillaton_calc_precision *ret_nue, oscillaton_calc_precision *ret_nuebar,
     size_t E_rebin_factor, size_t costh_rebin_factor);
+
+void __global__ calc_event_count_noosc_atomic_add(
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    const_vec_span xsec_nc_nu, const_vec_span xsec_nc_nubar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar, span_2d_hist_t ret_nc, size_t E_rebin_factor,
+    size_t costh_rebin_factor);

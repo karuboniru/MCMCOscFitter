@@ -1,6 +1,7 @@
 #pragma once
 #include "StateI.h"
 #include <TH2D.h>
+#include <optional>
 
 class SimpleDataHist : virtual public StateI {
 public:
@@ -19,5 +20,5 @@ public:
   void Round();
 
   TH2D hist_numu, hist_nue, hist_numubar, hist_nuebar;
-
+  std::optional<TH2D> hist_nc;
 };

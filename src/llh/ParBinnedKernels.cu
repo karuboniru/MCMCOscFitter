@@ -116,8 +116,9 @@ void __global__ calc_event_count_noosc(
     const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
     const_vec_span xsec_numu, const_vec_span xsec_numubar,
     const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    const_vec_span xsec_nc_nu, const_vec_span xsec_nc_nubar,
     span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
-    span_2d_hist_t ret_nuebar, size_t E_rebin_factor,
+    span_2d_hist_t ret_nuebar, span_2d_hist_t ret_nc, size_t E_rebin_factor,
     size_t costh_rebin_factor) {
   auto costh_bins = ret_numu.extent(0);
   auto e_bins = ret_numu.extent(1);
@@ -349,7 +350,7 @@ void __global__ calc_event_count_atomic_add(
     return;
   }
   auto [this_index_costh, this_index_E] =
-        get_indexes(costh_bins, global_thread_id);
+      get_indexes(costh_bins, global_thread_id);
   auto event_count_numu_final =
       (oscProb(0, 1, this_index_costh, this_index_E) *
            flux_nue(this_index_costh, this_index_E) +
@@ -373,10 +374,6 @@ void __global__ calc_event_count_atomic_add(
        oscProb_anti(1, 0, this_index_costh, this_index_E) *
            flux_numubar(this_index_costh, this_index_E)) *
       xsec_nuebar[this_index_E];
-  // ret_numu(this_index_costh, this_index_E) = event_count_numu_final;
-  // ret_numubar(this_index_costh, this_index_E) = event_count_numubar_final;
-  // ret_nue(this_index_costh, this_index_E) = event_count_nue_final;
-  // ret_nuebar(this_index_costh, this_index_E) = event_count_nuebar_final;
   auto target_index_costh = this_index_costh / costh_rebin_factor;
   auto target_index_E = this_index_E / E_rebin_factor;
   atomicAdd(&ret_numu(target_index_costh, target_index_E),
@@ -389,59 +386,46 @@ void __global__ calc_event_count_atomic_add(
             event_count_nuebar_final);
 }
 
-// void __global__ calc_event_count_atomic_add(
-//     ParProb3ppOscillation::oscillaton_span_t oscProb,
-//     const oscillaton_calc_precision *oscProb_anti,
-//     const oscillaton_calc_precision *flux_numu,
-//     const oscillaton_calc_precision *flux_numubar,
-//     const oscillaton_calc_precision *flux_nue,
-//     const oscillaton_calc_precision *flux_nuebar,
-//     const oscillaton_calc_precision *xsec_numu,
-//     const oscillaton_calc_precision *xsec_numubar,
-//     const oscillaton_calc_precision *xsec_nue,
-//     const oscillaton_calc_precision *xsec_nuebar,
-//     oscillaton_calc_precision *ret_numu, oscillaton_calc_precision
-//     *ret_numubar, oscillaton_calc_precision *ret_nue,
-//     oscillaton_calc_precision *ret_nuebar, size_t E_rebin_factor, size_t
-//     costh_rebin_factor) {
-//   auto global_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
-//   auto costh_bins = oscProb.extent(2);
-//   auto e_bins = oscProb.extent(3);
-//   if (global_thread_id >= (costh_bins * e_bins)) {
-//     return;
-//   }
-
-//   auto oscProb_anti_span = cuda::std::mdspan<
-//       const float,
-//       cuda::std::extents<unsigned long, 3, 3, cuda::std::dynamic_extent>>(
-//       oscProb_anti, 3, 3, costh_bins * e_bins);
-//   auto oscProb_span = cuda::std::mdspan<
-//       const float,
-//       cuda::std::extents<unsigned long, 3, 3, cuda::std::dynamic_extent>>(
-//       oscProb.data_handle(), 3, 3, costh_bins * e_bins);
-
-//   auto offset_2D = global_thread_id;
-//   auto offset_xsec = offset_2D % e_bins;
-
-//   auto event_count_numu_final =
-//       (oscProb_span(0, 1, offset_2D) * flux_nue[offset_2D] +
-//        oscProb_span(1, 1, offset_2D) * flux_numu[offset_2D]) *
-//       xsec_numu[offset_xsec];
-//   auto event_count_numubar_final =
-//       (oscProb_anti_span(0, 1, offset_2D) * flux_nuebar[offset_2D] +
-//        oscProb_anti_span(1, 1, offset_2D) * flux_numubar[offset_2D]) *
-//       xsec_numubar[offset_xsec];
-//   auto event_count_nue_final =
-//       (oscProb_span(0, 0, offset_2D) * flux_nue[offset_2D] +
-//        oscProb_span(1, 0, offset_2D) * flux_numu[offset_2D]) *
-//       xsec_nue[offset_xsec];
-//   auto event_count_nuebar_final =
-//       (oscProb_anti_span(0, 0, offset_2D) * flux_nuebar[offset_2D] +
-//        oscProb_anti_span(1, 0, offset_2D) * flux_numubar[offset_2D]) *
-//       xsec_nuebar[offset_xsec];
-//   auto this_offset_analysis_bin =
-//   atomicAdd(&ret_nuebar[offset_2D], event_count_nuebar_final);
-//   atomicAdd(&ret_nue[offset_2D], event_count_nue_final);
-//   atomicAdd(&ret_numubar[offset_2D], event_count_numubar_final);
-//   atomicAdd(&ret_numu[offset_2D], event_count_numu_final);
-// }
+void __global__ calc_event_count_noosc_atomic_add(
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    const_vec_span xsec_nc_nu, const_vec_span xsec_nc_nubar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar, span_2d_hist_t ret_nc, size_t E_rebin_factor,
+    size_t costh_rebin_factor) {
+  auto global_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
+  auto costh_bins = flux_numu.extent(0);
+  auto e_bins = flux_numu.extent(1);
+  if (global_thread_id >= (costh_bins * e_bins)) {
+    return;
+  }
+  auto [this_index_costh, this_index_E] =
+      get_indexes(costh_bins, global_thread_id);
+  auto event_count_numu_final =
+      flux_numu(this_index_costh, this_index_E) * xsec_numu[this_index_E];
+  auto event_count_numubar_final =
+      flux_numubar(this_index_costh, this_index_E) * xsec_numubar[this_index_E];
+  auto event_count_nue_final =
+      flux_nue(this_index_costh, this_index_E) * xsec_nue[this_index_E];
+  auto event_count_nuebar_final =
+      flux_nuebar(this_index_costh, this_index_E) * xsec_nuebar[this_index_E];
+  auto event_nc_final = ((flux_numu(this_index_costh, this_index_E) +
+                          flux_nue(this_index_costh, this_index_E)) *
+                         xsec_nc_nu[this_index_E]) +
+                        ((flux_numubar(this_index_costh, this_index_E) +
+                          flux_nuebar(this_index_costh, this_index_E)) *
+                         xsec_nc_nubar[this_index_E]);
+  auto target_index_costh = this_index_costh / costh_rebin_factor;
+  auto target_index_E = this_index_E / E_rebin_factor;
+  atomicAdd(&ret_numu(target_index_costh, target_index_E),
+            event_count_numu_final);
+  atomicAdd(&ret_numubar(target_index_costh, target_index_E),
+            event_count_numubar_final);
+  atomicAdd(&ret_nue(target_index_costh, target_index_E),
+            event_count_nue_final);
+  atomicAdd(&ret_nuebar(target_index_costh, target_index_E),
+            event_count_nuebar_final);
+  atomicAdd(&ret_nc(target_index_costh, target_index_E), event_nc_final);
+}
