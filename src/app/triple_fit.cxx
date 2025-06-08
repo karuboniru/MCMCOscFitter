@@ -63,72 +63,6 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
   return 2 * chi2;
 }
 
-SimpleDataHist rebin_new_method(const SimpleDataHist &from,
-                                std::vector<double> ebin_edges,
-                                std::vector<double> costh_bin_edges) {
-  SimpleDataHist ret{};
-
-  auto TH2D_rebin_new = [&](const TH2D &from_hist) {
-    TH2D new_hist(from_hist.GetName(), from_hist.GetName(),
-                  ebin_edges.size() - 1, ebin_edges.data(),
-                  costh_bin_edges.size() - 1, costh_bin_edges.data());
-    for (int i = 1; i <= from_hist.GetNbinsX(); ++i) {
-      for (int j = 1; j <= from_hist.GetNbinsY(); ++j) {
-        std::map<int, double> bin_map_x,
-            bin_map_y; // bin id on x/y, fraction to assign
-        auto from_bin_content = from_hist.GetBinContent(i, j);
-
-        auto from_bin_lower_e = from_hist.GetXaxis()->GetBinLowEdge(i);
-        auto from_bin_upper_e = from_hist.GetXaxis()->GetBinUpEdge(i);
-
-        auto new_bin_lower_x = new_hist.GetXaxis()->FindBin(from_bin_lower_e);
-        auto new_bin_upper_x = new_hist.GetXaxis()->FindBin(from_bin_upper_e);
-        if (new_bin_lower_x == new_bin_upper_x) { // in a single bin
-          bin_map_x[new_bin_lower_x] = 1.0;
-        } else {
-          auto x_div = new_hist.GetXaxis()->GetBinLowEdge(new_bin_upper_x);
-          bin_map_x[new_bin_lower_x] = (x_div - from_bin_lower_e) /
-                                       (from_bin_upper_e - from_bin_lower_e);
-          bin_map_x[new_bin_upper_x] = (from_bin_upper_e - x_div) /
-                                       (from_bin_upper_e - from_bin_lower_e);
-        }
-
-        auto from_bin_lower_costh = from_hist.GetYaxis()->GetBinLowEdge(j);
-        auto from_bin_upper_costh = from_hist.GetYaxis()->GetBinUpEdge(j);
-
-        auto new_bin_lower_y =
-            new_hist.GetYaxis()->FindBin(from_bin_lower_costh);
-        auto new_bin_upper_y =
-            new_hist.GetYaxis()->FindBin(from_bin_upper_costh);
-        if (new_bin_lower_y == new_bin_upper_y) { // in a single bin
-          bin_map_y[new_bin_lower_y] += 1.0;
-        } else {
-          auto y_div = new_hist.GetYaxis()->GetBinLowEdge(new_bin_upper_y);
-          bin_map_y[new_bin_lower_y] =
-              (y_div - from_bin_lower_costh) /
-              (from_bin_upper_costh - from_bin_lower_costh);
-          bin_map_y[new_bin_upper_y] =
-              (from_bin_upper_costh - y_div) /
-              (from_bin_upper_costh - from_bin_lower_costh);
-        }
-
-        for (auto &&[bin_id, fraction] : bin_map_x) {
-          for (auto &&[bin_id_y, fraction_y] : bin_map_y) {
-            new_hist.AddBinContent(bin_id, bin_id_y,
-                                   from_bin_content * fraction * fraction_y);
-          }
-        }
-      }
-    }
-    return new_hist;
-  };
-  ret.hist_numu = TH2D_rebin_new(from.hist_numu);
-  ret.hist_nue = TH2D_rebin_new(from.hist_nue);
-  ret.hist_numubar = TH2D_rebin_new(from.hist_numubar);
-  ret.hist_nuebar = TH2D_rebin_new(from.hist_nuebar);
-  return ret;
-}
-
 double chi2_data(const SimpleDataHist &data, const SimpleDataHist &pred) {
   double chi2{};
   chi2 += TH2D_chi2(data.hist_numu, pred.hist_numu);
@@ -169,8 +103,8 @@ public:
       new_param.*addr = thisvar;
     }
     binned_interaction.set_param(new_param);
-    auto pred = binned_interaction.GenerateData();
-    auto pred_rebinned = rebin_new_method(pred, ebin_edges, costh_bin_edges);
+    auto pred_rebinned = binned_interaction.GenerateData();
+    // auto pred_rebinned = rebin_new_method(pred, ebin_edges, costh_bin_edges);
     auto chi2 = chi2_data(data, pred_rebinned);
     return chi2;
   }
@@ -211,17 +145,18 @@ int main(int argc, char **agrv) {
       std::vector<double>{0.1, 0.6, 0.8, 1.0, 1.35, 1.75, 2.2, 3.0, 4.6, 20.0};
   auto costh_bin_wing = linspace(-1., 1., 10 + 1);
 
-  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, 1, 40, 1};
-  auto cdata_NH = bint.GenerateData(); // data for NH
-  auto cdata_NH_rebinned =
-      rebin_new_method(cdata_NH, e_bin_wing, costh_bin_wing);
+  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, e_bin_wing,
+                          costh_bin_wing};
+  auto cdata_NH_rebinned = bint.GenerateData(); // data for NH
+  // auto cdata_NH_rebinned =
+  //     rebin_new_method(cdata_NH, e_bin_wing, costh_bin_wing);
   auto par_NH = bint.get_param();
 
   // ParBinnedInterface bint_1{Ebins, costheta_bins, scale_factor, 40, 40, 1};
   bint.flip_hierarchy();
-  auto cdata_IH = bint.GenerateData(); // data for IH
-  auto cdata_IH_rebinned =
-      rebin_new_method(cdata_IH, e_bin_wing, costh_bin_wing);
+  auto cdata_IH_rebinned = bint.GenerateData(); // data for IH
+  // auto cdata_IH_rebinned =
+  //     rebin_new_method(cdata_IH, e_bin_wing, costh_bin_wing);
   auto par_IH = bint.get_param();
 
   MinuitFitter fitter_NH(bint, cdata_NH_rebinned, par_IH, e_bin_wing,

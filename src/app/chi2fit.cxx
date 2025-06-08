@@ -1,5 +1,6 @@
 #include "BinnedInteraction.h"
 #include "OscillationParameters.h"
+#include "ParBinnedInterface.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "tools.h"
@@ -33,7 +34,7 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
   auto binsx = data.GetNbinsX();
   auto binsy = data.GetNbinsY();
   double chi2{};
-// #pragma omp parallel for reduction(+ : chi2) collapse(2)
+  // #pragma omp parallel for reduction(+ : chi2) collapse(2)
   for (int x = 1; x <= binsx; x++) {
     for (int y = 1; y <= binsy; y++) {
       auto bin_data = data.GetBinContent(x, y);
@@ -51,7 +52,7 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
 
 class MinuitFitter final : public ROOT::Minuit2::FCNBase {
 public:
-  MinuitFitter(BinnedInteraction &binned_interaction_, SimpleDataHist &data_,
+  MinuitFitter(ParBinnedInterface &binned_interaction_, SimpleDataHist &data_,
                pull_toggle toggle_ = all_on)
       : binned_interaction(binned_interaction_), data(data_), toggle(toggle_) {}
 
@@ -62,9 +63,11 @@ public:
                                   .T13 = params[3],
                                   .T12 = params[4],
                                   .DCP = params[5]});
-    binned_interaction.UpdatePrediction();
+    binned_interaction.set_toggle(toggle);
     auto llh = binned_interaction.GetLogLikelihoodAgainstData(data);
-    llh += binned_interaction.OscillationParameters::GetLogLikelihood(toggle);
+
+    llh += binned_interaction.GetLogLikelihood();
+    // auto llh = binned_interaction.GetLogLikelihood();
     // std::println("llh: {}", -2 * llh);
     return -2. * llh;
   }
@@ -72,7 +75,7 @@ public:
   double Up() const override { return 1.; }
 
 private:
-  mutable BinnedInteraction binned_interaction;
+  mutable ParBinnedInterface binned_interaction;
   SimpleDataHist data;
   pull_toggle toggle;
 };
@@ -124,8 +127,21 @@ SimpleDataHist get_chi2_data(const SimpleDataHist &data,
 template <class T>
 void plot_data(T &&data, const std::string &filename, double min = 0.,
                double max = 0.) {
+  auto get_real_max = [](const TH2 &hh) {
+    return hh.GetBinContent(hh.GetMaximumBin());
+  };
+  auto get_real_min = [](const TH2 &hh) {
+    return hh.GetBinContent(hh.GetMinimumBin());
+  };
+  auto max_val =
+      std::max({get_real_max(data.hist_numu), get_real_max(data.hist_numubar),
+                get_real_max(data.hist_nue), get_real_max(data.hist_nuebar)});
+  max = max == 0 ? max_val : max;
+  auto min_val =
+      std::min({get_real_min(data.hist_numu), get_real_min(data.hist_numubar),
+                get_real_min(data.hist_nue), get_real_min(data.hist_nuebar)});
+  min = min == 0 ? min_val : min;
   auto reset_style = [&](TH1 &hist, const std::string &title) {
-    // gPad->SetTopMargin(gPad->GetTopMargin() / 2.);
     gPad->SetBottomMargin(gPad->GetBottomMargin() * 1.5);
     gPad->SetRightMargin(gPad->GetRightMargin() * 1.15);
     ResetStyle(&hist);
@@ -142,6 +158,7 @@ void plot_data(T &&data, const std::string &filename, double min = 0.,
     }
   };
   TCanvas c1{};
+
   c1.SetLogx();
   c1.Divide(2, 2);
   c1.cd(1)->SetLogx();
@@ -165,25 +182,29 @@ int main(int argc, char **agrv) {
   gStyle->SetOptStat(0);
   gStyle->SetPaintTextFormat("4.1f");
   TH1::AddDirectory(false);
-  auto costheta_bins = linspace(-1., 1., 481);
+  auto costheta_bins = linspace(-1., 1., 401);
 
   auto Ebins = logspace(0.1, 20., 401);
 
-  constexpr double scale_factor = scale_factor_6y;
+  auto e_bin_wing =
+      std::vector<double>{0.1, 0.6, 0.8, 1.0, 1.35, 1.75, 2.2, 3.0, 4.6, 20.0};
+  // auto e_bin_wing = logspace(0.1, 20., 10 + 1);
+  auto costh_bin_wing = linspace(-1., 1., 10 + 1);
 
-  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40, 1};
-  auto cdata = bint.GenerateData(); // data for NH
-
-  BinnedInteraction bint_1{Ebins, costheta_bins, scale_factor, 40, 40, 1};
+  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor_6y, e_bin_wing,
+                          costh_bin_wing};
+  auto cdata = bint.GenerateData();
+  ParBinnedInterface bint_1{Ebins, costheta_bins, scale_factor_6y, e_bin_wing,
+                            costh_bin_wing};
   bint_1.flip_hierarchy();
-  bint_1.UpdatePrediction();
+
   auto cdata_IH = bint_1.GenerateData();
 
   // std::println(std::cout, "Mock chi2: {}",
   //              TH2D_chi2(cdata.hist_numu, cdata.hist_numubar));
 
   bint.SaveAs("xcheck.root");
-  plot_data(cdata, "asimov.pdf");
+  plot_data(cdata, "asimov.svg");
 
   auto do_fit_and_plot = [&](double dm32_init,
                              const pull_toggle &toggles = all_on) {
@@ -269,29 +290,39 @@ int main(int argc, char **agrv) {
                     .DCP = final_params.Value(5)});
 
     bint.UpdatePrediction();
+    auto fit_result = bint.GenerateData();
 
     auto llh_to_data = bint.GetLogLikelihoodAgainstData(data_to_fit);
     auto pull = bint.GetLogLikelihood();
+
+    plot_data(get_chi2_data(cdata, pre_fit),
+              std::format("prefit_to_data_chi2_{}.svg", tag));
+    plot_data(get_chi2_data(cdata, fit_result),
+              std::format("fit_to_data_chi2_{}.svg", tag));
+    plot_data(pre_fit / cdata, std::format("prefit_to_data_ratio_{}.svg", tag));
+    plot_data(fit_result / cdata, std::format("fit_to_data_ratio_{}.svg", tag));
+    plot_data(pre_fit, std::format("prefit_{}.svg", tag));
 
     std::println("chi2 {:.4e}, data: {:.4e}, pull: {:.4e}",
                  -2 * (llh_to_data + pull), -2 * llh_to_data, -2 * pull);
 
     std::println("{:*^25}\n\n", "finished");
     std::flush(std::cout);
+    gSystem->ChangeDirectory("..");
   };
 
   do_fit_and_plot(-4.91e-3);
   do_fit_and_plot(4.91e-3);
-  for (int i = 0; i < 6; ++i) {
-    pull_toggle one_off = all_on;
-    one_off[i] = false;
-    do_fit_and_plot(-4.91e-3, one_off);
-    do_fit_and_plot(4.91e-3, one_off);
-    pull_toggle one_on = all_off;
-    one_on[i] = true;
-    do_fit_and_plot(-4.91e-3, one_on);
-    do_fit_and_plot(4.91e-3, one_on);
-  }
+  // for (int i = 0; i < 6; ++i) {
+  //   pull_toggle one_off = all_on;
+  //   one_off[i] = false;
+  //   do_fit_and_plot(-4.91e-3, one_off);
+  //   do_fit_and_plot(4.91e-3, one_off);
+  //   pull_toggle one_on = all_off;
+  //   one_on[i] = true;
+  //   do_fit_and_plot(-4.91e-3, one_on);
+  //   do_fit_and_plot(4.91e-3, one_on);
+  // }
 
   // ROOT::Minuit2::MnContours contours(fitter_IH, result);
   // for (size_t i = 0; i < final_params.Params().size(); ++i) {
@@ -322,7 +353,7 @@ int main(int argc, char **agrv) {
   //     graph.GetYaxis()->SetTitle(final_params.GetName(j).c_str());
 
   //     graph.Draw("AC");
-  //     canvas.SaveAs(std::format("contour_{}_{}.pdf", final_params.GetName(i),
+  //     canvas.SaveAs(std::format("contour_{}_{}.svg", final_params.GetName(i),
   //                               final_params.GetName(j))
   //                       .c_str());
   //   }

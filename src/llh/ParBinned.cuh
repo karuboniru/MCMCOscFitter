@@ -15,8 +15,8 @@ TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
 class ParBinned : public OscillationParameters, public ModelDataLLH {
 public:
   ParBinned(std::vector<double> Ebins, std::vector<double> costheta_bins,
-            double scale_ = 1., size_t E_rebin_factor = 1,
-            size_t costh_rebin_factor = 1, double IH_Bias = 1.0);
+            double scale_, std::vector<double> Eanalysis_bins,
+            std::vector<double> costheta_analysis_bins, double IH_Bias = 1.0);
 
   ParBinned(const ParBinned &) = default;
   ParBinned(ParBinned &&) noexcept = default;
@@ -71,8 +71,8 @@ private:
   std::vector<double> Ebins, costheta_bins;
   std::vector<double> Ebins_analysis, costheta_analysis;
 
-  size_t E_rebin_factor;
-  size_t costh_rebin_factor;
+  // size_t E_rebin_factor;
+  // size_t costh_rebin_factor;
 
   size_t E_fine_bin_count, costh_fine_bin_count, E_analysis_bin_count,
       costh_analysis_bin_count;
@@ -80,6 +80,9 @@ private:
   // index: [cosine, energy]
   thrust::device_vector<oscillaton_calc_precision> Prediction_hist_numu,
       Prediction_hist_numubar, Prediction_hist_nue, Prediction_hist_nuebar;
+
+  thrust::device_vector<std::array<std::pair<size_t, double>, 2>> rebin_map_E,
+      rebin_map_costh;
 
   auto vec2hist_analysis(const auto &vec) const {
     return vec_to_hist(vec, costheta_analysis, Ebins_analysis);

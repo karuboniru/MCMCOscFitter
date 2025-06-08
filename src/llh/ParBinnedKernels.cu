@@ -1,4 +1,5 @@
 // #include <__clang_cuda_intrinsics.h>
+#include <array>
 #define __MDSPAN_USE_PAREN_OPERATOR 1
 
 #include "ParBinnedKernels.cuh"
@@ -428,4 +429,147 @@ void __global__ calc_event_count_noosc_atomic_add(
   atomicAdd(&ret_nuebar(target_index_costh, target_index_E),
             event_count_nuebar_final);
   atomicAdd(&ret_nc(target_index_costh, target_index_E), event_nc_final);
+}
+
+void __global__ calc_event_count_unaligned_rebin(
+    ParProb3ppOscillation::oscillaton_span_t oscProb,
+    ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar,
+    cuda::std::span<const std::array<std::pair<size_t, double>, 2>> E_rebin_map,
+    cuda::std::span<const std::array<std::pair<size_t, double>, 2>> costh_rebin_map) {
+
+  if (flux_numu.extents() != flux_numubar.extents() ||
+      flux_numu.extents() != flux_nue.extents() ||
+      flux_numu.extents() != flux_nuebar.extents() ||
+      flux_numu.extent(1) != xsec_numu.size() ||
+      flux_numu.extent(1) != xsec_numubar.size() ||
+      flux_numu.extent(1) != xsec_nue.size() ||
+      flux_numu.extent(1) != xsec_nuebar.size() ||
+      oscProb.extents() != oscProb_anti.extents() ||
+      oscProb.extent(2) != flux_numu.extent(0) ||
+      oscProb.extent(3) != flux_numu.extent(1) ||
+      ret_numu.extents() != ret_numubar.extents() ||
+      ret_numu.extents() != ret_nue.extents() ||
+      ret_numu.extents() != ret_nuebar.extents()) {
+    __builtin_unreachable();
+    // return;
+  }
+  auto global_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
+  auto costh_bins = flux_numu.extent(0);
+  auto e_bins = flux_numu.extent(1);
+  if (global_thread_id >= (costh_bins * e_bins)) {
+    return;
+  }
+  auto [this_index_costh, this_index_E] =
+      get_indexes(costh_bins, global_thread_id);
+  auto event_count_numu_final =
+      (oscProb(0, 1, this_index_costh, this_index_E) *
+           flux_nue(this_index_costh, this_index_E) +
+       oscProb(1, 1, this_index_costh, this_index_E) *
+           flux_numu(this_index_costh, this_index_E)) *
+      xsec_numu[this_index_E];
+  auto event_count_numubar_final =
+      (oscProb_anti(0, 1, this_index_costh, this_index_E) *
+           flux_nuebar(this_index_costh, this_index_E) +
+       oscProb_anti(1, 1, this_index_costh, this_index_E) *
+           flux_numubar(this_index_costh, this_index_E)) *
+      xsec_numubar[this_index_E];
+  auto event_count_nue_final = (oscProb(0, 0, this_index_costh, this_index_E) *
+                                    flux_nue(this_index_costh, this_index_E) +
+                                oscProb(1, 0, this_index_costh, this_index_E) *
+                                    flux_numu(this_index_costh, this_index_E)) *
+                               xsec_nue[this_index_E];
+  auto event_count_nuebar_final =
+      (oscProb_anti(0, 0, this_index_costh, this_index_E) *
+           flux_nuebar(this_index_costh, this_index_E) +
+       oscProb_anti(1, 0, this_index_costh, this_index_E) *
+           flux_numubar(this_index_costh, this_index_E)) *
+      xsec_nuebar[this_index_E];
+  for (auto &[cos_index, cos_frac] : costh_rebin_map[this_index_costh]) {
+    for (auto &[E_index, E_frac] : E_rebin_map[this_index_E]) {
+      auto target_index_costh = cos_index;
+      auto target_index_E = E_index;
+      auto this_frac = cos_frac * E_frac;
+      if (this_frac == 0) {
+        continue;
+      }
+      atomicAdd(&ret_numu(target_index_costh, target_index_E),
+                event_count_numu_final * this_frac);
+      atomicAdd(&ret_numubar(target_index_costh, target_index_E),
+                event_count_numubar_final * this_frac);
+      atomicAdd(&ret_nue(target_index_costh, target_index_E),
+                event_count_nue_final * this_frac);
+      atomicAdd(&ret_nuebar(target_index_costh, target_index_E),
+                event_count_nuebar_final * this_frac);
+    }
+  }
+}
+
+void __global__ calc_event_count_noosc_unaligned(
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    const_vec_span xsec_nc_nu, const_vec_span xsec_nc_nubar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar, span_2d_hist_t ret_nc,
+    cuda::std::span<const std::array<std::pair<size_t, double>, 2>> E_rebin_map,
+    cuda::std::span<const std::array<std::pair<size_t, double>, 2>> costh_rebin_map) {
+  auto global_thread_id = threadIdx.x + (blockDim.x * blockIdx.x);
+  auto costh_bins = flux_numu.extent(0);
+  auto e_bins = flux_numu.extent(1);
+  if (global_thread_id >= (costh_bins * e_bins)) {
+    return;
+  }
+  auto [this_index_costh, this_index_E] =
+      get_indexes(costh_bins, global_thread_id);
+  auto event_count_numu_final =
+      flux_numu(this_index_costh, this_index_E) * xsec_numu[this_index_E];
+  auto event_count_numubar_final =
+      flux_numubar(this_index_costh, this_index_E) * xsec_numubar[this_index_E];
+  auto event_count_nue_final =
+      flux_nue(this_index_costh, this_index_E) * xsec_nue[this_index_E];
+  auto event_count_nuebar_final =
+      flux_nuebar(this_index_costh, this_index_E) * xsec_nuebar[this_index_E];
+  auto event_nc_final = ((flux_numu(this_index_costh, this_index_E) +
+                          flux_nue(this_index_costh, this_index_E)) *
+                         xsec_nc_nu[this_index_E]) +
+                        ((flux_numubar(this_index_costh, this_index_E) +
+                          flux_nuebar(this_index_costh, this_index_E)) *
+                         xsec_nc_nubar[this_index_E]);
+  //   auto target_index_costh = this_index_costh / costh_rebin_factor;
+  //   auto target_index_E = this_index_E / E_rebin_factor;
+  //   atomicAdd(&ret_numu(target_index_costh, target_index_E),
+  //             event_count_numu_final);
+  //   atomicAdd(&ret_numubar(target_index_costh, target_index_E),
+  //             event_count_numubar_final);
+  //   atomicAdd(&ret_nue(target_index_costh, target_index_E),
+  //             event_count_nue_final);
+  //   atomicAdd(&ret_nuebar(target_index_costh, target_index_E),
+  //             event_count_nuebar_final);
+  //   atomicAdd(&ret_nc(target_index_costh, target_index_E), event_nc_final);
+  for (auto &[cos_index, cos_frac] : costh_rebin_map[this_index_costh]) {
+    for (auto &[E_index, E_frac] : E_rebin_map[this_index_E]) {
+      auto target_index_costh = cos_index;
+      auto target_index_E = E_index;
+      auto this_frac = cos_frac * E_frac;
+      if (this_frac == 0) {
+        continue;
+      }
+      atomicAdd(&ret_numu(target_index_costh, target_index_E),
+                event_count_numu_final * this_frac);
+      atomicAdd(&ret_numubar(target_index_costh, target_index_E),
+                event_count_numubar_final * this_frac);
+      atomicAdd(&ret_nue(target_index_costh, target_index_E),
+                event_count_nue_final * this_frac);
+      atomicAdd(&ret_nuebar(target_index_costh, target_index_E),
+                event_count_nuebar_final * this_frac);
+      atomicAdd(&ret_nc(target_index_costh, target_index_E), event_nc_final);
+    }
+  }
 }

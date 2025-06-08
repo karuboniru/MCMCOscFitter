@@ -98,3 +98,26 @@ void __global__ calc_event_count_noosc_atomic_add(
     span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
     span_2d_hist_t ret_nuebar, span_2d_hist_t ret_nc, size_t E_rebin_factor,
     size_t costh_rebin_factor);
+
+void __global__ calc_event_count_noosc_unaligned(
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    const_vec_span xsec_nc_nu, const_vec_span xsec_nc_nubar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar, span_2d_hist_t ret_nc,
+    cuda::std::span<const std::array<std::pair<size_t, double>, 2>> E_rebin_map,
+    cuda::std::span<const std::array<std::pair<size_t, double>, 2>> costh_rebin_map);
+
+void __global__ calc_event_count_unaligned_rebin(
+    ParProb3ppOscillation::oscillaton_span_t oscProb,
+    ParProb3ppOscillation::oscillaton_span_t oscProb_anti,
+    const_span_2d_hist_t flux_numu, const_span_2d_hist_t flux_numubar,
+    const_span_2d_hist_t flux_nue, const_span_2d_hist_t flux_nuebar,
+    const_vec_span xsec_numu, const_vec_span xsec_numubar,
+    const_vec_span xsec_nue, const_vec_span xsec_nuebar,
+    span_2d_hist_t ret_numu, span_2d_hist_t ret_numubar, span_2d_hist_t ret_nue,
+    span_2d_hist_t ret_nuebar,
+    cuda::std::span<const std::array<std::pair<size_t, double>, 2>> E_rebin_map,
+    cuda::std::span<const std::array<std::pair<size_t, double>, 2>> costh_rebin_map);

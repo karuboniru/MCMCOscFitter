@@ -68,27 +68,15 @@ install (TARGETS plotter DESTINATION bin)
 add_executable(chi2fit chi2fit.cxx)
 
 target_link_libraries(chi2fit 
-  ROOT::ROOTDataFrame
-  BinnedInteraction
-  ROOT::Minuit2
-  SimpleDataHist
+SimpleDataHist
+ParBinned
+walker
+ROOT::ROOTDataFrame
+ROOT::Minuit2
 )
 
 
 install (TARGETS chi2fit DESTINATION bin)
-
-
-add_executable(event_rateCU event_rateCU.cxx)
-
-target_link_libraries(event_rateCU 
-  SimpleDataHist
-  ParBinned
-  walker
-  ROOT::ROOTDataFrame
-)
-
-
-install (TARGETS event_rateCU DESTINATION bin)
 
 
 add_executable(testfitbinnedCU testfitbinnedCU.cxx)
@@ -105,20 +93,6 @@ install (TARGETS testfitbinnedCU DESTINATION bin)
 
 
 
-add_executable(chi2fitCU chi2fitCU.cxx)
-
-target_link_libraries(chi2fitCU 
-  SimpleDataHist
-  ParBinned
-  walker
-  ROOT::ROOTDataFrame
-  ROOT::Minuit2
-)
-
-
-install (TARGETS chi2fitCU DESTINATION bin)
-
-
 add_executable(event_rate_xcheck event_rate_xcheck.cxx)
 
 target_link_libraries(event_rate_xcheck 
@@ -132,43 +106,6 @@ target_link_libraries(event_rate_xcheck
 install (TARGETS event_rate_xcheck DESTINATION bin)
 
 
-add_executable(chi2fittestCU chi2fittestCU.cxx)
-
-target_link_libraries(chi2fittestCU 
-  SimpleDataHist
-  ParBinned
-  walker
-  ROOT::ROOTDataFrame
-  ROOT::Minuit2
-)
-
-
-install (TARGETS chi2fittestCU DESTINATION bin)
-
-
-add_executable(nofit_check nofit_check.cxx)
-
-target_link_libraries(nofit_check 
-  SimpleDataHist
-  ParBinned
-  walker
-  ROOT::ROOTDataFrame
-  ROOT::Minuit2
-)
-
-
-install (TARGETS nofit_check DESTINATION bin)
-
-add_executable(single_fit single_fit.cxx)
-target_link_libraries(single_fit 
-  SimpleDataHist
-  ParBinned
-  walker
-  ROOT::ROOTDataFrame
-  ROOT::Minuit2
-)
-install (TARGETS single_fit DESTINATION bin)
-
 add_executable(triple_fit triple_fit.cxx)
 target_link_libraries(triple_fit 
   SimpleDataHist
@@ -179,12 +116,12 @@ target_link_libraries(triple_fit
 )
 install (TARGETS triple_fit DESTINATION bin)
 
-add_executable(event_rate_xcheck_new event_rate_xcheck_new.cxx)
-target_link_libraries(event_rate_xcheck_new 
-  SimpleDataHist
-  ParBinned
-  walker
-  ROOT::ROOTDataFrame
-  ROOT::Minuit2
-)
-install (TARGETS event_rate_xcheck_new DESTINATION bin)
+# add_executable(event_rate_xcheck_new event_rate_xcheck_new.cxx)
+# target_link_libraries(event_rate_xcheck_new 
+#   SimpleDataHist
+#   ParBinned
+#   walker
+#   ROOT::ROOTDataFrame
+#   ROOT::Minuit2
+# )
+# install (TARGETS event_rate_xcheck_new DESTINATION bin)

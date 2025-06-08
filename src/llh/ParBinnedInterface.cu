@@ -1,14 +1,14 @@
 #include "ParBinned.cuh"
 #include "ParBinnedInterface.h"
 
-ParBinnedInterface::ParBinnedInterface(std::vector<double> Ebins,
-                                       std::vector<double> costheta_bins,
-                                       double scale_, size_t E_rebin_factor,
-                                       size_t costh_rebin_factor,
-                                       double IH_Bias)
+ParBinnedInterface::ParBinnedInterface(
+    std::vector<double> Ebins, std::vector<double> costheta_bins, double scale_,
+    std::vector<double> Eanalysis_bins,
+    std::vector<double> costheta_analysis_bins, double IH_Bias)
     : pImpl(std::make_unique<ParBinned>(
-          std::move(Ebins), std::move(costheta_bins), scale_, E_rebin_factor,
-          costh_rebin_factor, IH_Bias)) {}
+          std::move(Ebins), std::move(costheta_bins), scale_,
+          std::move(Eanalysis_bins), std::move(costheta_analysis_bins),
+          IH_Bias)) {}
 
 ParBinnedInterface::~ParBinnedInterface() = default;
 ParBinnedInterface::ParBinnedInterface(ParBinnedInterface &&) noexcept =

@@ -43,72 +43,6 @@ double chi2_data(const SimpleDataHist &data, const SimpleDataHist &pred) {
 }
 } // namespace
 
-SimpleDataHist rebin_new_method(SimpleDataHist &from,
-                                std::vector<double> ebin_edges,
-                                std::vector<double> costh_bin_edges) {
-  SimpleDataHist ret{};
-
-  auto TH2D_rebin_new = [&](TH2D &from_hist) {
-    TH2D new_hist(from_hist.GetName(), from_hist.GetName(),
-                  ebin_edges.size() - 1, ebin_edges.data(),
-                  costh_bin_edges.size() - 1, costh_bin_edges.data());
-    for (int i = 1; i <= from_hist.GetNbinsX(); ++i) {
-      for (int j = 1; j <= from_hist.GetNbinsY(); ++j) {
-        std::map<int, double> bin_map_x,
-            bin_map_y; // bin id on x/y, fraction to assign
-        auto from_bin_content = from_hist.GetBinContent(i, j);
-
-        auto from_bin_lower_e = from_hist.GetXaxis()->GetBinLowEdge(i);
-        auto from_bin_upper_e = from_hist.GetXaxis()->GetBinUpEdge(i);
-
-        auto new_bin_lower_x = new_hist.GetXaxis()->FindBin(from_bin_lower_e);
-        auto new_bin_upper_x = new_hist.GetXaxis()->FindBin(from_bin_upper_e);
-        if (new_bin_lower_x == new_bin_upper_x) { // in a single bin
-          bin_map_x[new_bin_lower_x] = 1.0;
-        } else {
-          auto x_div = new_hist.GetXaxis()->GetBinLowEdge(new_bin_upper_x);
-          bin_map_x[new_bin_lower_x] = (x_div - from_bin_lower_e) /
-                                       (from_bin_upper_e - from_bin_lower_e);
-          bin_map_x[new_bin_upper_x] = (from_bin_upper_e - x_div) /
-                                       (from_bin_upper_e - from_bin_lower_e);
-        }
-
-        auto from_bin_lower_costh = from_hist.GetYaxis()->GetBinLowEdge(j);
-        auto from_bin_upper_costh = from_hist.GetYaxis()->GetBinUpEdge(j);
-
-        auto new_bin_lower_y =
-            new_hist.GetYaxis()->FindBin(from_bin_lower_costh);
-        auto new_bin_upper_y =
-            new_hist.GetYaxis()->FindBin(from_bin_upper_costh);
-        if (new_bin_lower_y == new_bin_upper_y) { // in a single bin
-          bin_map_y[new_bin_lower_y] += 1.0;
-        } else {
-          auto y_div = new_hist.GetYaxis()->GetBinLowEdge(new_bin_upper_y);
-          bin_map_y[new_bin_lower_y] =
-              (y_div - from_bin_lower_costh) /
-              (from_bin_upper_costh - from_bin_lower_costh);
-          bin_map_y[new_bin_upper_y] =
-              (from_bin_upper_costh - y_div) /
-              (from_bin_upper_costh - from_bin_lower_costh);
-        }
-
-        for (auto &&[bin_id, fraction] : bin_map_x) {
-          for (auto &&[bin_id_y, fraction_y] : bin_map_y) {
-            new_hist.AddBinContent(bin_id, bin_id_y,
-                                   from_bin_content * fraction * fraction_y);
-          }
-        }
-      }
-    }
-    return new_hist;
-  };
-  ret.hist_numu = TH2D_rebin_new(from.hist_numu);
-  ret.hist_nue = TH2D_rebin_new(from.hist_nue);
-  ret.hist_numubar = TH2D_rebin_new(from.hist_numubar);
-  ret.hist_nuebar = TH2D_rebin_new(from.hist_nuebar);
-  return ret;
-}
-
 int main(int argc, char **argv) {
   TH1::AddDirectory(false);
   constexpr size_t e_rebin_frac = 1;
@@ -126,21 +60,22 @@ int main(int argc, char **argv) {
 
   constexpr double scale_factor = scale_factor_6y;
 
-  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, e_rebin_frac,
-                          costh_rebin_frac};
-  auto cdata = bint.GenerateData();
-  auto cdata_NH_rebinned = rebin_new_method(cdata, e_bin_wing, costh_bin_wing);
+  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, e_bin_wing,
+                          costh_bin_wing};
+  auto cdata_NH_rebinned = bint.GenerateData();
+  // auto cdata_NH_rebinned = rebin_new_method(cdata, e_bin_wing,
+  // costh_bin_wing);
   cdata_NH_rebinned.SaveAs("Event_rate_NH.root");
-  auto cdata_noOsc = bint.GenerateData_NoOsc();
+  auto cdata_noOsc_rebinned = bint.GenerateData_NoOsc();
   std::println("nc event count: {:.3f}",
-               cdata_noOsc.hist_nc->GetSumOfWeights());
-  auto cdata_noOsc_rebinned =
-      rebin_new_method(cdata_noOsc, e_bin_wing, costh_bin_wing);
+               cdata_noOsc_rebinned.hist_nc->GetSumOfWeights());
+  // auto cdata_noOsc_rebinned =
+  //     rebin_new_method(cdata_noOsc, e_bin_wing, costh_bin_wing);
   cdata_noOsc_rebinned.SaveAs("No_Osc.root");
   bint.flip_hierarchy();
-  auto cdata_IH = bint.GenerateData();
-  auto cdata_IH_rebinned =
-      rebin_new_method(cdata_IH, e_bin_wing, costh_bin_wing);
+  auto cdata_IH_rebinned = bint.GenerateData();
+  // auto cdata_IH_rebinned =
+  //     rebin_new_method(cdata_IH, e_bin_wing, costh_bin_wing);
   cdata_IH_rebinned.SaveAs("Event_rate_IH.root");
 
   double chi2_pred_IH = chi2_data(cdata_NH_rebinned, cdata_IH_rebinned);

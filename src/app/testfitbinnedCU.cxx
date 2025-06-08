@@ -1,3 +1,4 @@
+#include "OscillationParameters.h"
 #include "ParBinnedInterface.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
@@ -30,8 +31,14 @@ int main(int argc, char **argv) {
       (2e10 / (12 + H_to_C) * 6.02214076e23) * // number of target C12
       ((6 * 365) * 24 * 3600) /                // seconds in a year
       1e42; // unit conversion from 1e-38 cm^2 to 1e-42 m^2
+  auto e_bin_wing =
+      std::vector<double>{0.1, 0.6, 0.8, 1.0, 1.35, 1.75, 2.2, 3.0, 4.6, 20.0};
+  auto costh_bin_wing = linspace(-1., 1., 10 + 1);
 
-  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, 40, 40, 8000};
+  ParBinnedInterface bint{Ebins,      costheta_bins,  scale_factor,
+                          e_bin_wing, costh_bin_wing, 8000};
+
+//   bint.set_toggle(all_off);
   auto cdata = bint.GenerateData();
   //   cdata.Round();
 
@@ -43,7 +50,7 @@ int main(int argc, char **argv) {
   for (size_t i = 0; i < nth; i++) {
     state_pool.emplace_back(bint, cdata).proposeStep();
   }
-  auto rawdf = ROOT::RDataFrame{1250000};
+  auto rawdf = ROOT::RDataFrame{1250000L * 3};
   ROOT::RDF::Experimental::AddProgressBar(rawdf);
   std::atomic<size_t> count{};
   auto df =
@@ -51,7 +58,7 @@ int main(int argc, char **argv) {
           .Define("tuple",
                   [&state_pool, &count](unsigned int id) -> vals {
                     auto &current_state = state_pool[id];
-                //     TimeCount timer{"5 step"};
+                    //     TimeCount timer{"5 step"};
                     for (size_t i = 0; i < 5; i++) {
                       auto new_state = current_state;
                       new_state.proposeStep();

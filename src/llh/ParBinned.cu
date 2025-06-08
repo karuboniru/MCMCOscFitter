@@ -9,8 +9,8 @@
 #include <TF3.h>
 #include <TH2.h>
 #include <cmath>
-#include <print>
 #include <optional>
+#include <print>
 #include <ranges>
 #include <type_traits>
 #include <utility>
@@ -213,8 +213,7 @@ private:
         xsec_hist_nc_nu_bar(TH1_to_hist(xsec_input.GetXsecHistMixture(
             Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}}, false))),
         E_fine_bin_count(Ebins.size() - 1),
-        costh_fine_bin_count(costheta_bins.size() - 1) {
-  }
+        costh_fine_bin_count(costheta_bins.size() - 1) {}
 
   // index: [cosine, energy]
   thrust::device_vector<oscillaton_calc_precision> flux_hist_numu,
@@ -244,32 +243,28 @@ std::vector<T> stride(const std::vector<T> &vec, size_t stride) {
 
 ParBinned::ParBinned(std::vector<double> Ebins_,
                      std::vector<double> costheta_bins_, double scale_,
-                     size_t E_rebin_factor_, size_t costh_rebin_factor_,
+                     std::vector<double> Eanalysis_bins_,
+                     std::vector<double> costheta_analysis_bins_,
                      double IH_bias_)
     : ModelDataLLH(),
       propagator{std::make_shared<ParProb3ppOscillation>(
           to_center<oscillaton_calc_precision>(Ebins_),
           to_center<oscillaton_calc_precision>(costheta_bins_))},
       Ebins(std::move(Ebins_)), costheta_bins(std::move(costheta_bins_)),
-      Ebins_analysis(stride(Ebins, E_rebin_factor_)
-                     // Ebins | std::views::stride(E_rebin_factor_) |
-                     //              std::ranges::to<std::vector>()
-                     ),
-      costheta_analysis(
-          stride(costheta_bins, costh_rebin_factor_)
-          // costheta_bins |
-          //                 std::views::stride(costh_rebin_factor_)
-          //                 | std::ranges::to<std::vector>()
-          ),
-      E_rebin_factor(E_rebin_factor_), costh_rebin_factor(costh_rebin_factor_),
+      Ebins_analysis(std::move(Eanalysis_bins_)),
+      costheta_analysis(std::move(costheta_analysis_bins_)),
       E_fine_bin_count(Ebins.size() - 1),
       costh_fine_bin_count(costheta_bins.size() - 1),
-      E_analysis_bin_count(E_fine_bin_count / E_rebin_factor),
-      costh_analysis_bin_count(costh_fine_bin_count / costh_rebin_factor),
+      // E_analysis_bin_count(E_fine_bin_count / E_rebin_factor),
+      E_analysis_bin_count(Ebins_analysis.size() - 1),
+      costh_analysis_bin_count(costheta_analysis.size() - 1),
+      // costh_analysis_bin_count(costh_fine_bin_count / costh_rebin_factor),
       Prediction_hist_numu(E_analysis_bin_count * costh_analysis_bin_count),
       Prediction_hist_numubar(E_analysis_bin_count * costh_analysis_bin_count),
       Prediction_hist_nue(E_analysis_bin_count * costh_analysis_bin_count),
       Prediction_hist_nuebar(E_analysis_bin_count * costh_analysis_bin_count),
+      rebin_map_E(build_rebin_map(Ebins, Ebins_analysis)),
+      rebin_map_costh(build_rebin_map(costheta_bins, costheta_analysis)),
       log_ih_bias(std::log(IH_bias_)) {
   global_device_input_instance::get_instance(Ebins, costheta_bins, scale_);
   UpdatePrediction();
@@ -296,22 +291,26 @@ void ParBinned::UpdatePrediction() {
   cudaMemsetAsync(Prediction_hist_nuebar.data().get(), 0,
                   sizeof(oscillaton_calc_precision) *
                       Prediction_hist_nuebar.size());
-  calc_event_count_atomic_add<<<
+  calc_event_count_unaligned_rebin<<<
       cuda::ceil_div(E_fine_bin_count * costh_fine_bin_count, warp_size),
-      warp_size>>>(span_prob_neutrino, span_prob_antineutrino,
-                   flux_xsec_device_input.get_flux_numu(),
-                   flux_xsec_device_input.get_flux_numubar(),
-                   flux_xsec_device_input.get_flux_nue(),
-                   flux_xsec_device_input.get_flux_nuebar(),
-                   flux_xsec_device_input.get_xsec_numu(),
-                   flux_xsec_device_input.get_xsec_numubar(),
-                   flux_xsec_device_input.get_xsec_nue(),
-                   flux_xsec_device_input.get_xsec_nuebar(),
-                   vec2span_analysis(Prediction_hist_numu),
-                   vec2span_analysis(Prediction_hist_numubar),
-                   vec2span_analysis(Prediction_hist_nue),
-                   vec2span_analysis(Prediction_hist_nuebar), E_rebin_factor,
-                   costh_rebin_factor);
+      warp_size>>>(
+      span_prob_neutrino, span_prob_antineutrino,
+      flux_xsec_device_input.get_flux_numu(),
+      flux_xsec_device_input.get_flux_numubar(),
+      flux_xsec_device_input.get_flux_nue(),
+      flux_xsec_device_input.get_flux_nuebar(),
+      flux_xsec_device_input.get_xsec_numu(),
+      flux_xsec_device_input.get_xsec_numubar(),
+      flux_xsec_device_input.get_xsec_nue(),
+      flux_xsec_device_input.get_xsec_nuebar(),
+      vec2span_analysis(Prediction_hist_numu),
+      vec2span_analysis(Prediction_hist_numubar),
+      vec2span_analysis(Prediction_hist_nue),
+      vec2span_analysis(Prediction_hist_nuebar),
+      cuda::std::span<const std::array<std::pair<size_t, double>, 2>>(
+          rebin_map_E.data().get(), rebin_map_E.size()),
+      cuda::std::span<const std::array<std::pair<size_t, double>, 2>>(
+          rebin_map_costh.data().get(), rebin_map_costh.size()));
 }
 
 void ParBinned::proposeStep() {
@@ -385,7 +384,7 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
   auto &flux_xsec_device_input = global_device_input_instance::get_instance();
   auto warp_count =
       cuda::ceil_div(costh_fine_bin_count * E_fine_bin_count, warp_size);
-  calc_event_count_noosc_atomic_add<<<warp_count, warp_size>>>(
+  calc_event_count_noosc_unaligned<<<warp_count, warp_size>>>(
       flux_xsec_device_input.get_flux_numu(),
       flux_xsec_device_input.get_flux_numubar(),
       flux_xsec_device_input.get_flux_nue(),
@@ -399,7 +398,13 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
       vec2span_analysis(no_osc_hist_numu),
       vec2span_analysis(no_osc_hist_numubar),
       vec2span_analysis(no_osc_hist_nue), vec2span_analysis(no_osc_hist_nuebar),
-      vec2span_analysis(nc), E_rebin_factor, costh_rebin_factor);
+      vec2span_analysis(nc),
+      cuda::std::span<const std::array<std::pair<size_t, double>, 2>>(
+          rebin_map_E.data().get(), rebin_map_E.size()),
+      cuda::std::span<const std::array<std::pair<size_t, double>, 2>>(
+          rebin_map_costh.data().get(), rebin_map_costh.size())
+
+  );
   // CUERR
 
   data.hist_numu = vec2hist_analysis(no_osc_hist_numu);
@@ -474,7 +479,7 @@ void ParBinned::Save_prob_hist(const std::string &name) {
   // }
 }
 
-void ParBinned::set_param(const param &p){
+void ParBinned::set_param(const param &p) {
   OscillationParameters::set_param(p);
   UpdatePrediction();
 }

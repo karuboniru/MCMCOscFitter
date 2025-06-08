@@ -5,7 +5,6 @@
 // #include "OscillationParameters.h"
 #include "SimpleDataHist.h"
 
-
 class ParBinned;
 struct param;
 class pull_toggle;
@@ -13,8 +12,9 @@ class pull_toggle;
 class ParBinnedInterface : public ModelDataLLH {
 public:
   ParBinnedInterface(std::vector<double> Ebins,
-                     std::vector<double> costheta_bins, double scale_ = 1.,
-                     size_t E_rebin_factor = 1, size_t costh_rebin_factor = 1,
+                     std::vector<double> costheta_bins, double scale_,
+                     std::vector<double> Eanalysis_bins,
+                     std::vector<double> costheta_analysis_bins,
                      double IH_Bias = 1.0);
 
   ParBinnedInterface(const ParBinnedInterface &other);
@@ -55,7 +55,7 @@ public:
   [[nodiscard]] param get_param() const;
 
   void set_toggle(const pull_toggle &toggle);
-  [[nodiscard]] const pull_toggle & get_toggle() const;
+  [[nodiscard]] const pull_toggle &get_toggle() const;
 
 private:
   std::unique_ptr<ParBinned> pImpl;
