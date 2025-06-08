@@ -2,6 +2,9 @@
 
 #include <array>
 #include <cmath>
+#include <iostream>
+#include <print>
+#include <ranges>
 #include <stdexcept>
 #include <vector>
 
@@ -136,5 +139,43 @@ build_rebin_map(const std::vector<T> &fine_bins,
       //     0}}));
     }
   }
+  return ret;
+}
+
+template <class T>
+std::vector<size_t> build_rebin_map_aligned(const std::vector<T> &fine_bins,
+                                            const std::vector<T> &new_bins) {
+  std::vector<size_t> ret{};
+
+  for (size_t new_bin_id{}; auto &&[fine_bin_id, bin_center] :
+                            fine_bins | std::views::slide(2) |
+                                std::views::transform([](const auto &vals) {
+                                  return (vals[0] + vals[1]) / 2;
+                                }) |
+                                std::views::enumerate) {
+    auto new_bin_lower = new_bins[new_bin_id];
+    auto new_bin_upper = new_bins[new_bin_id + 1];
+
+    if (bin_center >= new_bin_lower && bin_center < new_bin_upper) {
+      ret.push_back(new_bin_id);
+    } else if (bin_center >= new_bin_upper) {
+      // this fine bin is in the next new bin
+      new_bin_id++;
+      if (bin_center >= new_bins[new_bin_id + 1]) {
+        // it can't be the case, bail out
+        throw std::runtime_error(
+            "fine bin center is outside the new bin range #1");
+      }
+      ret.push_back(new_bin_id);
+    } else {
+      // it can't be the case, bail out
+      std::println(std::cerr,
+                   "fine bin center {} is outside the new bin range [{} - {}]",
+                   bin_center, new_bin_lower, new_bin_upper);
+      throw std::runtime_error(
+          "fine bin center is outside the new bin range #2");
+    }
+  }
+
   return ret;
 }

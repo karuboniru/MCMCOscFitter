@@ -263,8 +263,9 @@ ParBinned::ParBinned(std::vector<double> Ebins_,
       Prediction_hist_numubar(E_analysis_bin_count * costh_analysis_bin_count),
       Prediction_hist_nue(E_analysis_bin_count * costh_analysis_bin_count),
       Prediction_hist_nuebar(E_analysis_bin_count * costh_analysis_bin_count),
-      rebin_map_E(build_rebin_map(Ebins, Ebins_analysis)),
-      rebin_map_costh(build_rebin_map(costheta_bins, costheta_analysis)),
+      rebin_map_E(build_rebin_map_aligned(Ebins, Ebins_analysis)),
+      rebin_map_costh(
+          build_rebin_map_aligned(costheta_bins, costheta_analysis)),
       log_ih_bias(std::log(IH_bias_)) {
   global_device_input_instance::get_instance(Ebins, costheta_bins, scale_);
   UpdatePrediction();
@@ -291,26 +292,25 @@ void ParBinned::UpdatePrediction() {
   cudaMemsetAsync(Prediction_hist_nuebar.data().get(), 0,
                   sizeof(oscillaton_calc_precision) *
                       Prediction_hist_nuebar.size());
-  calc_event_count_unaligned_rebin<<<
+  calc_event_count_aligned_rebin<<<
       cuda::ceil_div(E_fine_bin_count * costh_fine_bin_count, warp_size),
-      warp_size>>>(
-      span_prob_neutrino, span_prob_antineutrino,
-      flux_xsec_device_input.get_flux_numu(),
-      flux_xsec_device_input.get_flux_numubar(),
-      flux_xsec_device_input.get_flux_nue(),
-      flux_xsec_device_input.get_flux_nuebar(),
-      flux_xsec_device_input.get_xsec_numu(),
-      flux_xsec_device_input.get_xsec_numubar(),
-      flux_xsec_device_input.get_xsec_nue(),
-      flux_xsec_device_input.get_xsec_nuebar(),
-      vec2span_analysis(Prediction_hist_numu),
-      vec2span_analysis(Prediction_hist_numubar),
-      vec2span_analysis(Prediction_hist_nue),
-      vec2span_analysis(Prediction_hist_nuebar),
-      cuda::std::span<const std::array<std::pair<size_t, double>, 2>>(
-          rebin_map_E.data().get(), rebin_map_E.size()),
-      cuda::std::span<const std::array<std::pair<size_t, double>, 2>>(
-          rebin_map_costh.data().get(), rebin_map_costh.size()));
+      warp_size>>>(span_prob_neutrino, span_prob_antineutrino,
+                   flux_xsec_device_input.get_flux_numu(),
+                   flux_xsec_device_input.get_flux_numubar(),
+                   flux_xsec_device_input.get_flux_nue(),
+                   flux_xsec_device_input.get_flux_nuebar(),
+                   flux_xsec_device_input.get_xsec_numu(),
+                   flux_xsec_device_input.get_xsec_numubar(),
+                   flux_xsec_device_input.get_xsec_nue(),
+                   flux_xsec_device_input.get_xsec_nuebar(),
+                   vec2span_analysis(Prediction_hist_numu),
+                   vec2span_analysis(Prediction_hist_numubar),
+                   vec2span_analysis(Prediction_hist_nue),
+                   vec2span_analysis(Prediction_hist_nuebar),
+                   cuda::std::span<const size_t>(rebin_map_E.data().get(),
+                                                 rebin_map_E.size()),
+                   cuda::std::span<const size_t>(rebin_map_costh.data().get(),
+                                                 rebin_map_costh.size()));
 }
 
 void ParBinned::proposeStep() {
@@ -384,7 +384,7 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
   auto &flux_xsec_device_input = global_device_input_instance::get_instance();
   auto warp_count =
       cuda::ceil_div(costh_fine_bin_count * E_fine_bin_count, warp_size);
-  calc_event_count_noosc_unaligned<<<warp_count, warp_size>>>(
+  calc_event_count_noosc_aligned<<<warp_count, warp_size>>>(
       flux_xsec_device_input.get_flux_numu(),
       flux_xsec_device_input.get_flux_numubar(),
       flux_xsec_device_input.get_flux_nue(),
@@ -399,10 +399,10 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
       vec2span_analysis(no_osc_hist_numubar),
       vec2span_analysis(no_osc_hist_nue), vec2span_analysis(no_osc_hist_nuebar),
       vec2span_analysis(nc),
-      cuda::std::span<const std::array<std::pair<size_t, double>, 2>>(
-          rebin_map_E.data().get(), rebin_map_E.size()),
-      cuda::std::span<const std::array<std::pair<size_t, double>, 2>>(
-          rebin_map_costh.data().get(), rebin_map_costh.size())
+      cuda::std::span<const size_t>(rebin_map_E.data().get(),
+                                    rebin_map_E.size()),
+      cuda::std::span<const size_t>(rebin_map_costh.data().get(),
+                                    rebin_map_costh.size())
 
   );
   // CUERR

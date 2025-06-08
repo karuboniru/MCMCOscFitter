@@ -9,15 +9,16 @@ public:
   WingFlux &operator=(const WingFlux &) = delete;
   ~WingFlux();
 
-
   TH2D GetFlux_Hist(int pdg) const;
 
 private:
-  // 
+  //
   TH2D numu;
   TH2D numubar;
   TH2D nue;
   TH2D nuebar;
 };
+
+constexpr double flux_min = 1.08508435;
 
 extern const WingFlux wingflux;

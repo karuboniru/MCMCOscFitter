@@ -81,8 +81,10 @@ private:
   thrust::device_vector<oscillaton_calc_precision> Prediction_hist_numu,
       Prediction_hist_numubar, Prediction_hist_nue, Prediction_hist_nuebar;
 
-  thrust::device_vector<std::array<std::pair<size_t, double>, 2>> rebin_map_E,
-      rebin_map_costh;
+  // assume the bins are always aligned here, that
+  // one calculation bin always corresponding to
+  // a single analysis bin.
+  thrust::device_vector<size_t> rebin_map_E, rebin_map_costh;
 
   auto vec2hist_analysis(const auto &vec) const {
     return vec_to_hist(vec, costheta_analysis, Ebins_analysis);

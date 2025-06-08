@@ -45,18 +45,15 @@ double chi2_data(const SimpleDataHist &data, const SimpleDataHist &pred) {
 
 int main(int argc, char **argv) {
   TH1::AddDirectory(false);
-  constexpr size_t e_rebin_frac = 1;
-  constexpr size_t e_bin_count = 400;
-  constexpr size_t costh_rebin_frac = 10;
-  constexpr size_t costh_bin_count = 40;
-  auto e_bin_wing =
-      std::vector<double>{0.1, 0.6, 0.8, 1.0, 1.35, 1.75, 2.2, 3.0, 4.6, 20.0};
-  auto costh_bin_wing = linspace(-1., 1., 10 + 1);
+  auto e_bin_wing = std::vector<double>{
+      1.08508435, 1.41421357, 1.84317469, 2.40224887,  3.13090217, 4.08057156,
+      5.31829591, 6.93144844, 9.03390453, 11.77408038, 20};
+  auto costh_bin_wing = std::vector<double>{
+      -1., -0.845, -0.645, -0.45, -0.225, 0., 0.225, 0.45, 0.645, 0.845, 1.};
 
   //   auto Ebins = divide_bins<double>(e_bin_wing, e_rebin_frac);
-  auto Ebins = logspace(0.1, 20., (e_bin_count * e_rebin_frac) + 1);
-  auto costheta_bins =
-      linspace(-1., 1., (costh_rebin_frac * costh_bin_count) + 1);
+  auto Ebins = logspace(1.08508435, 20., 221);
+  auto costheta_bins = linspace(-1., 1., 401);
 
   constexpr double scale_factor = scale_factor_6y;
 

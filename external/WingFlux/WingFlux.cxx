@@ -15,7 +15,7 @@ std::generator<std::string> read_lines(std::string filename) {
 TH2D hist_model() {
   TH1::AddDirectory(false);
   static auto costh_bins = linspace(-1., 1., 401);
-  static auto ebins = logspace(0.1, 20., 401);
+  static auto ebins = logspace(flux_min, 20., 221);
   return {"",
           "",
           (int)(ebins.size() - 1),
@@ -51,6 +51,9 @@ WingFlux::WingFlux(const char *fluxfile)
       continue;
     }
     auto E_val = tokens[0];
+    if (E_val < flux_min) {
+      continue;
+    }
     auto E = numu.GetXaxis()->FindBin(E_val);
     auto zen_val = tokens[1];
     auto zen = numu.GetYaxis()->FindBin(zen_val);
