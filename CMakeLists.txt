@@ -36,3 +36,6 @@ add_definitions(-DDATA_PATH="${DATA_PATH}")
 add_subdirectory(src)
 add_subdirectory(external)
 add_subdirectory(cross_check)
+
+enable_testing()
+add_subdirectory(test)

@@ -3,6 +3,7 @@
 #if defined(__CUDACC__) && !defined(__CUDA__)
 #define __CUDA__
 #endif
+#include "IHistogramPropagator.h"
 #include "OscillationParameters.h"
 #include "constants.h"
 #include "propagator.hpp"
@@ -13,7 +14,7 @@
 #include <cuda/std/span>
 #endif
 
-class ParProb3ppOscillation {
+class ParProb3ppOscillation : public IHistogramPropagator {
 public:
   ParProb3ppOscillation(const std::vector<oscillaton_calc_precision> &Ebin,
                         const std::vector<oscillaton_calc_precision> &costhbin);
@@ -34,7 +35,7 @@ public:
   [[nodiscard]] std::array<std::array<std::array<TH2D, 2>, 2>, 2>
   GetProb_Hists(const std::vector<double> &Ebin,
                 const std::vector<double> &costhbin,
-                const OscillationParameters &p);
+                const OscillationParameters &p) override;
 
   ///> The 3D probability histogram
   ///> [0-neutrino, 1-antineutrino][from: 0-nue, 1-numu, 2-nutau][to: 0-nue,
@@ -42,7 +43,7 @@ public:
   [[nodiscard]] std::array<std::array<std::array<TH2D, 3>, 3>, 2>
   GetProb_Hists_3F(const std::vector<double> &Ebin,
                    const std::vector<double> &costhbin,
-                   const OscillationParameters &p);
+                   const OscillationParameters &p) override;
 
   void re_calculate(const OscillationParameters &p);
 

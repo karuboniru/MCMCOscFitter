@@ -32,6 +32,20 @@
         "CMAKE_C_FLAGS": "-fuse-ld=bfd",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
+    },
+    {
+      "name": "cuda-llvm",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "ON",
+        "CMAKE_CUDA_ARCHITECTURES": "native",
+        "ENABLE_CUDA": "On",
+        "CMAKE_CUDA_COMPILER": "clang++",
+        "CMAKE_CUDA_HOST_COMPILER": "clang++",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
     }
   ]
 }
