@@ -33,7 +33,7 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
   auto binsx = data.GetNbinsX();
   auto binsy = data.GetNbinsY();
   double chi2{};
-// #pragma omp parallel for reduction(+ : chi2) collapse(2)
+  // #pragma omp parallel for reduction(+ : chi2) collapse(2)
   for (int x = 1; x <= binsx; x++) {
     for (int y = 1; y <= binsy; y++) {
       auto bin_data = data.GetBinContent(x, y);
@@ -272,6 +272,9 @@ int main(int argc, char **agrv) {
 
     auto llh_to_data = bint.GetLogLikelihoodAgainstData(data_to_fit);
     auto pull = bint.GetLogLikelihood();
+
+
+
 
     std::println("chi2 {:.4e}, data: {:.4e}, pull: {:.4e}",
                  -2 * (llh_to_data + pull), -2 * llh_to_data, -2 * pull);

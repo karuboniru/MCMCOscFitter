@@ -2,6 +2,7 @@
 
 #include <TRandom3.h>
 #include <iostream>
+#include <cmath>
 
 bool MCMCAcceptState(const StateI &current, const StateI &next) {
   double current_logweight = current.GetLogLikelihood();
@@ -13,5 +14,5 @@ bool MCMCAcceptState(const StateI &current, const StateI &next) {
   if (log_ratio > 0)
     return true;
   auto rand = gRandom->Rndm();
-  return rand < exp(log_ratio);
+  return rand < std::exp(log_ratio);
 }

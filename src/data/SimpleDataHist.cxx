@@ -1,5 +1,6 @@
 #include "SimpleDataHist.h"
 #include <TFile.h>
+#include <cmath>
 
 void SimpleDataHist::SaveAs(const char *filename) const {
   TFile file(filename, "recreate");
