@@ -136,7 +136,7 @@ install (TARGETS event_rate_xcheck DESTINATION bin)
 
 add_executable(chi2fittestCU chi2fittestCU.cxx)
 
-target_link_libraries(chi2fittestCU 
+target_link_libraries(chi2fittestCU
   SimpleDataHist
   ParBinned
   walker
@@ -146,4 +146,19 @@ target_link_libraries(chi2fittestCU
 
 
 install (TARGETS chi2fittestCU DESTINATION bin)
+
+
+add_executable(chi2fitplotCU chi2fitplotCU.cxx)
+
+target_link_libraries(chi2fitplotCU
+  SimpleDataHist
+  BinnedInteraction
+  ParBinned
+  walker
+  ROOT::ROOTDataFrame
+  ROOT::Minuit2
+)
+
+
+install (TARGETS chi2fitplotCU DESTINATION bin)
 endif()
