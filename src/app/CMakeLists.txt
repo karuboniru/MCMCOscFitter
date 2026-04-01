@@ -1,5 +1,7 @@
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/src/llh
+  ${CMAKE_SOURCE_DIR}/src/common
 )
 
 add_executable(testsample testsample.cxx)
@@ -77,7 +79,7 @@ target_link_libraries(chi2fit
 
 install (TARGETS chi2fit DESTINATION bin)
 
-
+if (ENABLE_CUDA)
 add_executable(event_rateCU event_rateCU.cxx)
 
 target_link_libraries(event_rateCU 
@@ -144,3 +146,4 @@ target_link_libraries(chi2fittestCU
 
 
 install (TARGETS chi2fittestCU DESTINATION bin)
+endif()

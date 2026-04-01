@@ -3,7 +3,7 @@ include_directories(
 )
 
 add_library(
-  ModelDataLLH 
+  ModelDataLLH
   INTERFACE
 )
 
@@ -20,7 +20,6 @@ target_link_libraries(
   data
 )
 
-
 add_library(
   SimpleInteraction
   STATIC
@@ -36,20 +35,40 @@ target_link_libraries(
   Prob3ppOscillation
 )
 
+# Injectable-only: all BinnedInteraction logic except the production constructor.
+# No dependency on HondaFlux2D or GENIE_XSEC — safe to link from the pybind
+# module without requiring physics data files at import time.
 add_library(
-  BinnedInteraction
+  BinnedInteractionInject
   STATIC
   BinnedInteraction.cxx
 )
 
 target_link_libraries(
-  BinnedInteraction
+  BinnedInteractionInject
   ModelDataLLH
   state
+  ParProb3ppOscillation
+)
+
+target_include_directories(
+  BinnedInteractionInject
+  PUBLIC
+  ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Full library: injectable + production constructor (links physics globals).
+add_library(
+  BinnedInteraction
+  STATIC
+  BinnedInteractionProd.cxx
+)
+
+target_link_libraries(
+  BinnedInteraction
+  BinnedInteractionInject
   HondaFlux2D
   GENIE_XSEC
-  Prob3ppOscillation
-  ParProb3ppOscillation
 )
 
 if (ENABLE_CUDA)

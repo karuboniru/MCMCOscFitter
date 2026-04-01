@@ -2,6 +2,7 @@
 #include "OscillationParameters.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
+#include "constants.h"
 #include "tools.h"
 
 #include <Minuit2/FCNBase.h>

@@ -1,27 +1,22 @@
+// All BinnedInteraction methods except the production constructor.
+// The production constructor lives in BinnedInteractionProd.cxx and depends on
+// the HondaFlux2D and GENIE_XSEC global objects.  Keeping them separate lets
+// pybind (and tests) link this TU without the physics-data-file globals.
 
 #include "BinnedInteraction.h"
 #include "OscillationParameters.h"
-#include "ParProb3ppOscillation.h"
-#include "binning_tool.hpp"
 #include "chi2.h"
-#include "constants.h"
-#include "genie_xsec.h"
-#include "hondaflux2d.h"
 
 #include <SimpleDataHist.h>
-#include <TF3.h>
 #include <TFile.h>
 #include <TH2.h>
+#include <format>
 #include <type_traits>
 #include <utility>
 
-// just to avoid any potential conflict
 namespace {
 template <typename T>
 concept is_hist = std::is_base_of_v<TH1, T>;
-
-template <typename T>
-concept is_hist2D = std::is_base_of_v<TH2, T>;
 
 template <is_hist T> T operator*(const T &lhs, const T &rhs) {
   T ret = lhs;
@@ -31,9 +26,7 @@ template <is_hist T> T operator*(const T &lhs, const T &rhs) {
 
 TH2D operator*(const TH2D &lhs, const TH1D &rhs) {
   TH2D ret = lhs;
-
   assert(lhs.GetNbinsX() == rhs.GetNbinsX());
-
   for (int x_index = 1; x_index <= lhs.GetNbinsX(); x_index++) {
     for (int y_index = 1; y_index <= lhs.GetNbinsY(); y_index++) {
       ret.SetBinContent(x_index, y_index,
@@ -59,41 +52,9 @@ template <is_hist T> T operator*(const T &lhs, double rhs) {
 template <is_hist T> T operator*(double lhs, const T &&rhs) {
   return rhs * lhs;
 }
-
 } // namespace
 
-// Production constructor: builds flux/xsec from global library objects.
-BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
-                                     std::vector<double> costheta_bins_,
-                                     double scale_, size_t E_rebin_factor_,
-                                     size_t costh_rebin_factor_,
-                                     double IH_bias_)
-    : ModelDataLLH(),
-      propagator{std::make_shared<ParProb3ppOscillation>(
-          to_center<oscillaton_calc_precision>(Ebins_),
-          to_center<oscillaton_calc_precision>(costheta_bins_))},
-      Ebins(std::move(Ebins_)), costheta_bins(std::move(costheta_bins_)),
-      flux_hist_numu(flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) *
-                     scale_),
-      flux_hist_numubar(flux_input.GetFlux_Hist(Ebins, costheta_bins, -14) *
-                        scale_),
-      flux_hist_nue(flux_input.GetFlux_Hist(Ebins, costheta_bins, 12) * scale_),
-      flux_hist_nuebar(flux_input.GetFlux_Hist(Ebins, costheta_bins, -12) *
-                       scale_),
-      xsec_hist_numu(xsec_input.GetXsecHistMixture(
-          Ebins, 14, {{1000060120, 1.0}, {2212, H_to_C}})),
-      xsec_hist_numubar(xsec_input.GetXsecHistMixture(
-          Ebins, -14, {{1000060120, 1.0}, {2212, H_to_C}})),
-      xsec_hist_nue(xsec_input.GetXsecHistMixture(
-          Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}})),
-      xsec_hist_nuebar(xsec_input.GetXsecHistMixture(
-          Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}})),
-      E_rebin_factor(E_rebin_factor_), costh_rebin_factor(costh_rebin_factor_),
-      log_ih_bias(std::log(IH_bias_)) {
-  UpdatePrediction();
-}
-
-// Injectable constructor: accepts externally-built histograms and propagator.
+// Injectable constructor: all histograms and propagator supplied externally.
 BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
                                      std::vector<double> costheta_bins_,
                                      std::shared_ptr<IHistogramPropagator> prop,
@@ -117,7 +78,7 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
 }
 
 void BinnedInteraction::UpdatePrediction() {
-  // [0-neutrino, 1-antineutrino][from: 0-nue, 1-mu][to: 0-e, 1-mu]
+  // [0-neutrino, 1-antineutrino][from: 0-nue, 1-numu][to: 0-nue, 1-numu]
   auto oscHists = propagator->GetProb_Hists(Ebins, costheta_bins, *this);
 
   auto &oscHist = oscHists[0];
@@ -151,19 +112,12 @@ void BinnedInteraction::proposeStep() {
 
 double
 BinnedInteraction::GetLogLikelihoodAgainstData(StateI const &dataset) const {
-  auto casted = dynamic_cast<const SimpleDataHist &>(dataset);
-  auto &data_hist_numu = casted.hist_numu;
-  auto &data_hist_numubar = casted.hist_numubar;
-  auto &data_hist_nue = casted.hist_nue;
-  auto &data_hist_nuebar = casted.hist_nuebar;
-
-  auto chi2_numu = TH2D_chi2(data_hist_numu, Prediction_hist_numu);
-  auto chi2_numubar = TH2D_chi2(data_hist_numubar, Prediction_hist_numubar);
-  auto chi2_nue = TH2D_chi2(data_hist_nue, Prediction_hist_nue);
-  auto chi2_nuebar = TH2D_chi2(data_hist_nuebar, Prediction_hist_nuebar);
-
-  auto llh = -0.5 * (chi2_numu + chi2_numubar + chi2_nue + chi2_nuebar);
-  return llh;
+  auto &casted = dynamic_cast<const SimpleDataHist &>(dataset);
+  auto chi2_numu = TH2D_chi2(casted.hist_numu, Prediction_hist_numu);
+  auto chi2_numubar = TH2D_chi2(casted.hist_numubar, Prediction_hist_numubar);
+  auto chi2_nue = TH2D_chi2(casted.hist_nue, Prediction_hist_nue);
+  auto chi2_nuebar = TH2D_chi2(casted.hist_nuebar, Prediction_hist_nuebar);
+  return -0.5 * (chi2_numu + chi2_numubar + chi2_nue + chi2_nuebar);
 }
 
 SimpleDataHist BinnedInteraction::GenerateData() const {
@@ -186,31 +140,26 @@ SimpleDataHist BinnedInteraction::GenerateData_NoOsc() const {
 
 double BinnedInteraction::GetLogLikelihood() const {
   auto llh = OscillationParameters::GetLogLikelihood();
-  if (GetDM32sq() < 0) {
+  if (GetDM32sq() < 0)
     llh += log_ih_bias;
-  }
   return llh;
 }
 
 void BinnedInteraction::SaveAs(const char *filename) const {
   auto file = TFile::Open(filename, "RECREATE");
   file->cd();
-
   file->Add(flux_hist_numu.Clone("flux_hist_numu"));
   file->Add(flux_hist_numubar.Clone("flux_hist_numubar"));
   file->Add(flux_hist_nue.Clone("flux_hist_nue"));
   file->Add(flux_hist_nuebar.Clone("flux_hist_nuebar"));
-
   file->Add(xsec_hist_numu.Clone("xsec_hist_numu"));
   file->Add(xsec_hist_numubar.Clone("xsec_hist_numubar"));
   file->Add(xsec_hist_nue.Clone("xsec_hist_nue"));
   file->Add(xsec_hist_nuebar.Clone("xsec_hist_nuebar"));
-
   file->Add(Prediction_hist_numu.Clone("Prediction_hist_numu"));
   file->Add(Prediction_hist_numubar.Clone("Prediction_hist_numubar"));
   file->Add(Prediction_hist_nue.Clone("Prediction_hist_nue"));
   file->Add(Prediction_hist_nuebar.Clone("Prediction_hist_nuebar"));
-
   file->Write();
   file->Close();
   delete file;
@@ -221,9 +170,8 @@ void BinnedInteraction::Save_prob_hist(const std::string &name) {
   file->cd();
   auto prob_hist = propagator->GetProb_Hists_3F(Ebins, costheta_bins, *this);
   auto id_2_name = std::to_array({"nue", "numu", "nutau"});
-  // prob_hist: [0 neutrino, 1 antineutrino][from: 0-nue, 1-mu][to: 0-e, 1-mu]
-  for (int i = 0; i < 2; ++i) {
-    for (int j = 0; j < 3; ++j) {
+  for (int i = 0; i < 2; ++i)
+    for (int j = 0; j < 3; ++j)
       for (int k = 0; k < 3; ++k) {
         prob_hist[i][j][k].SetName(
             std::format("{}_{}_{}", i == 0 ? "neutrino" : "antineutrino",
@@ -231,8 +179,6 @@ void BinnedInteraction::Save_prob_hist(const std::string &name) {
                 .c_str());
         prob_hist[i][j][k].Write();
       }
-    }
-  }
   file->Close();
   delete file;
 }

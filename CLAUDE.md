@@ -43,6 +43,58 @@ After building, binaries are in `build/`. Key executables:
 
 Executables rely on data files at the repo root (`data/` directory). The `DATA_PATH` macro is defined at compile time as the repo root.
 
+## Python bindings
+
+The `pybind/` directory builds `mcmcoscfitter` — a Python extension module.
+pybind11 is fetched automatically via FetchContent.
+
+```bash
+cmake --build build/ --target mcmcoscfitter
+# .so lands in build/pybind/
+export PYTHONPATH=$PWD/build/pybind
+python3 -c "import mcmcoscfitter as mof; print(mof.scale_factor_6y)"
+```
+
+**Key Python API:**
+
+```python
+import mcmcoscfitter as mof
+import numpy as np, copy
+
+Ebins    = mof.logspace(0.1, 20.0, 51)      # 50 E-bins
+costhbins = mof.linspace(-1.0, 1.0, 21)     # 20 costh-bins
+
+prop = mof.ParProb3ppOscillation(mof.to_center(Ebins),
+                                  mof.to_center(costhbins))
+
+# Provide flux [nE×nCosth] and xsec [nE] as numpy arrays
+histos = mof.BinnedHistograms(
+    flux_numu=..., flux_numubar=..., flux_nue=..., flux_nuebar=...,
+    xsec_numu=..., xsec_numubar=..., xsec_nue=..., xsec_nuebar=...,
+    Ebins=Ebins, costhbins=costhbins)
+
+model   = mof.BinnedInteraction(Ebins, costhbins, prop, histos)
+data    = model.generate_data()   # DataHist with .numu/.numubar/.nue/.nuebar arrays
+
+mof.set_seed(42)
+current = model
+for _ in range(10000):
+    nxt = copy.deepcopy(current)    # BinnedInteraction supports __deepcopy__
+    nxt.propose_step()
+    if mof.mcmc_accept(current, nxt, data):
+        current = nxt
+    # read: current.DM32sq, .T23, .T13, .DM21sq, .T12, .DeltaCP, .is_NH
+```
+
+Custom propagators can be implemented in Python by subclassing `mof.PropagatorBase`
+and overriding `get_prob_hists(Ebins, costhbins, params) -> np.ndarray (2,2,2,nE,nCosth)`
+and `get_prob_hists_3f(...)  -> np.ndarray (2,3,3,nE,nCosth)`.
+
+**Linking notes:** The pybind module links against `BinnedInteractionInject` (no
+`HondaFlux2D`/`GENIE_XSEC` globals), so it imports cleanly without physics data
+files. The production `BinnedInteraction(Ebins, costhbins, scale, ...)` constructor
+(which reads Honda flux + GENIE xsec) is only available from C++ executables.
+
 ## Testing
 
 Catch2 v3 is fetched automatically via CMake FetchContent. Tests are registered with CTest.
