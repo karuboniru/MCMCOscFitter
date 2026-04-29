@@ -20,6 +20,12 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)  # required for pybind11 .so
 
 Option(ENABLE_CUDA "Enable CUDA" OFF)
 
+set(OSCILLATION_FP "float" CACHE STRING "Oscillation calculation precision: float or double")
+set_property(CACHE OSCILLATION_FP PROPERTY STRINGS float double)
+if(NOT OSCILLATION_FP STREQUAL "float" AND NOT OSCILLATION_FP STREQUAL "double")
+    message(FATAL_ERROR "OSCILLATION_FP must be 'float' or 'double', got '${OSCILLATION_FP}'")
+endif()
+
 if (ENABLE_CUDA)
     # find_package(CUDA REQUIRED)
     enable_language(CUDA)
@@ -27,6 +33,7 @@ if (ENABLE_CUDA)
         set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr -allow-unsupported-compiler")
     endif()
     add_definitions(-D__MDSPAN_USE_PAREN_OPERATOR=1)
+    add_definitions(-DOSCILLATION_FP=${OSCILLATION_FP})
 endif()
 
 set(DATA_PATH "${CMAKE_SOURCE_DIR}")

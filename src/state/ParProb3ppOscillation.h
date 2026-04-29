@@ -11,7 +11,7 @@
 #endif
 
 namespace cudaprob3 {
-class SingleGPUCalculator;
+template<typename T> class SingleGPUCalculator;
 }
 
 class ParProb3ppOscillation : public IHistogramPropagator {
@@ -43,9 +43,9 @@ public:
   void re_calculate(const OscillationParameters &p);
 
 #if defined(__CUDACC__)
-  // CUDAProb3 (modern) is hardcoded to double precision.
+  // Result span uses oscillaton_calc_precision, matching the full pipeline precision.
   using oscillaton_span_t = cuda::std::mdspan<
-      const double,
+      const oscillaton_calc_precision,
       cuda::std::extents<size_t, 3, 3, cuda::std::dynamic_extent,
                          cuda::std::dynamic_extent>>;
   oscillaton_span_t get_dev_span_neutrino();
@@ -53,7 +53,7 @@ public:
 #endif
 
 private:
-  std::shared_ptr<cudaprob3::SingleGPUCalculator> calculator_neutrino_;
-  std::shared_ptr<cudaprob3::SingleGPUCalculator> calculator_antineutrino_;
+  std::shared_ptr<cudaprob3::SingleGPUCalculator<oscillaton_calc_precision>> calculator_neutrino_;
+  std::shared_ptr<cudaprob3::SingleGPUCalculator<oscillaton_calc_precision>> calculator_antineutrino_;
   std::vector<oscillaton_calc_precision> Ebins, costheta_bins;
 };

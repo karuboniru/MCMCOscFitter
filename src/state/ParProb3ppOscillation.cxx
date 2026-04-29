@@ -36,23 +36,22 @@ ParProb3ppOscillation::ParProb3ppOscillation(
   }
   auto model_ptr = std::make_shared<cudaprob3::PREMModel>(std::move(*model));
 
-  cudaprob3::SingleGPUCalculator::Config cfg{0, false};
+  using Calculator = cudaprob3::SingleGPUCalculator<oscillaton_calc_precision>;
+  Calculator::Config cfg{0, false};
 
-  auto calc_nu = cudaprob3::SingleGPUCalculator::create(cfg, grid, model_ptr);
+  auto calc_nu = Calculator::create(cfg, grid, model_ptr);
   if (!calc_nu) {
     throw std::runtime_error("Failed to create neutrino calculator: " +
                              calc_nu.error());
   }
-  calculator_neutrino_ =
-      std::make_shared<cudaprob3::SingleGPUCalculator>(std::move(*calc_nu));
+  calculator_neutrino_ = std::make_shared<Calculator>(std::move(*calc_nu));
 
-  auto calc_anu = cudaprob3::SingleGPUCalculator::create(cfg, grid, model_ptr);
+  auto calc_anu = Calculator::create(cfg, grid, model_ptr);
   if (!calc_anu) {
     throw std::runtime_error("Failed to create antineutrino calculator: " +
                              calc_anu.error());
   }
-  calculator_antineutrino_ =
-      std::make_shared<cudaprob3::SingleGPUCalculator>(std::move(*calc_anu));
+  calculator_antineutrino_ = std::make_shared<Calculator>(std::move(*calc_anu));
 
   OscillationParameters default_params;
   re_calculate(default_params);
@@ -112,11 +111,11 @@ ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
                                      const OscillationParameters &p) {
   re_calculate(p);
 
-  auto result_nu = cudaprob3::ResultView{
+  auto result_nu = cudaprob3::ResultView<oscillaton_calc_precision>{
       calculator_neutrino_->rawResults(),
       calculator_neutrino_->nCosines(),
       calculator_neutrino_->nEnergies()};
-  auto result_anu = cudaprob3::ResultView{
+  auto result_anu = cudaprob3::ResultView<oscillaton_calc_precision>{
       calculator_antineutrino_->rawResults(),
       calculator_antineutrino_->nCosines(),
       calculator_antineutrino_->nEnergies()};
@@ -158,11 +157,11 @@ ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
                                         const OscillationParameters &p) {
   re_calculate(p);
 
-  auto result_nu = cudaprob3::ResultView{
+  auto result_nu = cudaprob3::ResultView<oscillaton_calc_precision>{
       calculator_neutrino_->rawResults(),
       calculator_neutrino_->nCosines(),
       calculator_neutrino_->nEnergies()};
-  auto result_anu = cudaprob3::ResultView{
+  auto result_anu = cudaprob3::ResultView<oscillaton_calc_precision>{
       calculator_antineutrino_->rawResults(),
       calculator_antineutrino_->nCosines(),
       calculator_antineutrino_->nEnergies()};
