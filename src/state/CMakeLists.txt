@@ -43,33 +43,26 @@ if (ENABLE_CUDA)
   add_library(
     ParProb3ppOscillation
     STATIC
-    ParProb3ppOscillation.cu
+    ParProb3ppOscillation.cxx       # host-compiled: constructor, re_calculate, GetProb_Hists
+    ParProb3ppOscillation_devspan.cu  # CUDA-compiled: get_dev_span_*
   )
 
-  target_link_directories(
+  target_include_directories(
     ParProb3ppOscillation
     PUBLIC
-    ${CUDA_TOOLKIT_ROOT_DIR}/lib64
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    PRIVATE
+    ${CMAKE_SOURCE_DIR}/external/CUDAProb3/src
   )
 
-else()
-
-  add_library(
+  target_link_libraries(
     ParProb3ppOscillation
-    STATIC
-    ParProb3ppOscillation.cxx
+    state
+    cudaprob3
+    OscillationParameters
   )
 
 endif()
-find_package(OpenMP REQUIRED)
-
-target_link_libraries(
-  ParProb3ppOscillation
-  state
-  CUDAProb3
-  OscillationParameters
-  OpenMP::OpenMP_CXX
-)
 
 target_include_directories(
   ParProb3ppOscillation
