@@ -4,3 +4,4 @@ build_cuda/
 build_nvcc/
 build_clang/*.root
 *.pdf
+*.root

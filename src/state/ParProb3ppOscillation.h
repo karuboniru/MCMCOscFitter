@@ -48,6 +48,10 @@ public:
                          cuda::std::dynamic_extent>>;
   oscillaton_span_t get_dev_span_neutrino();
   oscillaton_span_t get_dev_span_antineutrino();
+
+  void re_calculate_device(const OscillationParameters &p);
+
+  cudaStream_t getComputeStream() const noexcept;
 #endif
 
 private:

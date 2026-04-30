@@ -23,7 +23,7 @@
 int main(int argc, char **argv) {
   //   ROOT::EnableImplicitMT(10);
   TH1::AddDirectory(false);
-  std::string outname = argc == 2 ? "testfit.root" : argv[1];
+  std::string outname = argc >= 2 ? argv[1] : "testfit.root";
   auto costheta_bins = linspace(-1., 1., FitConfig::n_costheta_bins + 1);
   auto Ebins = logspace(FitConfig::e_min, FitConfig::e_max, FitConfig::n_energy_bins + 1);
 

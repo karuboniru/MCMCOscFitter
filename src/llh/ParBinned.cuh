@@ -18,9 +18,9 @@ public:
             double scale_ = 1., size_t E_rebin_factor = 1,
             size_t costh_rebin_factor = 1, double IH_Bias = 1.0);
 
-  ParBinned(const ParBinned &) = default;
+  ParBinned(const ParBinned &other);
   ParBinned(ParBinned &&) noexcept = default;
-  ParBinned &operator=(const ParBinned &) = default;
+  ParBinned &operator=(const ParBinned &other);
   ParBinned &operator=(ParBinned &&) noexcept = default;
 
   void proposeStep();
@@ -82,4 +82,8 @@ private:
   }
 
   double log_ih_bias;
+
+  cudaStream_t getStream() const noexcept {
+    return propagator->getComputeStream();
+  }
 };

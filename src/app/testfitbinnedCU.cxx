@@ -1,72 +1,64 @@
-#include "ModelDataLLH.h"
 #include "ParBinnedInterface.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "constants.h"
 #include "fit_config.h"
-#include "timer.hpp"
-#include "walker.h"
 
 #include <ROOT/RDF/InterfaceUtils.hxx>
 #include <ROOT/RDF/RInterface.hxx>
 #include <ROOT/RDFHelpers.hxx>
+
 #include <ROOT/RDataFrame.hxx>
 #include <RtypesCore.h>
-#include <TMath.h>
 #include <TRandom.h>
-#include <algorithm>
-#include <atomic>
 #include <cmath>
-#include <memory>
 #include <print>
 
 int main(int argc, char **argv) {
-  //   ROOT::EnableImplicitMT(10);
   TH1::AddDirectory(false);
-  std::string outname = argc == 2 ? argv[1] : "testfit.root";
+  std::string outname = argc >= 2 ? argv[1] : "testfit.root";
   auto costheta_bins = linspace(-1., 1., FitConfig::n_costheta_bins + 1);
   auto Ebins = logspace(FitConfig::e_min, FitConfig::e_max, FitConfig::n_energy_bins + 1);
 
   ParBinnedInterface bint{Ebins, costheta_bins, FitConfig::scale_factor,
                            FitConfig::E_rebin_factor, FitConfig::costh_rebin_factor,
                            FitConfig::ih_bias};
-  auto cdata = bint.GenerateData();
-  //   cdata.Round();
+  SimpleDataHist data = bint.GenerateData();
 
-  using combined_type = ModelAndData<ParBinnedInterface, SimpleDataHist>;
   using vals =
       std::tuple<double, double, double, double, double, double, size_t>;
-  std::vector<combined_type> state_pool{};
-  auto nth = ROOT::GetThreadPoolSize() == 0 ? 1 : ROOT::GetThreadPoolSize();
-  for (size_t i = 0; i < nth; i++) {
-    state_pool.emplace_back(bint, cdata).proposeStep();
-  }
+
   auto rawdf = ROOT::RDataFrame{1250000};
   ROOT::RDF::Experimental::AddProgressBar(rawdf);
-  std::atomic<size_t> count{};
+  size_t count = 0;
+
   auto df =
       rawdf
           .Define("tuple",
-                  [&state_pool, &count](unsigned int id) -> vals {
-                    auto &current_state = state_pool[id];
-                //     TimeCount timer{"5 step"};
+                  [&bint, &data, &count]() -> vals {
                     for (size_t i = 0; i < 5; i++) {
-                      auto new_state = current_state;
-                      new_state.proposeStep();
-                      if (MCMCAcceptState(current_state, new_state)) {
-                        current_state = new_state;
+                      auto proposed = bint;
+                      proposed.proposeStep();
+
+                      double cur_llh =
+                          bint.GetLogLikelihood() +
+                          bint.GetLogLikelihoodAgainstData(data);
+                      double nxt_llh =
+                          proposed.GetLogLikelihood() +
+                          proposed.GetLogLikelihoodAgainstData(data);
+                      double log_ratio = nxt_llh - cur_llh;
+
+                      if (log_ratio > 0 ||
+                          gRandom->Rndm() < std::exp(log_ratio)) {
+                        bint = proposed;
                       }
                     }
                     count++;
                     return std::make_tuple(
-                        current_state.GetModel().GetDM32sq(),
-                        current_state.GetModel().GetDM21sq(),
-                        current_state.GetModel().GetT12(),
-                        current_state.GetModel().GetT13(),
-                        current_state.GetModel().GetT23(),
-                        current_state.GetModel().GetDeltaCP(), count.load());
-                  },
-                  {"rdfslot_"})
+                        bint.GetDM32sq(), bint.GetDM21sq(),
+                        bint.GetT12(), bint.GetT13(), bint.GetT23(),
+                        bint.GetDeltaCP(), count);
+                  })
           .Define("DM2", [](const vals &t) { return std::get<0>(t); },
                   {"tuple"})
           .Define("Dm2", [](const vals &t) { return std::get<1>(t); },
@@ -81,12 +73,9 @@ int main(int argc, char **argv) {
                   {"tuple"})
           .Define("count", [](const vals &t) { return std::get<6>(t); },
                   {"tuple"});
-  ;
-  // xx
+
   df.Snapshot("tree", outname,
               {"DM2", "Dm2", "T12", "T13", "T23", "DCP", "count"});
-
-  //   cdata.SaveAs("data.root");
 
   return 0;
 }
