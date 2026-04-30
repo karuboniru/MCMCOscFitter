@@ -105,3 +105,8 @@ Prob3ppOscillation::GetProb_Hists_3F(std::vector<double> Ebin,
   return std::to_array({GetProb_Hist_3F(Ebin, costhbin, 1, p),
                         GetProb_Hist_3F(Ebin, costhbin, -1, p)});
 }
+
+void Prob3ppOscillation::re_calculate(const OscillationParameters &) {
+  // BargerPropagator computes probabilities on-demand in GetProb_Hists.
+  // No pre-calculation needed for the CPU path.
+}

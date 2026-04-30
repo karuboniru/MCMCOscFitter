@@ -19,7 +19,7 @@ struct BinnedHistograms {
   TH1D xsec_numu, xsec_numubar, xsec_nue, xsec_nuebar;
 };
 
-class BinnedInteraction : public OscillationParameters, public ModelDataLLH {
+class BinnedInteraction : public OscillationParameters, public ModelDataLLH<SimpleDataHist> {
 public:
   // Production constructor: reads flux and cross-section from the global
   // flux_input / xsec_input objects defined by the linked physics libraries.
@@ -45,7 +45,7 @@ public:
   void proposeStep() final;
 
   [[nodiscard]] double
-  GetLogLikelihoodAgainstData(const StateI &dataset) const final;
+  GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const final;
 
   [[nodiscard]] SimpleDataHist GenerateData() const;
   [[nodiscard]] SimpleDataHist GenerateData_NoOsc() const;

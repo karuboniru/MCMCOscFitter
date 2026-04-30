@@ -12,6 +12,8 @@ class IHistogramPropagator {
 public:
   virtual ~IHistogramPropagator() = default;
 
+  virtual void re_calculate(const OscillationParameters &p) = 0;
+
   // Returns [neutrino/antineutrino][from: nue/numu][to: nue/numu] probability
   // histograms for the given bins and oscillation parameters.
   [[nodiscard]] virtual std::array<std::array<std::array<TH2D, 2>, 2>, 2>

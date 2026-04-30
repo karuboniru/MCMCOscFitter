@@ -1,7 +1,9 @@
 #include "ParBinnedInterface.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
+#include "chi2.h"
 #include "constants.h"
+#include "fit_config.h"
 #include "timer.hpp"
 
 #include <TMath.h>
@@ -14,25 +16,6 @@
 #include <string>
 #include <string_view>
 
-namespace {
-double TH2D_chi2(const TH2D &data, const TH2D &pred) {
-  auto binsx = data.GetNbinsX();
-  auto binsy = data.GetNbinsY();
-  double chi2{};
-  // #pragma omp parallel for reduction(+ : chi2) collapse(2)
-  for (int x = 1; x <= binsx; x++) {
-    for (int y = 1; y <= binsy; y++) {
-      auto bin_data = data.GetBinContent(x, y);
-      auto bin_pred = pred.GetBinContent(x, y);
-      if (bin_data != 0) [[likely]]
-        chi2 +=
-            (bin_pred - bin_data) + bin_data * TMath::Log(bin_data / bin_pred);
-      else
-        chi2 += bin_pred;
-    }
-  }
-  return 2 * chi2;
-}
 double chi2_data(const SimpleDataHist &data, const SimpleDataHist &pred) {
   double chi2{};
   chi2 += TH2D_chi2(data.hist_numu, pred.hist_numu);
@@ -41,7 +24,6 @@ double chi2_data(const SimpleDataHist &data, const SimpleDataHist &pred) {
   chi2 += TH2D_chi2(data.hist_nuebar, pred.hist_nuebar);
   return chi2;
 }
-} // namespace
 
 SimpleDataHist rebin_new_method(SimpleDataHist &from,
                                 std::vector<double> ebin_edges,
@@ -124,7 +106,7 @@ int main(int argc, char **argv) {
   auto costheta_bins =
       linspace(-1., 1., (costh_rebin_frac * costh_bin_count) + 1);
 
-  constexpr double scale_factor = scale_factor_6y;
+  constexpr double scale_factor = FitConfig::scale_factor;
 
   ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, e_rebin_frac,
                           costh_rebin_frac};

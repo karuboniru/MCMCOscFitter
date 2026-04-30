@@ -11,6 +11,7 @@ inline double TH2D_chi2(const TH2D &data, const TH2D &pred) {
   const int binsx = data.GetNbinsX();
   const int binsy = data.GetNbinsY();
   double chi2{};
+  #pragma omp parallel for reduction(+ : chi2) collapse(2)
   for (int x = 1; x <= binsx; x++) {
     for (int y = 1; y <= binsy; y++) {
       const double bin_data = data.GetBinContent(x, y);

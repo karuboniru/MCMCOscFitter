@@ -104,8 +104,7 @@ public:
     gROOT->ForceStyle();
   }
 };
-// automatically set the style, per program instance
-inline global_style global_style_instance;
+// Usage: declare a `style::global_style style_override;` in main() to apply.
 } // namespace style
 
 template <typename T>

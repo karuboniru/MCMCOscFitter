@@ -2,6 +2,7 @@
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "constants.h"
+#include "fit_config.h"
 #include "timer.hpp"
 
 #include <TMath.h>
@@ -32,23 +33,12 @@ void report(std::string_view title, const std::array<double, 4> &result,
 
 int main(int argc, char **argv) {
   TH1::AddDirectory(false);
-  constexpr size_t e_rebin_frac = 40;
-  constexpr size_t e_bin_count = 10;
-  constexpr size_t costh_rebin_frac = 40;
-  constexpr size_t costh_bin_count = 12;
-  auto e_bin_wing =
-      std::vector<double>{0.1, 0.6, 0.8, 1.0, 1.35, 1.75, 2.2, 3.0, 4.6, 20.0};
-  auto costh_bin_wing = linspace(-1., 1., 10 + 1);
 
-  //   auto Ebins = divide_bins<double>(e_bin_wing, e_rebin_frac);
-  auto Ebins = logspace(0.1, 20., (e_bin_count * e_rebin_frac) + 1);
-  auto costheta_bins =
-      linspace(-1., 1., (costh_rebin_frac * costh_bin_count) + 1);
+  auto Ebins = logspace(FitConfig::e_min, FitConfig::e_max, FitConfig::n_energy_bins + 1);
+  auto costheta_bins = linspace(-1., 1., FitConfig::n_costheta_bins + 1);
 
-  constexpr double scale_factor = scale_factor_6y;
-
-  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, e_rebin_frac,
-                          costh_rebin_frac};
+  ParBinnedInterface bint{Ebins, costheta_bins, FitConfig::scale_factor,
+                           FitConfig::E_rebin_factor, FitConfig::costh_rebin_factor};
   auto cdata = bint.GenerateData();
   bint.SaveAs("flux_xsec.root");
   auto cdata_noOsc = bint.GenerateData_NoOsc();

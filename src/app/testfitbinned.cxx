@@ -2,6 +2,7 @@
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "constants.h"
+#include "fit_config.h"
 #include "timer.hpp"
 #include "walker.h"
 
@@ -22,16 +23,12 @@ int main(int argc, char **argv) {
   //   ROOT::EnableImplicitMT(10);
   TH1::AddDirectory(false);
   std::string outname = argc == 2 ? "testfit.root" : argv[1];
-  auto costheta_bins = linspace(-1., 1., 481);
+  auto costheta_bins = linspace(-1., 1., FitConfig::n_costheta_bins + 1);
+  auto Ebins = logspace(FitConfig::e_min, FitConfig::e_max, FitConfig::n_energy_bins + 1);
 
-  auto Ebins = logspace(0.1, 20., 401);
-
-  constexpr double scale_factor =
-      (2e10 / (12 + H_to_C) * 6.02214076e23) * // number of target C12
-      ((6 * 365) * 24 * 3600) /                // seconds in a year
-      1e42; // unit conversion from 1e-38 cm^2 to 1e-42 m^2
-
-  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40, 8000};
+  BinnedInteraction bint{Ebins, costheta_bins, FitConfig::scale_factor,
+                         FitConfig::E_rebin_factor, FitConfig::costh_rebin_factor,
+                         FitConfig::ih_bias};
   auto cdata = bint.GenerateData();
   //   cdata.Round();
 

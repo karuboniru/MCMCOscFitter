@@ -13,10 +13,9 @@
 //     "3.04.02-routine_validation_01-xsec_vA/total_xsec.root");
 
 double
-SimpleInteraction::GetLogLikelihoodAgainstData(const StateI &dataset) const {
+SimpleInteraction::GetLogLikelihoodAgainstData(const DataSet<SimpleDataPoint> &dataset) const {
   double llh = 0;
-  for (const auto &data_point :
-       dynamic_cast<const DataSet<SimpleDataPoint> &>(dataset)) {
+  for (const auto &data_point : dataset) {
     auto prob = propagator->GetProb(data_point.flavor, data_point.E, data_point.costheta, *this);
     int symbol = data_point.flavor > 0 ? 1 : -1;
     double flux_numu = flux_input.GetFlux(data_point.E, data_point.costheta,

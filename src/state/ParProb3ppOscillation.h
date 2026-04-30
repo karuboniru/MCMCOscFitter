@@ -40,7 +40,7 @@ public:
                    const std::vector<double> &costhbin,
                    const OscillationParameters &p) override;
 
-  void re_calculate(const OscillationParameters &p);
+  void re_calculate(const OscillationParameters &p) override;
 
 #if defined(__CUDACC__)
   // Result span uses oscillaton_calc_precision, matching the full pipeline precision.

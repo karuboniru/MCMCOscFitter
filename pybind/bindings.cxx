@@ -63,6 +63,13 @@ static TH1D array_to_th1d(
 
 class PyPropagator : public IHistogramPropagator {
 public:
+  void re_calculate(const OscillationParameters &) override {
+    // Default no-op: Python custom propagators compute on demand in get_prob_hists.
+    py::gil_scoped_acquire gil;
+    py::function fn = py::get_override(this, "re_calculate");
+    if (fn) fn();
+  }
+
   // Python signature:
   //   get_prob_hists(Ebins, costhbins, params) -> np.ndarray shape (2,2,2,nE,nCosth)
   //   axis 0: nu/antinu   axis 1: from (nue=0, numu=1)   axis 2: to
@@ -267,7 +274,7 @@ Returns 0 when data == pred everywhere.)doc");
   py::class_<OscillationParameters, StateI>(m, "OscillationParameters",
       "PMNS oscillation parameters with Gaussian priors (PDG 2023 values).")
       .def(py::init<>())
-      .def("propose_step", &OscillationParameters::proposeStep,
+      .def("propose_step", py::overload_cast<>(&OscillationParameters::proposeStep),
            "Randomly perturb parameters (Gaussian step). "
            "Hierarchy can flip with probability 0.2.")
       .def("log_likelihood",
@@ -286,6 +293,10 @@ Returns 0 when data == pred everywhere.)doc");
       .def("set_toggle", &OscillationParameters::set_toggle, py::arg("toggle"))
       .def("get_toggle", &OscillationParameters::get_toggle,
            py::return_value_policy::copy)
+      .def("set_proposal_distance", &OscillationParameters::set_proposal_distance,
+           py::arg("d"), "Set MCMC proposal step size factor (default 0.1).")
+      .def("get_proposal_distance", &OscillationParameters::get_proposal_distance,
+           "Get current proposal step size factor.")
       .def_property_readonly("DM32sq", &OscillationParameters::GetDM32sq,
                              "Δm²₃₂ (>0 NH, <0 IH) in eV².")
       .def_property_readonly("DM21sq", &OscillationParameters::GetDM21sq,
@@ -332,7 +343,11 @@ get_prob_hists_3f(Ebins, costhbins, params) -> np.ndarray shape (2, 3, 3, nE, nC
       .def("get_prob_hists", [](IHistogramPropagator &) {},
            "Override in Python subclass.")
       .def("get_prob_hists_3f", [](IHistogramPropagator &) {},
-           "Override in Python subclass.");
+           "Override in Python subclass.")
+      .def("re_calculate", [](IHistogramPropagator &prop, const OscillationParameters &p) {
+             prop.re_calculate(p);
+           }, py::arg("params"),
+           "Pre-compute oscillation probabilities. Default no-op; override if needed.");
 
   // ── ParProb3ppOscillation (concrete propagator) ───────────────────────────
   py::class_<ParProb3ppOscillation, IHistogramPropagator,
@@ -581,7 +596,7 @@ proposed state with probability min(1, exp(llh_proposed - llh_current)).
 )doc");
 
   // Generic version operating on any StateI (e.g. OscillationParameters alone).
-  m.def("mcmc_accept_state", &MCMCAcceptState, py::arg("current"),
+  m.def("mcmc_accept_state", py::overload_cast<const StateI &, const StateI &>(&MCMCAcceptState), py::arg("current"),
         py::arg("proposed"),
         "Generic Metropolis acceptance using StateI::GetLogLikelihood() only.");
 

@@ -111,12 +111,11 @@ void BinnedInteraction::proposeStep() {
 }
 
 double
-BinnedInteraction::GetLogLikelihoodAgainstData(StateI const &dataset) const {
-  auto &casted = dynamic_cast<const SimpleDataHist &>(dataset);
-  auto chi2_numu = TH2D_chi2(casted.hist_numu, Prediction_hist_numu);
-  auto chi2_numubar = TH2D_chi2(casted.hist_numubar, Prediction_hist_numubar);
-  auto chi2_nue = TH2D_chi2(casted.hist_nue, Prediction_hist_nue);
-  auto chi2_nuebar = TH2D_chi2(casted.hist_nuebar, Prediction_hist_nuebar);
+BinnedInteraction::GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const {
+  auto chi2_numu    = TH2D_chi2(dataset.hist_numu,    Prediction_hist_numu);
+  auto chi2_numubar = TH2D_chi2(dataset.hist_numubar, Prediction_hist_numubar);
+  auto chi2_nue     = TH2D_chi2(dataset.hist_nue,     Prediction_hist_nue);
+  auto chi2_nuebar  = TH2D_chi2(dataset.hist_nuebar,  Prediction_hist_nuebar);
   return -0.5 * (chi2_numu + chi2_numubar + chi2_nue + chi2_nuebar);
 }
 

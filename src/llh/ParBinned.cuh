@@ -12,7 +12,7 @@ TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
 TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
                  const std::vector<double> &costh_bins_v,
                  const std::vector<double> &e_bins_v);
-class ParBinned : public OscillationParameters, public ModelDataLLH {
+class ParBinned : public OscillationParameters, public ModelDataLLH<SimpleDataHist> {
 public:
   ParBinned(std::vector<double> Ebins, std::vector<double> costheta_bins,
             double scale_ = 1., size_t E_rebin_factor = 1,
@@ -28,7 +28,7 @@ public:
 
   // virtual double GetLogLikelihood() const override;
   [[nodiscard]] double
-  GetLogLikelihoodAgainstData(const StateI &dataset) const final;
+  GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const final;
 
   [[nodiscard]] SimpleDataHist GenerateData() const;
   [[nodiscard]] SimpleDataHist GenerateData_NoOsc() const;

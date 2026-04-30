@@ -21,8 +21,7 @@ double log_llh_gaussian_cyd(double x1, double x2, double sigma) {
 
 void OscillationParameters::proposeStep() {
   const bool flip = gRandom->Rndm() < 0.8;
-  // const bool use_NH = flip ^ (NH_DM2 < 0);
-  constexpr double distance_factor = 0.1;
+  const double distance_factor = proposal_distance;
   is_NH = flip ^ is_NH;
   auto &current_DM2 = is_NH ? NH_DM2 : IH_DM2;
   auto &current_T23 = is_NH ? NH_T23 : IH_T23;
@@ -30,8 +29,6 @@ void OscillationParameters::proposeStep() {
   auto &current_Dm2 = is_NH ? NH_Dm2 : IH_Dm2;
   auto &current_T12 = is_NH ? NH_T12 : IH_T12;
   auto &current_DCP = is_NH ? NH_DCP : IH_DCP;
-
-  // NH_DM2 = gRandom->Gaus(NH_DM2, 0.1);
 
   current_DCP = gRandom->Gaus(current_DCP, 0.1);
   if (current_DCP > M_PI) {
@@ -45,12 +42,33 @@ void OscillationParameters::proposeStep() {
   current_T23 = gRandom->Gaus(current_T23, sigma_t23 * distance_factor);
   current_T13 = gRandom->Gaus(current_T13, sigma_t13 * distance_factor);
   current_T12 = gRandom->Gaus(current_T12, sigma_t12 * distance_factor);
+}
 
-  // NH_DM2 = use_NH ? NH_DM2 : -NH_DM2;
-  // NH_Dm2 = fabs(NH_Dm2);
-  // NH_T23 = fabs(NH_T23);
-  // NH_T13 = fabs(NH_T13);
-  // NH_T12 = fabs(NH_T12);
+void OscillationParameters::proposeStep(std::mt19937 &rng) {
+  std::uniform_real_distribution<double> uniform_dist(0.0, 1.0);
+  std::normal_distribution<double> normal_dist(0.0, 1.0);
+  const bool flip = uniform_dist(rng) < 0.8;
+  const double distance_factor = proposal_distance;
+  is_NH = flip ^ is_NH;
+  auto &current_DM2 = is_NH ? NH_DM2 : IH_DM2;
+  auto &current_T23 = is_NH ? NH_T23 : IH_T23;
+  auto &current_T13 = is_NH ? NH_T13 : IH_T13;
+  auto &current_Dm2 = is_NH ? NH_Dm2 : IH_Dm2;
+  auto &current_T12 = is_NH ? NH_T12 : IH_T12;
+  auto &current_DCP = is_NH ? NH_DCP : IH_DCP;
+
+  current_DCP += normal_dist(rng) * 0.1;
+  if (current_DCP > M_PI) {
+    current_DCP -= 2 * M_PI;
+  } else if (current_DCP < -M_PI) {
+    current_DCP += 2 * M_PI;
+  }
+
+  current_DM2 += normal_dist(rng) * sigma_DM2 * distance_factor;
+  current_Dm2 += normal_dist(rng) * sigma_dm2 * distance_factor;
+  current_T23 += normal_dist(rng) * sigma_t23 * distance_factor;
+  current_T13 += normal_dist(rng) * sigma_t13 * distance_factor;
+  current_T12 += normal_dist(rng) * sigma_t12 * distance_factor;
 }
 
 double OscillationParameters::GetLogLikelihood() const {

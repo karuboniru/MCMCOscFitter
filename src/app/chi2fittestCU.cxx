@@ -2,7 +2,9 @@
 #include "ParBinnedInterface.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
+#include "chi2.h"
 #include "constants.h"
+#include "fit_config.h"
 #include "tools.h"
 
 #include <Minuit2/FCNBase.h>
@@ -27,27 +29,6 @@
 #include <omp.h>
 #include <print>
 #include <ranges>
-
-namespace {
-double TH2D_chi2(const TH2D &data, const TH2D &pred) {
-  auto binsx = data.GetNbinsX();
-  auto binsy = data.GetNbinsY();
-  double chi2{};
-  // #pragma omp parallel for reduction(+ : chi2) collapse(2)
-  for (int x = 1; x <= binsx; x++) {
-    for (int y = 1; y <= binsy; y++) {
-      auto bin_data = data.GetBinContent(x, y);
-      auto bin_pred = pred.GetBinContent(x, y);
-      if (bin_data != 0) [[likely]]
-        chi2 +=
-            (bin_pred - bin_data) + bin_data * TMath::Log(bin_data / bin_pred);
-      else
-        chi2 += bin_pred;
-    }
-  }
-  return 2 * chi2;
-}
-} // namespace
 
 class MinuitFitter final : public ROOT::Minuit2::FCNBase {
 public:
@@ -163,13 +144,11 @@ int main(int argc, char **agrv) {
   gStyle->SetOptStat(0);
   gStyle->SetPaintTextFormat("4.1f");
   TH1::AddDirectory(false);
-  auto costheta_bins = linspace(-1., 1., 481);
+  auto costheta_bins = linspace(-1., 1., FitConfig::n_costheta_bins + 1);
+  auto Ebins = logspace(FitConfig::e_min, FitConfig::e_max, FitConfig::n_energy_bins + 1);
 
-  auto Ebins = logspace(0.1, 20., 401);
-
-  constexpr double scale_factor = scale_factor_6y;
-
-  ParBinnedInterface bint{Ebins, costheta_bins, scale_factor, 40, 40, 1};
+  ParBinnedInterface bint{Ebins, costheta_bins, FitConfig::scale_factor,
+                           FitConfig::E_rebin_factor, FitConfig::costh_rebin_factor, 1};
   auto cdata_NH = bint.GenerateData(); // data for NH
 
   // ParBinnedInterface bint_1{Ebins, costheta_bins, scale_factor, 40, 40, 1};

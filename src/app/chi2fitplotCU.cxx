@@ -30,27 +30,6 @@
 #include <print>
 #include <ranges>
 
-namespace {
-double TH2D_chi2(const TH2D &data, const TH2D &pred) {
-  auto binsx = data.GetNbinsX();
-  auto binsy = data.GetNbinsY();
-  double chi2{};
-  // #pragma omp parallel for reduction(+ : chi2) collapse(2)
-  for (int x = 1; x <= binsx; x++) {
-    for (int y = 1; y <= binsy; y++) {
-      auto bin_data = data.GetBinContent(x, y);
-      auto bin_pred = pred.GetBinContent(x, y);
-      if (bin_data != 0) [[likely]]
-        chi2 +=
-            (bin_pred - bin_data) + bin_data * TMath::Log(bin_data / bin_pred);
-      else
-        chi2 += bin_pred;
-    }
-  }
-  return 2 * chi2;
-}
-} // namespace
-
 class MinuitFitter final : public ROOT::Minuit2::FCNBase {
 public:
   MinuitFitter(ParBinnedInterface &binned_interaction_, SimpleDataHist &data_,

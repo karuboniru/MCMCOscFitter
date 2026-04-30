@@ -20,6 +20,10 @@ using Catch::Matchers::WithinAbs;
 //   etc.
 class IdentityPropagator : public IHistogramPropagator {
 public:
+  void re_calculate(const OscillationParameters &) override {
+    // Identity propagator — probabilities are constant, no pre-calculation needed.
+  }
+
   std::array<std::array<std::array<TH2D, 2>, 2>, 2>
   GetProb_Hists(const std::vector<double> &Ebins,
                 const std::vector<double> &costhbins,

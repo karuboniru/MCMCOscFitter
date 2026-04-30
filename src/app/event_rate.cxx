@@ -2,6 +2,7 @@
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "constants.h"
+#include "fit_config.h"
 #include "timer.hpp"
 
 #include <TMath.h>
@@ -32,12 +33,11 @@ void report(std::string_view title, const std::array<double, 4> &result,
 
 int main(int argc, char **argv) {
   TH1::AddDirectory(false);
-  auto Ebins = logspace(0.1, 20., 401);
-  auto costheta_bins = linspace(-1., 1., 481);
+  auto Ebins = logspace(FitConfig::e_min, FitConfig::e_max, FitConfig::n_energy_bins + 1);
+  auto costheta_bins = linspace(-1., 1., FitConfig::n_costheta_bins + 1);
 
-  constexpr double scale_factor = scale_factor_6y;
-
-  BinnedInteraction bint{Ebins, costheta_bins, scale_factor, 40, 40};
+  BinnedInteraction bint{Ebins, costheta_bins, FitConfig::scale_factor,
+                         FitConfig::E_rebin_factor, FitConfig::costh_rebin_factor};
   auto cdata = bint.GenerateData();
   bint.SaveAs("flux_xsec.root");
   auto cdata_noOsc = bint.GenerateData_NoOsc();

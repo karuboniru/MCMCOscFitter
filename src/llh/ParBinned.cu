@@ -329,12 +329,11 @@ double TH2D_chi2(const TH2D &data, const TH2D &pred) {
   return 2 * chi2;
 }
 } // namespace
-double ParBinned::GetLogLikelihoodAgainstData(StateI const &dataset) const {
-  auto casted = dynamic_cast<const SimpleDataHist &>(dataset);
-  auto &data_hist_numu = casted.hist_numu;
-  auto &data_hist_numubar = casted.hist_numubar;
-  auto &data_hist_nue = casted.hist_nue;
-  auto &data_hist_nuebar = casted.hist_nuebar;
+double ParBinned::GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const {
+  auto &data_hist_numu = dataset.hist_numu;
+  auto &data_hist_numubar = dataset.hist_numubar;
+  auto &data_hist_nue = dataset.hist_nue;
+  auto &data_hist_nuebar = dataset.hist_nuebar;
 
   auto chi2_numu =
       TH2D_chi2(data_hist_numu, vec2hist_analysis(Prediction_hist_numu));

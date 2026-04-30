@@ -55,5 +55,7 @@ public:
   GetProb(int flavor, double E, double costheta,
           const OscillationParameters &p) const;
 
+  void re_calculate(const OscillationParameters &p) override;
+
   // void re_calculate() override {}
 };

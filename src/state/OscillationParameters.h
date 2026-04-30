@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <random>
 
 struct param {
   double DM2;
@@ -53,6 +54,7 @@ constexpr pull_toggle SK_wo_T13{
 class OscillationParameters : virtual public StateI {
 public:
   OscillationParameters() = default;
+  OscillationParameters(double proposal_dist) : proposal_distance(proposal_dist) {}
   OscillationParameters(const OscillationParameters &) = default;
   OscillationParameters(OscillationParameters &&) = default;
   OscillationParameters &operator=(const OscillationParameters &) = default;
@@ -61,6 +63,7 @@ public:
   ~OscillationParameters() override = default;
 
   void proposeStep() override;
+  void proposeStep(std::mt19937 &rng);
   [[nodiscard]] double GetLogLikelihood() const override;
   [[nodiscard]] double GetLogLikelihood(const pull_toggle &) const;
 
@@ -96,7 +99,11 @@ public:
 
   [[nodiscard]] auto &get_toggle() const { return current_toggle; }
 
+  void set_proposal_distance(double d) { proposal_distance = d; }
+  [[nodiscard]] double get_proposal_distance() const { return proposal_distance; }
+
 private:
+  double proposal_distance{0.1};
   // PDG Central Values
   static constexpr double DM2 = 2.455e-3;
   static constexpr double DM2_IH = -2.529e-3;

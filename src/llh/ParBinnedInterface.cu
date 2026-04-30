@@ -35,7 +35,7 @@ void ParBinnedInterface::proposeStep() { pImpl->proposeStep(); }
 }
 
 [[nodiscard]] double
-ParBinnedInterface::GetLogLikelihoodAgainstData(const StateI &dataset) const {
+ParBinnedInterface::GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const {
   return pImpl->GetLogLikelihoodAgainstData(dataset);
 }
 

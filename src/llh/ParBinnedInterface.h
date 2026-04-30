@@ -10,7 +10,7 @@ class ParBinned;
 struct param;
 class pull_toggle;
 
-class ParBinnedInterface : public ModelDataLLH {
+class ParBinnedInterface : public ModelDataLLH<SimpleDataHist> {
 public:
   ParBinnedInterface(std::vector<double> Ebins,
                      std::vector<double> costheta_bins, double scale_ = 1.,
@@ -27,7 +27,7 @@ public:
 
   // virtual double GetLogLikelihood() const override;
   [[nodiscard]] double
-  GetLogLikelihoodAgainstData(const StateI &dataset) const final;
+  GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const final;
 
   [[nodiscard]] SimpleDataHist GenerateData() const;
   [[nodiscard]] SimpleDataHist GenerateData_NoOsc() const;
