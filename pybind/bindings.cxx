@@ -10,7 +10,7 @@
 #include "ParProb3ppOscillation.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
-#include "chi2.h"
+#include "pod_hist.hpp"
 #include "constants.h"
 #include "walker.h"
 
@@ -54,30 +54,6 @@ static py::array_t<double> pod_hist2d_to_array(const PodHist2D<double> &pod) {
   return result;
 }
 
-// ─── numpy ↔ ROOT helpers (legacy, kept for backward compat) ─────────────────
-
-static TH2D array_to_th2d(
-    py::array_t<double, py::array::c_style | py::array::forcecast> arr,
-    const std::vector<double> &Ebins, const std::vector<double> &costhbins,
-    const char *name = "h") {
-  auto buf = arr.unchecked<2>();
-  TH2D h(name, "", static_cast<int>(Ebins.size()) - 1, Ebins.data(),
-         static_cast<int>(costhbins.size()) - 1, costhbins.data());
-  for (int x = 0; x < buf.shape(0); ++x)
-    for (int y = 0; y < buf.shape(1); ++y)
-      h.SetBinContent(x + 1, y + 1, buf(x, y));
-  return h;
-}
-
-static TH1D array_to_th1d(
-    py::array_t<double, py::array::c_style | py::array::forcecast> arr,
-    const std::vector<double> &Ebins, const char *name = "h1") {
-  auto buf = arr.unchecked<1>();
-  TH1D h(name, "", static_cast<int>(Ebins.size()) - 1, Ebins.data());
-  for (int x = 0; x < buf.shape(0); ++x)
-    h.SetBinContent(x + 1, buf(x));
-  return h;
-}
 
 // ─── Propagator trampoline ───────────────────────────────────────────────────
 // Python subclasses override get_prob_hists / get_prob_hists_3f which receive
@@ -228,9 +204,11 @@ PYBIND11_MODULE(mcmcoscfitter, m) {
          py::array_t<double, py::array::c_style | py::array::forcecast> pred,
          const std::vector<double> &Ebins,
          const std::vector<double> &costhbins) {
-        TH1::AddDirectory(false);
-        return TH2D_chi2(array_to_th2d(data, Ebins, costhbins, "d"),
-                         array_to_th2d(pred, Ebins, costhbins, "p"));
+        const size_t n_e = Ebins.size() - 1;
+        const size_t n_c = costhbins.size() - 1;
+        auto data_pod = array_to_pod_hist2d(data, n_c, n_e);
+        auto pred_pod = array_to_pod_hist2d(pred, n_c, n_e);
+        return pod_chi2(data_pod, pred_pod);
       },
       py::arg("data"), py::arg("pred"), py::arg("Ebins"), py::arg("costhbins"),
       R"doc(Poisson log-likelihood chi2: 2*sum(pred - data + data*ln(data/pred)).
@@ -437,11 +415,9 @@ get_prob_hists_3f(Ebins, costhbins, params) -> np.ndarray shape (2, 3, 3, nE, nC
                        py::array_t<double> xsec_nuebar,
                        const std::vector<double> &Ebins,
                        const std::vector<double> &costhbins) {
-             TH1::AddDirectory(false);
              const size_t n_e = Ebins.size() - 1;
              const size_t n_c = costhbins.size() - 1;
              BinnedHistograms h;
-             // Fill POD directly from numpy (fast path for computation).
              h.pod_flux_numu    = array_to_pod_hist2d(flux_numu,    n_c, n_e);
              h.pod_flux_numubar = array_to_pod_hist2d(flux_numubar, n_c, n_e);
              h.pod_flux_nue     = array_to_pod_hist2d(flux_nue,     n_c, n_e);
@@ -450,16 +426,6 @@ get_prob_hists_3f(Ebins, costhbins, params) -> np.ndarray shape (2, 3, 3, nE, nC
              h.pod_xsec_numubar = array_to_pod_hist1d(xsec_numubar);
              h.pod_xsec_nue     = array_to_pod_hist1d(xsec_nue);
              h.pod_xsec_nuebar  = array_to_pod_hist1d(xsec_nuebar);
-             h.pod_valid = true;
-             // Also fill TH2D/TH1D for backward compat (I/O, plotting, etc.).
-             h.flux_numu    = array_to_th2d(flux_numu,    Ebins, costhbins, "fn");
-             h.flux_numubar = array_to_th2d(flux_numubar, Ebins, costhbins, "fnb");
-             h.flux_nue     = array_to_th2d(flux_nue,     Ebins, costhbins, "fe");
-             h.flux_nuebar  = array_to_th2d(flux_nuebar,  Ebins, costhbins, "feb");
-             h.xsec_numu    = array_to_th1d(xsec_numu,    Ebins, "xn");
-             h.xsec_numubar = array_to_th1d(xsec_numubar, Ebins, "xnb");
-             h.xsec_nue     = array_to_th1d(xsec_nue,     Ebins, "xe");
-             h.xsec_nuebar  = array_to_th1d(xsec_nuebar,  Ebins, "xeb");
              return h;
            }),
            py::arg("flux_numu"), py::arg("flux_numubar"),

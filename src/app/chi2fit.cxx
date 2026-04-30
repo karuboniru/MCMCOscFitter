@@ -2,7 +2,6 @@
 #include "OscillationParameters.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
-#include "chi2.h"
 #include "constants.h"
 #include "fit_config.h"
 #include "tools.h"

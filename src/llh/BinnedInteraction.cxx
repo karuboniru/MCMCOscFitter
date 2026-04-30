@@ -5,7 +5,6 @@
 
 #include "BinnedInteraction.h"
 #include "OscillationParameters.h"
-#include "chi2.h"
 
 #include <SimpleDataHist.h>
 #include <TFile.h>
@@ -22,90 +21,73 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
                                      size_t E_rebin_factor_,
                                      size_t costh_rebin_factor_,
                                      double IH_bias_)
-    : propagator{std::move(prop)},
-      Ebins(std::move(Ebins_)), costheta_bins(std::move(costheta_bins_)),
-      E_rebin_factor(E_rebin_factor_), costh_rebin_factor(costh_rebin_factor_),
-      n_costh_fine(costheta_bins.size() - 1),
-      n_e_fine(Ebins.size() - 1),
-      n_costh_analysis(n_costh_fine / costh_rebin_factor_),
-      n_e_analysis(n_e_fine / E_rebin_factor_),
-      flux_hist_numu(std::move(histos.flux_numu)),
-      flux_hist_numubar(std::move(histos.flux_numubar)),
-      flux_hist_nue(std::move(histos.flux_nue)),
-      flux_hist_nuebar(std::move(histos.flux_nuebar)),
-      xsec_hist_numu(std::move(histos.xsec_numu)),
-      xsec_hist_numubar(std::move(histos.xsec_numubar)),
-      xsec_hist_nue(std::move(histos.xsec_nue)),
-      xsec_hist_nuebar(std::move(histos.xsec_nuebar)),
-      // Take POD data directly if the caller supplied it (avoids TH2D→POD conversion).
-      flux_pod_numu(std::move(histos.pod_flux_numu)),
-      flux_pod_numubar(std::move(histos.pod_flux_numubar)),
-      flux_pod_nue(std::move(histos.pod_flux_nue)),
-      flux_pod_nuebar(std::move(histos.pod_flux_nuebar)),
-      xsec_pod_numu(std::move(histos.pod_xsec_numu)),
-      xsec_pod_numubar(std::move(histos.pod_xsec_numubar)),
-      xsec_pod_nue(std::move(histos.pod_xsec_nue)),
-      xsec_pod_nuebar(std::move(histos.pod_xsec_nuebar)),
-      pod_flux_valid(histos.pod_valid),
-      log_ih_bias(std::log(IH_bias_)) {
-  // Compute analysis bin edges by striding fine bin edges.
-  Ebins_analysis.reserve(n_e_analysis + 1);
-  for (size_t i = 0; i <= n_e_analysis * E_rebin_factor; i += E_rebin_factor)
-    Ebins_analysis.push_back(Ebins[i]);
-  costheta_analysis.reserve(n_costh_analysis + 1);
-  for (size_t i = 0; i <= n_costh_analysis * costh_rebin_factor; i += costh_rebin_factor)
-    costheta_analysis.push_back(costheta_bins[i]);
+    : propagator{std::move(prop)} {
+  auto imm = std::make_shared<BinnedInteractionImmutable>();
+  imm->Ebins = std::move(Ebins_);
+  imm->costheta_bins = std::move(costheta_bins_);
+  imm->E_rebin_factor = E_rebin_factor_;
+  imm->costh_rebin_factor = costh_rebin_factor_;
+  imm->n_costh_fine = imm->costheta_bins.size() - 1;
+  imm->n_e_fine = imm->Ebins.size() - 1;
+  imm->n_costh_analysis = imm->n_costh_fine / costh_rebin_factor_;
+  imm->n_e_analysis = imm->n_e_fine / E_rebin_factor_;
+  imm->flux_numu    = std::move(histos.pod_flux_numu);
+  imm->flux_numubar = std::move(histos.pod_flux_numubar);
+  imm->flux_nue     = std::move(histos.pod_flux_nue);
+  imm->flux_nuebar  = std::move(histos.pod_flux_nuebar);
+  imm->xsec_numu    = std::move(histos.pod_xsec_numu);
+  imm->xsec_numubar = std::move(histos.pod_xsec_numubar);
+  imm->xsec_nue     = std::move(histos.pod_xsec_nue);
+  imm->xsec_nuebar  = std::move(histos.pod_xsec_nuebar);
+  imm->log_ih_bias  = std::log(IH_bias_);
+
+  imm->Ebins_analysis.reserve(imm->n_e_analysis + 1);
+  for (size_t i = 0; i <= imm->n_e_analysis * imm->E_rebin_factor; i += imm->E_rebin_factor)
+    imm->Ebins_analysis.push_back(imm->Ebins[i]);
+  imm->costheta_analysis.reserve(imm->n_costh_analysis + 1);
+  for (size_t i = 0; i <= imm->n_costh_analysis * imm->costh_rebin_factor; i += imm->costh_rebin_factor)
+    imm->costheta_analysis.push_back(imm->costheta_bins[i]);
+
+  imm_ = std::move(imm);
   UpdatePrediction();
 }
 
-void BinnedInteraction::ensure_pod_flux_xsec() const {
-  if (pod_flux_valid) return;
-  flux_pod_numu    = PodHist2D<oscillaton_calc_precision>::from_th2d(flux_hist_numu);
-  flux_pod_numubar = PodHist2D<oscillaton_calc_precision>::from_th2d(flux_hist_numubar);
-  flux_pod_nue     = PodHist2D<oscillaton_calc_precision>::from_th2d(flux_hist_nue);
-  flux_pod_nuebar  = PodHist2D<oscillaton_calc_precision>::from_th2d(flux_hist_nuebar);
-  xsec_pod_numu    = th1d_to_pod(xsec_hist_numu);
-  xsec_pod_numubar = th1d_to_pod(xsec_hist_numubar);
-  xsec_pod_nue     = th1d_to_pod(xsec_hist_nue);
-  xsec_pod_nuebar  = th1d_to_pod(xsec_hist_nuebar);
-  pod_flux_valid = true;
-}
-
 void BinnedInteraction::UpdatePrediction() {
-  ensure_pod_flux_xsec();
 
   // POD probability histograms (no TH2D intermediates).
-  auto podP = propagator->GetProb_Hists_POD(Ebins, costheta_bins, *this);
+  auto podP = propagator->GetProb_Hists_POD(imm_->Ebins, imm_->costheta_bins, *this);
 
   // Size prediction arrays to analysis binning.
-  pred_pod_numu    = PodHist2D<double>(n_costh_analysis, n_e_analysis);
-  pred_pod_numubar = PodHist2D<double>(n_costh_analysis, n_e_analysis);
-  pred_pod_nue     = PodHist2D<double>(n_costh_analysis, n_e_analysis);
-  pred_pod_nuebar  = PodHist2D<double>(n_costh_analysis, n_e_analysis);
+  pred_pod_numu    = PodHist2D<double>(imm_->n_costh_analysis, imm_->n_e_analysis);
+  pred_pod_numubar = PodHist2D<double>(imm_->n_costh_analysis, imm_->n_e_analysis);
+  pred_pod_nue     = PodHist2D<double>(imm_->n_costh_analysis, imm_->n_e_analysis);
+  pred_pod_nuebar  = PodHist2D<double>(imm_->n_costh_analysis, imm_->n_e_analysis);
 
   // Compute oscillated prediction: loop over fine bins, rebin to analysis.
   // Layout: podP[nu][from][to](costh, E)  — same as TH2D version.
+  const auto nCA = imm_->n_costh_analysis, nEA = imm_->n_e_analysis;
+  const auto cRF = imm_->costh_rebin_factor, eRF = imm_->E_rebin_factor;
 #pragma omp parallel for collapse(2)
-  for (size_t cA = 0; cA < n_costh_analysis; ++cA) {
-    for (size_t eA = 0; eA < n_e_analysis; ++eA) {
+  for (size_t cA = 0; cA < nCA; ++cA) {
+    for (size_t eA = 0; eA < nEA; ++eA) {
       double sum_numu = 0, sum_numubar = 0, sum_nue = 0, sum_nuebar = 0;
 
-      const size_t c_start = cA * costh_rebin_factor;
-      const size_t c_end   = c_start + costh_rebin_factor;
-      const size_t e_start = eA * E_rebin_factor;
-      const size_t e_end   = e_start + E_rebin_factor;
+      const size_t c_start = cA * cRF;
+      const size_t c_end   = c_start + cRF;
+      const size_t e_start = eA * eRF;
+      const size_t e_end   = e_start + eRF;
 
       for (size_t c = c_start; c < c_end; ++c) {
         for (size_t e = e_start; e < e_end; ++e) {
-          const auto fn = flux_pod_nue(c, e);
-          const auto fm = flux_pod_numu(c, e);
-          const auto fnb = flux_pod_nuebar(c, e);
-          const auto fmb = flux_pod_numubar(c, e);
+          const auto fn = imm_->flux_nue(c, e);
+          const auto fm = imm_->flux_numu(c, e);
+          const auto fnb = imm_->flux_nuebar(c, e);
+          const auto fmb = imm_->flux_numubar(c, e);
 
-          sum_numu    += (podP[0][0][1](c, e) * fn + podP[0][1][1](c, e) * fm) * xsec_pod_numu[e];
-          sum_nue     += (podP[0][0][0](c, e) * fn + podP[0][1][0](c, e) * fm) * xsec_pod_nue[e];
-          sum_numubar += (podP[1][0][1](c, e) * fnb + podP[1][1][1](c, e) * fmb) * xsec_pod_numubar[e];
-          sum_nuebar  += (podP[1][0][0](c, e) * fnb + podP[1][1][0](c, e) * fmb) * xsec_pod_nuebar[e];
+          sum_numu    += (podP[0][0][1](c, e) * fn + podP[0][1][1](c, e) * fm) * imm_->xsec_numu[e];
+          sum_nue     += (podP[0][0][0](c, e) * fn + podP[0][1][0](c, e) * fm) * imm_->xsec_nue[e];
+          sum_numubar += (podP[1][0][1](c, e) * fnb + podP[1][1][1](c, e) * fmb) * imm_->xsec_numubar[e];
+          sum_nuebar  += (podP[1][0][0](c, e) * fnb + podP[1][1][0](c, e) * fmb) * imm_->xsec_nuebar[e];
         }
       }
 
@@ -137,47 +119,51 @@ SimpleDataHist BinnedInteraction::GenerateData() const {
   data.data_numubar = pred_pod_numubar;
   data.data_nue     = pred_pod_nue;
   data.data_nuebar  = pred_pod_nuebar;
-  data.Ebins         = Ebins_analysis;
-  data.costheta_bins = costheta_analysis;
+  data.Ebins         = imm_->Ebins_analysis;
+  data.costheta_bins = imm_->costheta_analysis;
   return data;
 }
 
 void BinnedInteraction::SaveAs(const char *filename) const {
   auto file = TFile::Open(filename, "RECREATE");
   file->cd();
-  file->Add(flux_hist_numu.Clone("flux_hist_numu"));
-  file->Add(flux_hist_numubar.Clone("flux_hist_numubar"));
-  file->Add(flux_hist_nue.Clone("flux_hist_nue"));
-  file->Add(flux_hist_nuebar.Clone("flux_hist_nuebar"));
-  file->Add(xsec_hist_numu.Clone("xsec_hist_numu"));
-  file->Add(xsec_hist_numubar.Clone("xsec_hist_numubar"));
-  file->Add(xsec_hist_nue.Clone("xsec_hist_nue"));
-  file->Add(xsec_hist_nuebar.Clone("xsec_hist_nuebar"));
-  // Write prediction from POD, using analysis bin edges.
-  auto pn = pred_pod_numu.to_th2d(Ebins_analysis, costheta_analysis, "Prediction_hist_numu");
-  auto pnb = pred_pod_numubar.to_th2d(Ebins_analysis, costheta_analysis, "Prediction_hist_numubar");
-  auto pne = pred_pod_nue.to_th2d(Ebins_analysis, costheta_analysis, "Prediction_hist_nue");
-  auto pneb = pred_pod_nuebar.to_th2d(Ebins_analysis, costheta_analysis, "Prediction_hist_nuebar");
-  pn.Write(); pnb.Write(); pne.Write(); pneb.Write();
+  imm_->flux_numu.to_th2d(imm_->Ebins, imm_->costheta_bins, "flux_hist_numu").Write();
+  imm_->flux_numubar.to_th2d(imm_->Ebins, imm_->costheta_bins, "flux_hist_numubar").Write();
+  imm_->flux_nue.to_th2d(imm_->Ebins, imm_->costheta_bins, "flux_hist_nue").Write();
+  imm_->flux_nuebar.to_th2d(imm_->Ebins, imm_->costheta_bins, "flux_hist_nuebar").Write();
+  for (auto &[pod, name] : {
+           std::tuple{&imm_->xsec_numu,    "xsec_hist_numu"},
+           std::tuple{&imm_->xsec_numubar, "xsec_hist_numubar"},
+           std::tuple{&imm_->xsec_nue,     "xsec_hist_nue"},
+           std::tuple{&imm_->xsec_nuebar,  "xsec_hist_nuebar"}}) {
+    TH1D h(name, "", static_cast<int>(imm_->Ebins.size()) - 1, imm_->Ebins.data());
+    for (size_t i = 0; i < pod->size(); ++i)
+      h.SetBinContent(static_cast<int>(i) + 1, (*pod)[i]);
+    h.Write();
+  }
+  pred_pod_numu.to_th2d(imm_->Ebins_analysis, imm_->costheta_analysis, "Prediction_hist_numu").Write();
+  pred_pod_numubar.to_th2d(imm_->Ebins_analysis, imm_->costheta_analysis, "Prediction_hist_numubar").Write();
+  pred_pod_nue.to_th2d(imm_->Ebins_analysis, imm_->costheta_analysis, "Prediction_hist_nue").Write();
+  pred_pod_nuebar.to_th2d(imm_->Ebins_analysis, imm_->costheta_analysis, "Prediction_hist_nuebar").Write();
   file->Write();
   file->Close();
   delete file;
 }
 
 SimpleDataHist BinnedInteraction::GenerateData_NoOsc() const {
-  ensure_pod_flux_xsec();
-  PodHist2D<double> noosc_numu(n_costh_fine, n_e_fine);
-  PodHist2D<double> noosc_numubar(n_costh_fine, n_e_fine);
-  PodHist2D<double> noosc_nue(n_costh_fine, n_e_fine);
-  PodHist2D<double> noosc_nuebar(n_costh_fine, n_e_fine);
+  const auto nCF = imm_->n_costh_fine, nEF = imm_->n_e_fine;
+  PodHist2D<double> noosc_numu(nCF, nEF);
+  PodHist2D<double> noosc_numubar(nCF, nEF);
+  PodHist2D<double> noosc_nue(nCF, nEF);
+  PodHist2D<double> noosc_nuebar(nCF, nEF);
 
 #pragma omp parallel for collapse(2)
-  for (size_t c = 0; c < n_costh_fine; ++c)
-    for (size_t e = 0; e < n_e_fine; ++e) {
-      noosc_numu(c, e)    = flux_pod_numu(c, e)    * xsec_pod_numu[e];
-      noosc_numubar(c, e) = flux_pod_numubar(c, e) * xsec_pod_numubar[e];
-      noosc_nue(c, e)     = flux_pod_nue(c, e)     * xsec_pod_nue[e];
-      noosc_nuebar(c, e)  = flux_pod_nuebar(c, e)  * xsec_pod_nuebar[e];
+  for (size_t c = 0; c < nCF; ++c)
+    for (size_t e = 0; e < nEF; ++e) {
+      noosc_numu(c, e)    = imm_->flux_numu(c, e)    * imm_->xsec_numu[e];
+      noosc_numubar(c, e) = imm_->flux_numubar(c, e) * imm_->xsec_numubar[e];
+      noosc_nue(c, e)     = imm_->flux_nue(c, e)     * imm_->xsec_nue[e];
+      noosc_nuebar(c, e)  = imm_->flux_nuebar(c, e)  * imm_->xsec_nuebar[e];
     }
 
   SimpleDataHist data;
@@ -185,27 +171,27 @@ SimpleDataHist BinnedInteraction::GenerateData_NoOsc() const {
   data.data_numubar = noosc_numubar;
   data.data_nue     = noosc_nue;
   data.data_nuebar  = noosc_nuebar;
-  data.Ebins         = Ebins;
-  data.costheta_bins = costheta_bins;
+  data.Ebins         = imm_->Ebins;
+  data.costheta_bins = imm_->costheta_bins;
   return data;
 }
 
 double BinnedInteraction::GetLogLikelihood() const {
   auto llh = OscillationParameters::GetLogLikelihood();
   if (GetDM32sq() < 0)
-    llh += log_ih_bias;
+    llh += imm_->log_ih_bias;
   return llh;
 }
 
 void BinnedInteraction::Save_prob_hist(const std::string &name) {
   auto file = TFile::Open(name.c_str(), "RECREATE");
   file->cd();
-  auto pod = propagator->GetProb_Hists_3F_POD(Ebins, costheta_bins, *this);
+  auto pod = propagator->GetProb_Hists_3F_POD(imm_->Ebins, imm_->costheta_bins, *this);
   auto id_2_name = std::to_array({"nue", "numu", "nutau"});
   for (int i = 0; i < 2; ++i)
     for (int j = 0; j < 3; ++j)
       for (int k = 0; k < 3; ++k) {
-        auto h = pod[i][j][k].to_th2d(Ebins, costheta_bins);
+        auto h = pod[i][j][k].to_th2d(imm_->Ebins, imm_->costheta_bins);
         h.SetName(std::format("{}_{}_{}", i == 0 ? "neutrino" : "antineutrino",
                               id_2_name[j], id_2_name[k])
                       .c_str());

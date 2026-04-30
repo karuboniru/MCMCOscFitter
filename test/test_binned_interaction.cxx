@@ -70,48 +70,42 @@ public:
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-// Build a flat TH2D (all bins = value).
-static TH2D flat_th2(const std::vector<double> &Ebins,
-                     const std::vector<double> &costhbins, double value,
-                     const char *name) {
-  TH2D h(name, "", int(Ebins.size()) - 1, Ebins.data(),
-         int(costhbins.size()) - 1, costhbins.data());
-  for (int x = 1; x <= h.GetNbinsX(); ++x)
-    for (int y = 1; y <= h.GetNbinsY(); ++y)
-      h.SetBinContent(x, y, value);
-  return h;
+static PodHist2D<oscillaton_calc_precision> flat_pod_hist2d(size_t n_e, size_t n_c, double value) {
+  PodHist2D<oscillaton_calc_precision> pod(n_c, n_e);
+  for (size_t c = 0; c < n_c; ++c)
+    for (size_t e = 0; e < n_e; ++e)
+      pod(c, e) = static_cast<oscillaton_calc_precision>(value);
+  return pod;
 }
 
-// Build a flat TH1D (all bins = value).
-static TH1D flat_th1(const std::vector<double> &Ebins, double value,
-                     const char *name) {
-  TH1D h(name, "", int(Ebins.size()) - 1, Ebins.data());
-  for (int x = 1; x <= h.GetNbinsX(); ++x)
-    h.SetBinContent(x, value);
-  return h;
+static PodHist1D flat_pod_hist1d(size_t n_e, double value) {
+  PodHist1D pod(n_e);
+  for (size_t e = 0; e < n_e; ++e)
+    pod[e] = static_cast<oscillaton_calc_precision>(value);
+  return pod;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 TEST_CASE("BinnedInteraction with identity propagator", "[BinnedInteraction]") {
-  TH1::AddDirectory(false);
-
   // Use a small, uniform binning so the test runs fast.
   auto Ebins = linspace(0.1, 10.0, 6u);       // 5 E-bins
   auto costhbins = linspace(-1.0, 1.0, 5u);   // 4 costh-bins
+  const size_t n_e = Ebins.size() - 1;
+  const size_t n_c = costhbins.size() - 1;
 
   // All flux = 2, all xsec = 3.  With identity oscillation:
   //   prediction_numu  = flux_numu  * xsec_numu  = 2 * 3 = 6 per bin
   //   prediction_nue   = flux_nue   * xsec_nue   = 2 * 3 = 6 per bin
   BinnedHistograms histos{
-      .flux_numu    = flat_th2(Ebins, costhbins, 2.0, "fn"),
-      .flux_numubar = flat_th2(Ebins, costhbins, 2.0, "fnb"),
-      .flux_nue     = flat_th2(Ebins, costhbins, 2.0, "fe"),
-      .flux_nuebar  = flat_th2(Ebins, costhbins, 2.0, "feb"),
-      .xsec_numu    = flat_th1(Ebins, 3.0, "xn"),
-      .xsec_numubar = flat_th1(Ebins, 3.0, "xnb"),
-      .xsec_nue     = flat_th1(Ebins, 3.0, "xe"),
-      .xsec_nuebar  = flat_th1(Ebins, 3.0, "xeb"),
+      .pod_flux_numu    = flat_pod_hist2d(n_e, n_c, 2.0),
+      .pod_flux_numubar = flat_pod_hist2d(n_e, n_c, 2.0),
+      .pod_flux_nue     = flat_pod_hist2d(n_e, n_c, 2.0),
+      .pod_flux_nuebar  = flat_pod_hist2d(n_e, n_c, 2.0),
+      .pod_xsec_numu    = flat_pod_hist1d(n_e, 3.0),
+      .pod_xsec_numubar = flat_pod_hist1d(n_e, 3.0),
+      .pod_xsec_nue     = flat_pod_hist1d(n_e, 3.0),
+      .pod_xsec_nuebar  = flat_pod_hist1d(n_e, 3.0),
   };
 
   auto propagator = std::make_shared<IdentityPropagator>();
@@ -162,21 +156,21 @@ TEST_CASE("BinnedInteraction with identity propagator", "[BinnedInteraction]") {
 }
 
 TEST_CASE("BinnedInteraction IH bias term", "[BinnedInteraction]") {
-  TH1::AddDirectory(false);
-
   auto Ebins = linspace(0.1, 5.0, 4u);
   auto costhbins = linspace(-1.0, 1.0, 3u);
+  const size_t n_e = Ebins.size() - 1;
+  const size_t n_c = costhbins.size() - 1;
 
   auto flat_histos = [&]() -> BinnedHistograms {
     return {
-        .flux_numu    = flat_th2(Ebins, costhbins, 1.0, "fn2"),
-        .flux_numubar = flat_th2(Ebins, costhbins, 1.0, "fnb2"),
-        .flux_nue     = flat_th2(Ebins, costhbins, 1.0, "fe2"),
-        .flux_nuebar  = flat_th2(Ebins, costhbins, 1.0, "feb2"),
-        .xsec_numu    = flat_th1(Ebins, 1.0, "xn2"),
-        .xsec_numubar = flat_th1(Ebins, 1.0, "xnb2"),
-        .xsec_nue     = flat_th1(Ebins, 1.0, "xe2"),
-        .xsec_nuebar  = flat_th1(Ebins, 1.0, "xeb2"),
+        .pod_flux_numu    = flat_pod_hist2d(n_e, n_c, 1.0),
+        .pod_flux_numubar = flat_pod_hist2d(n_e, n_c, 1.0),
+        .pod_flux_nue     = flat_pod_hist2d(n_e, n_c, 1.0),
+        .pod_flux_nuebar  = flat_pod_hist2d(n_e, n_c, 1.0),
+        .pod_xsec_numu    = flat_pod_hist1d(n_e, 1.0),
+        .pod_xsec_numubar = flat_pod_hist1d(n_e, 1.0),
+        .pod_xsec_nue     = flat_pod_hist1d(n_e, 1.0),
+        .pod_xsec_nuebar  = flat_pod_hist1d(n_e, 1.0),
     };
   };
 

@@ -15,15 +15,22 @@
 // Holds the pre-computed flux and cross-section histograms needed to build a
 // BinnedInteraction without calling global flux_input / xsec_input objects.
 // Use this to inject known histograms in tests.
-// POD members allow zero-copy construction from numpy (pybind).
 struct BinnedHistograms {
-  TH2D flux_numu, flux_numubar, flux_nue, flux_nuebar;
-  TH1D xsec_numu, xsec_numubar, xsec_nue, xsec_nuebar;
-
-  // POD storage — populated by pybind from numpy arrays, or lazily from TH2D.
   PodHist2D<oscillaton_calc_precision> pod_flux_numu, pod_flux_numubar, pod_flux_nue, pod_flux_nuebar;
   PodHist1D pod_xsec_numu, pod_xsec_numubar, pod_xsec_nue, pod_xsec_nuebar;
-  bool pod_valid{false};
+};
+
+// Immutable data shared between BinnedInteraction copies (eliminates
+// deep-copying flux/xsec/bin-edges during MCMC).  Constructed once,
+// referenced via shared_ptr with refcount bump on copy.
+struct BinnedInteractionImmutable {
+  std::vector<double> Ebins, costheta_bins;
+  std::vector<double> Ebins_analysis, costheta_analysis;
+  size_t E_rebin_factor{}, costh_rebin_factor{};
+  size_t n_costh_fine{}, n_e_fine{}, n_costh_analysis{}, n_e_analysis{};
+  PodHist2D<oscillaton_calc_precision> flux_numu, flux_numubar, flux_nue, flux_nuebar;
+  PodHist1D xsec_numu, xsec_numubar, xsec_nue, xsec_nuebar;
+  double log_ih_bias{};
 };
 
 class BinnedInteraction : public OscillationParameters {
@@ -43,9 +50,26 @@ public:
                     BinnedHistograms histos, size_t E_rebin_factor = 1,
                     size_t costh_rebin_factor = 1, double IH_Bias = 1.0);
 
-  BinnedInteraction(const BinnedInteraction &) = default;
+  BinnedInteraction(const BinnedInteraction &other)
+      : OscillationParameters(other), propagator(other.propagator),
+        imm_(other.imm_),
+        pred_pod_numu(other.pred_pod_numu),
+        pred_pod_numubar(other.pred_pod_numubar),
+        pred_pod_nue(other.pred_pod_nue),
+        pred_pod_nuebar(other.pred_pod_nuebar) {}
   BinnedInteraction(BinnedInteraction &&) = default;
-  BinnedInteraction &operator=(const BinnedInteraction &) = default;
+  BinnedInteraction &operator=(const BinnedInteraction &other) {
+    if (this != &other) {
+      OscillationParameters::operator=(other);
+      propagator = other.propagator;
+      imm_ = other.imm_;
+      pred_pod_numu    = other.pred_pod_numu;
+      pred_pod_numubar = other.pred_pod_numubar;
+      pred_pod_nue     = other.pred_pod_nue;
+      pred_pod_nuebar  = other.pred_pod_nuebar;
+    }
+    return *this;
+  }
   BinnedInteraction &operator=(BinnedInteraction &&) = default;
 
   void proposeStep();
@@ -56,10 +80,7 @@ public:
   [[nodiscard]] SimpleDataHist GenerateData() const;
   [[nodiscard]] SimpleDataHist GenerateData_NoOsc() const;
 
-  void Print() const {
-    flux_hist_numu.Print();
-    xsec_hist_numu.Print();
-  }
+  void Print() const {}
 
   void flip_hierarchy() {
     OscillationParameters::flip_hierarchy();
@@ -75,29 +96,9 @@ public:
   void SaveAs(const char *filename) const;
 
 private:
-  void ensure_pod_flux_xsec() const;
-
   std::shared_ptr<IHistogramPropagator> propagator;
-  std::vector<double> Ebins, costheta_bins;
-  std::vector<double> Ebins_analysis, costheta_analysis;
-  size_t E_rebin_factor;
-  size_t costh_rebin_factor;
+  std::shared_ptr<const BinnedInteractionImmutable> imm_;
 
-  size_t n_costh_fine, n_e_fine, n_costh_analysis, n_e_analysis;
-
-  // ── Flux / xsec (TH2D/TH1D for construction, POD for computation) ────
-  TH2D flux_hist_numu, flux_hist_numubar, flux_hist_nue, flux_hist_nuebar;
-  TH1D xsec_hist_numu, xsec_hist_numubar, xsec_hist_nue, xsec_hist_nuebar;
-
-  mutable bool pod_flux_valid{false};
-  mutable PodHist2D<oscillaton_calc_precision> flux_pod_numu, flux_pod_numubar, flux_pod_nue, flux_pod_nuebar;
-  mutable PodHist1D xsec_pod_numu, xsec_pod_numubar, xsec_pod_nue, xsec_pod_nuebar;
-
-  // ── Prediction (POD double for chi2 precision, TH2D for backward compat)
+  // ── Prediction (mutable — deep-copied on copy) ──────────────────────
   PodHist2D<double> pred_pod_numu, pred_pod_numubar, pred_pod_nue, pred_pod_nuebar;
-
-  TH2D Prediction_hist_numu, Prediction_hist_numubar, Prediction_hist_nue,
-      Prediction_hist_nuebar;
-
-  double log_ih_bias;
 };
