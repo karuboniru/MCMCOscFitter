@@ -12,7 +12,7 @@ TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
 TH2D vec_to_hist(const thrust::host_vector<oscillaton_calc_precision> &from_vec,
                  const std::vector<double> &costh_bins_v,
                  const std::vector<double> &e_bins_v);
-class ParBinned : public OscillationParameters, public ModelDataLLH<SimpleDataHist> {
+class ParBinned : public OscillationParameters {
 public:
   ParBinned(std::vector<double> Ebins, std::vector<double> costheta_bins,
             double scale_ = 1., size_t E_rebin_factor = 1,
@@ -22,14 +22,12 @@ public:
   ParBinned(ParBinned &&) noexcept = default;
   ParBinned &operator=(const ParBinned &) = default;
   ParBinned &operator=(ParBinned &&) noexcept = default;
-  ~ParBinned() override = default;
 
-  void proposeStep() final;
+  void proposeStep();
   void proposeStep(std::mt19937 &rng);
 
-  // virtual double GetLogLikelihood() const override;
   [[nodiscard]] double
-  GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const final;
+  GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const;
 
   [[nodiscard]] SimpleDataHist GenerateData() const;
   [[nodiscard]] SimpleDataHist GenerateData_NoOsc() const;
@@ -41,7 +39,7 @@ public:
   void Save_prob_hist(const std::string &name);
 
   using OscillationParameters::GetLogLikelihood;
-  [[nodiscard]] double GetLogLikelihood() const final;
+  [[nodiscard]] double GetLogLikelihood() const;
 
   void UpdatePrediction();
 

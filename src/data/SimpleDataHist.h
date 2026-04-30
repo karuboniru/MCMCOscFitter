@@ -1,9 +1,8 @@
 #pragma once
-#include "StateI.h"
 #include <TH2D.h>
 #include <optional>
 
-class SimpleDataHist : virtual public StateI {
+class SimpleDataHist {
 public:
   SimpleDataHist() = default;
   SimpleDataHist &operator=(const SimpleDataHist &) = default;
@@ -12,8 +11,8 @@ public:
   SimpleDataHist(SimpleDataHist &&) = default;
   ~SimpleDataHist() = default;
 
-  void proposeStep() final {}
-  [[nodiscard]] double GetLogLikelihood() const final { return 0; }
+  void proposeStep() {}
+  [[nodiscard]] double GetLogLikelihood() const { return 0; }
 
   void SaveAs(const char *filename) const;
   void LoadFrom(const char *filename);

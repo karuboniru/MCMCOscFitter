@@ -1,4 +1,5 @@
 #include "BinnedInteraction.h"
+#include "ModelDataLLH.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "constants.h"

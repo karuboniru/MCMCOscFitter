@@ -11,6 +11,7 @@ find_package(OpenMP REQUIRED)
 include_directories(
     ${ROOT_INCLUDE_DIRS}
     ${CMAKE_SOURCE_DIR}/src/common
+    ${CMAKE_SOURCE_DIR}/src/concepts
 )
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native -Wall -Wextra -Wpedantic")

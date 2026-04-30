@@ -1,20 +1,19 @@
 #pragma once
 
-#include "StateI.h"
+#include "mcmc_concepts.h"
 #include <algorithm>
 #include <numeric>
 #include <vector>
 
-template <std::derived_from<StateI> T>
-class DataSet : virtual public StateI, public std::vector<T> {
+template <mcmc_concepts::MCMCState T>
+class DataSet : public std::vector<T> {
 public:
   using std::vector<T>::vector;
-  virtual void proposeStep() override {
-    // std::ranges::for_each(*this, [](T &point) { point.proposeStep(); });
+  void proposeStep() {
     std::for_each(this->begin(), this->end(),
                   [](T &point) { point.proposeStep(); });
   }
-  virtual double GetLogLikelihood() const override {
+  double GetLogLikelihood() const {
     return std::accumulate(this->cbegin(), this->cend(), 0.0,
                            [](double sum, const T &point) {
                              return sum + point.GetLogLikelihood();

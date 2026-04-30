@@ -62,7 +62,7 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
                                      size_t E_rebin_factor_,
                                      size_t costh_rebin_factor_,
                                      double IH_bias_)
-    : ModelDataLLH(), propagator{std::move(prop)},
+    : propagator{std::move(prop)},
       Ebins(std::move(Ebins_)), costheta_bins(std::move(costheta_bins_)),
       flux_hist_numu(std::move(histos.flux_numu)),
       flux_hist_numubar(std::move(histos.flux_numubar)),

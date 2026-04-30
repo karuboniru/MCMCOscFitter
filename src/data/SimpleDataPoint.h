@@ -1,9 +1,10 @@
 #pragma once
+
 #include "DataSet.h"
 
 // simple, so stateless
 // no-op for proposeStep
-class SimpleDataPoint : virtual public StateI {
+class SimpleDataPoint {
 public:
   double E{}, costheta{}, phi{};
   int flavor{};
@@ -16,12 +17,9 @@ public:
   SimpleDataPoint(const SimpleDataPoint &other)
       : E(other.E), costheta(other.costheta), phi(other.phi),
         flavor(other.flavor) {}
-  // SimpleDataPoint(SimpleDataPoint &&other)
-  //     : E(other.E), costheta(other.costheta), phi(other.phi),
-  //       flavor(other.flavor) {}
 
-  void proposeStep() override {}
-  [[nodiscard]] double GetLogLikelihood() const override { return 0; }
+  void proposeStep() {}
+  [[nodiscard]] double GetLogLikelihood() const { return 0; }
 };
 
 using SimpleDataSet = DataSet<SimpleDataPoint>;

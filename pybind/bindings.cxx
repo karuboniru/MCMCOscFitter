@@ -271,7 +271,7 @@ Returns 0 when data == pred everywhere.)doc");
   py::class_<StateI>(m, "StateI");
 
   // ── OscillationParameters ──────────────────────────────────────────────────
-  py::class_<OscillationParameters, StateI>(m, "OscillationParameters",
+  py::class_<OscillationParameters>(m, "OscillationParameters",
       "PMNS oscillation parameters with Gaussian priors (PDG 2023 values).")
       .def(py::init<>())
       .def("propose_step", py::overload_cast<>(&OscillationParameters::proposeStep),
@@ -442,7 +442,7 @@ get_prob_hists_3f(Ebins, costhbins, params) -> np.ndarray shape (2, 3, 3, nE, nC
            py::arg("Ebins"),     py::arg("costhbins"));
 
   // ── DataHist ───────────────────────────────────────────────────────────────
-  py::class_<SimpleDataHist, StateI>(m, "DataHist",
+  py::class_<SimpleDataHist>(m, "DataHist",
       "Four 2-D event-count histograms (numu, numubar, nue, nuebar).  "
       "Bin contents are accessible as numpy arrays.")
       .def(py::init<>())
@@ -596,8 +596,11 @@ proposed state with probability min(1, exp(llh_proposed - llh_current)).
 )doc");
 
   // Generic version operating on any StateI (e.g. OscillationParameters alone).
-  m.def("mcmc_accept_state", py::overload_cast<const StateI &, const StateI &>(&MCMCAcceptState), py::arg("current"),
-        py::arg("proposed"),
+  m.def("mcmc_accept_state",
+        [](const StateI &current, const StateI &proposed) {
+          return MCMCAcceptState(current, proposed);
+        },
+        py::arg("current"), py::arg("proposed"),
         "Generic Metropolis acceptance using StateI::GetLogLikelihood() only.");
 
   // ── Random seed ────────────────────────────────────────────────────────────

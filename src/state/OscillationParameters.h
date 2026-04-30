@@ -1,6 +1,5 @@
 #pragma once
 
-#include "StateI.h"
 #include <TH2.h>
 #include <array>
 
@@ -51,7 +50,7 @@ constexpr pull_toggle SK_w_T13{
 constexpr pull_toggle SK_wo_T13{
     .flags = {false, true, false, false, true, false}};
 
-class OscillationParameters : virtual public StateI {
+class OscillationParameters {
 public:
   OscillationParameters() = default;
   OscillationParameters(double proposal_dist) : proposal_distance(proposal_dist) {}
@@ -60,11 +59,9 @@ public:
   OscillationParameters &operator=(const OscillationParameters &) = default;
   OscillationParameters &operator=(OscillationParameters &&) = default;
 
-  ~OscillationParameters() override = default;
-
-  void proposeStep() override;
+  void proposeStep();
   void proposeStep(std::mt19937 &rng);
-  [[nodiscard]] double GetLogLikelihood() const override;
+  [[nodiscard]] double GetLogLikelihood() const;
   [[nodiscard]] double GetLogLikelihood(const pull_toggle &) const;
 
   // [[nodiscard]] virtual std::array<std::array<double, 3>, 3>

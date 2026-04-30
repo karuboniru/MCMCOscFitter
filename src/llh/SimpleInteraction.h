@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ModelDataLLH.h"
 #include "OscillationParameters.h"
 #include "Prob3ppOscillation.h"
 #include "SimpleDataPoint.h"
@@ -13,11 +12,11 @@
 // extern HondaFlux flux_input;
 // extern genie_xsec xsec_input;
 
-class SimpleInteraction : public OscillationParameters, public ModelDataLLH<DataSet<SimpleDataPoint>> {
+class SimpleInteraction : public OscillationParameters {
 public:
-  SimpleInteraction() : ModelDataLLH() {}
-  void proposeStep() override;
-  double GetLogLikelihoodAgainstData(const DataSet<SimpleDataPoint> &dataset) const override;
+  SimpleInteraction() = default;
+  void proposeStep();
+  double GetLogLikelihoodAgainstData(const DataSet<SimpleDataPoint> &dataset) const;
 
 private:
   std::shared_ptr<Prob3ppOscillation> propagator;

@@ -1,3 +1,4 @@
+#include "ModelDataLLH.h"
 #include "ParBinnedInterface.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"

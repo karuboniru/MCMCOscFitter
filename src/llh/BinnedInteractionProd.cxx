@@ -26,8 +26,7 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
                                      double scale_, size_t E_rebin_factor_,
                                      size_t costh_rebin_factor_,
                                      double IH_bias_)
-    : ModelDataLLH(),
-      propagator{std::make_shared<ParProb3ppOscillation>(
+    : propagator{std::make_shared<ParProb3ppOscillation>(
           to_center<oscillaton_calc_precision>(Ebins_),
           to_center<oscillaton_calc_precision>(costheta_bins_))},
       Ebins(std::move(Ebins_)), costheta_bins(std::move(costheta_bins_)),

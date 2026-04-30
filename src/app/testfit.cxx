@@ -1,6 +1,6 @@
 #include "BargerPropagator.h"
+#include "ModelDataLLH.h"
 #include "SimpleInteraction.h"
-#include "StateI.h"
 #include "genie_xsec.h"
 #include "hondaflux.h"
 #include "walker.h"

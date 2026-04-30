@@ -1,7 +1,6 @@
 #pragma once
 
 #include "IHistogramPropagator.h"
-#include "ModelDataLLH.h"
 #include "OscillationParameters.h"
 #include "SimpleDataHist.h"
 #include <TH1.h>
@@ -19,7 +18,7 @@ struct BinnedHistograms {
   TH1D xsec_numu, xsec_numubar, xsec_nue, xsec_nuebar;
 };
 
-class BinnedInteraction : public OscillationParameters, public ModelDataLLH<SimpleDataHist> {
+class BinnedInteraction : public OscillationParameters {
 public:
   // Production constructor: reads flux and cross-section from the global
   // flux_input / xsec_input objects defined by the linked physics libraries.
@@ -40,12 +39,11 @@ public:
   BinnedInteraction(BinnedInteraction &&) = default;
   BinnedInteraction &operator=(const BinnedInteraction &) = default;
   BinnedInteraction &operator=(BinnedInteraction &&) = default;
-  ~BinnedInteraction() override = default;
 
-  void proposeStep() final;
+  void proposeStep();
 
   [[nodiscard]] double
-  GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const final;
+  GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const;
 
   [[nodiscard]] SimpleDataHist GenerateData() const;
   [[nodiscard]] SimpleDataHist GenerateData_NoOsc() const;
@@ -62,7 +60,7 @@ public:
 
   void Save_prob_hist(const std::string &name);
 
-  [[nodiscard]] double GetLogLikelihood() const final;
+  [[nodiscard]] double GetLogLikelihood() const;
 
   void UpdatePrediction();
 

@@ -3,7 +3,6 @@
 #include "OscillationParameters.h"
 #include "SimpleDataPoint.h"
 #include "SimpleInteraction.h"
-#include "StateI.h"
 #include "genie_xsec.h"
 #include "hondaflux.h"
 #include "to_plots.h"

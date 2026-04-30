@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ModelDataLLH.h"
 #include "SimpleDataHist.h"
 #include <memory>
 #include <random>
@@ -10,7 +9,7 @@ class ParBinned;
 struct param;
 class pull_toggle;
 
-class ParBinnedInterface : public ModelDataLLH<SimpleDataHist> {
+class ParBinnedInterface {
 public:
   ParBinnedInterface(std::vector<double> Ebins,
                      std::vector<double> costheta_bins, double scale_ = 1.,
@@ -21,12 +20,12 @@ public:
   ParBinnedInterface(ParBinnedInterface &&other) noexcept;
   ParBinnedInterface &operator=(const ParBinnedInterface &other);
   ParBinnedInterface &operator=(ParBinnedInterface &&other) noexcept;
-  ~ParBinnedInterface() override;
+  ~ParBinnedInterface();
 
-  void proposeStep() final;
+  void proposeStep();
   void proposeStep(std::mt19937 &rng);
   [[nodiscard]] double
-  GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const final;
+  GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const;
 
   [[nodiscard]] SimpleDataHist GenerateData() const;
   [[nodiscard]] SimpleDataHist GenerateData_NoOsc() const;
@@ -37,7 +36,7 @@ public:
 
   void Save_prob_hist(const std::string &name);
 
-  [[nodiscard]] double GetLogLikelihood() const final;
+  [[nodiscard]] double GetLogLikelihood() const;
 
   void UpdatePrediction();
 
