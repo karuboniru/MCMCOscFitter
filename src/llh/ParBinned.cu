@@ -337,50 +337,38 @@ void ParBinned::proposeStep(std::mt19937 &rng) {
 }
 
 namespace {
-double TH2D_chi2(const TH2D &data, const TH2D &pred) {
-  auto binsx = data.GetNbinsX();
-  auto binsy = data.GetNbinsY();
-  double chi2{};
-  // #pragma omp parallel for reduction(+ : chi2) collapse(2)
-  for (int x = 1; x <= binsx; x++) {
-    for (int y = 1; y <= binsy; y++) {
-      auto bin_data = data.GetBinContent(x, y);
-      auto bin_pred = pred.GetBinContent(x, y);
-      if (bin_data != 0) [[likely]]
-        chi2 +=
-            (bin_pred - bin_data) + bin_data * std::log(bin_data / bin_pred);
-      else
-        chi2 += bin_pred;
-    }
-  }
-  return 2 * chi2;
+// Copy device_vector prediction to host PodHist2D<double> for chi2.
+PodHist2D<double>
+dev_pred_to_pod(const thrust::device_vector<oscillaton_calc_precision> &dev,
+                size_t n_costh, size_t n_e) {
+  PodHist2D<double> pod(n_costh, n_e);
+  // thrust::copy with implicit float→double conversion (element-wise safe).
+  thrust::copy(dev.begin(), dev.end(), pod.data.begin());
+  return pod;
 }
 } // namespace
 double ParBinned::GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const {
-  auto &data_hist_numu = dataset.hist_numu;
-  auto &data_hist_numubar = dataset.hist_numubar;
-  auto &data_hist_nue = dataset.hist_nue;
-  auto &data_hist_nuebar = dataset.hist_nuebar;
+  // Convert prediction from GPU to host PodHist2D (avoids TH2D construction).
+  auto pred_numu    = dev_pred_to_pod(Prediction_hist_numu,    costh_analysis_bin_count, E_analysis_bin_count);
+  auto pred_numubar = dev_pred_to_pod(Prediction_hist_numubar, costh_analysis_bin_count, E_analysis_bin_count);
+  auto pred_nue     = dev_pred_to_pod(Prediction_hist_nue,     costh_analysis_bin_count, E_analysis_bin_count);
+  auto pred_nuebar  = dev_pred_to_pod(Prediction_hist_nuebar,  costh_analysis_bin_count, E_analysis_bin_count);
 
-  auto chi2_numu =
-      TH2D_chi2(data_hist_numu, vec2hist_analysis(Prediction_hist_numu));
-  auto chi2_numubar =
-      TH2D_chi2(data_hist_numubar, vec2hist_analysis(Prediction_hist_numubar));
-  auto chi2_nue =
-      TH2D_chi2(data_hist_nue, vec2hist_analysis(Prediction_hist_nue));
-  auto chi2_nuebar =
-      TH2D_chi2(data_hist_nuebar, vec2hist_analysis(Prediction_hist_nuebar));
+  // Use POD cache from SimpleDataHist (lazy first sync, then zero-conversion).
+  auto chi2_numu    = pod_chi2(dataset.pod_numu(),    pred_numu);
+  auto chi2_numubar = pod_chi2(dataset.pod_numubar(), pred_numubar);
+  auto chi2_nue     = pod_chi2(dataset.pod_nue(),     pred_nue);
+  auto chi2_nuebar  = pod_chi2(dataset.pod_nuebar(),  pred_nuebar);
 
-  auto llh = -0.5 * (chi2_numu + chi2_numubar + chi2_nue + chi2_nuebar);
-  return llh;
+  return -0.5 * (chi2_numu + chi2_numubar + chi2_nue + chi2_nuebar);
 }
 
 SimpleDataHist ParBinned::GenerateData() const {
   SimpleDataHist data;
-  data.hist_numu = vec2hist_analysis(Prediction_hist_numu);
-  data.hist_numubar = vec2hist_analysis(Prediction_hist_numubar);
-  data.hist_nue = vec2hist_analysis(Prediction_hist_nue);
-  data.hist_nuebar = vec2hist_analysis(Prediction_hist_nuebar);
+  data.hist_numu    = dev_pred_to_pod(Prediction_hist_numu,    costh_analysis_bin_count, E_analysis_bin_count).to_th2d(Ebins_analysis, costheta_analysis);
+  data.hist_numubar = dev_pred_to_pod(Prediction_hist_numubar, costh_analysis_bin_count, E_analysis_bin_count).to_th2d(Ebins_analysis, costheta_analysis);
+  data.hist_nue     = dev_pred_to_pod(Prediction_hist_nue,     costh_analysis_bin_count, E_analysis_bin_count).to_th2d(Ebins_analysis, costheta_analysis);
+  data.hist_nuebar  = dev_pred_to_pod(Prediction_hist_nuebar,  costh_analysis_bin_count, E_analysis_bin_count).to_th2d(Ebins_analysis, costheta_analysis);
   return data;
 }
 
@@ -397,7 +385,6 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
   thrust::device_vector<oscillaton_calc_precision> nc(
       E_analysis_bin_count * costh_analysis_bin_count, 0);
 
-  // dim3 block_size(E_analysis_bin_count, costh_analysis_bin_count);
   auto &flux_xsec_device_input = global_device_input_instance::get_instance();
   auto warp_count =
       cuda::ceil_div(costh_fine_bin_count * E_fine_bin_count, warp_size);
@@ -419,11 +406,16 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
   cudaDeviceSynchronize();
   CUERR
 
-  data.hist_numu = vec2hist_analysis(no_osc_hist_numu);
-  data.hist_numubar = vec2hist_analysis(no_osc_hist_numubar);
-  data.hist_nue = vec2hist_analysis(no_osc_hist_nue);
-  data.hist_nuebar = vec2hist_analysis(no_osc_hist_nuebar);
-  data.hist_nc = std::make_optional<TH2D>(vec2hist_analysis(nc));
+  auto to_th2d = [&](const auto &dev_vec) {
+    return dev_pred_to_pod(dev_vec, costh_analysis_bin_count,
+                           E_analysis_bin_count)
+        .to_th2d(Ebins_analysis, costheta_analysis);
+  };
+  data.hist_numu    = to_th2d(no_osc_hist_numu);
+  data.hist_numubar = to_th2d(no_osc_hist_numubar);
+  data.hist_nue     = to_th2d(no_osc_hist_nue);
+  data.hist_nuebar  = to_th2d(no_osc_hist_nuebar);
+  data.hist_nc      = std::make_optional<TH2D>(to_th2d(nc));
   return data;
 }
 

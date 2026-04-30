@@ -22,7 +22,39 @@
 
 namespace py = pybind11;
 
-// ─── numpy ↔ ROOT helpers ───────────────────────────────────────────────────
+// ─── numpy ↔ POD helpers (Phase 6: direct, no TH2D intermediate) ────────────
+
+static PodHist2D<oscillaton_calc_precision>
+array_to_pod_hist2d(py::array_t<double, py::array::c_style | py::array::forcecast> arr,
+                    size_t n_costh, size_t n_e) {
+  auto buf = arr.unchecked<2>();
+  PodHist2D<oscillaton_calc_precision> pod(n_costh, n_e);
+  for (size_t c = 0; c < n_costh; ++c)
+    for (size_t e = 0; e < n_e; ++e)
+      pod(c, e) = static_cast<oscillaton_calc_precision>(buf(static_cast<ssize_t>(e), static_cast<ssize_t>(c)));
+  return pod;
+}
+
+static PodHist1D
+array_to_pod_hist1d(py::array_t<double, py::array::c_style | py::array::forcecast> arr) {
+  auto buf = arr.unchecked<1>();
+  PodHist1D pod(static_cast<size_t>(buf.shape(0)));
+  for (ssize_t i = 0; i < buf.shape(0); ++i)
+    pod[static_cast<size_t>(i)] = static_cast<oscillaton_calc_precision>(buf(i));
+  return pod;
+}
+
+static py::array_t<double> pod_hist2d_to_array(const PodHist2D<double> &pod) {
+  std::vector<ssize_t> shape = {static_cast<ssize_t>(pod.n_e), static_cast<ssize_t>(pod.n_costh)};
+  auto result = py::array_t<double>(shape);
+  auto buf = result.template mutable_unchecked<2>();
+  for (size_t c = 0; c < pod.n_costh; ++c)
+    for (size_t e = 0; e < pod.n_e; ++e)
+      buf(static_cast<ssize_t>(e), static_cast<ssize_t>(c)) = pod(c, e);
+  return result;
+}
+
+// ─── numpy ↔ ROOT helpers (legacy, kept for backward compat) ─────────────────
 
 static TH2D array_to_th2d(
     py::array_t<double, py::array::c_style | py::array::forcecast> arr,
@@ -367,19 +399,19 @@ get_prob_hists_3f(Ebins, costhbins, params) -> np.ndarray shape (2, 3, 3, nE, nC
           [](ParProb3ppOscillation &prop, const std::vector<double> &Ebins,
              const std::vector<double> &costhbins,
              const OscillationParameters &p) {
-            // Returns (2, 2, 2, nE, nCosth) numpy array.
-            auto hists = prop.GetProb_Hists(Ebins, costhbins, p);
-            const int nE = static_cast<int>(Ebins.size()) - 1;
-            const int nC = static_cast<int>(costhbins.size()) - 1;
-            auto arr = py::array_t<double>({2, 2, 2, nE, nC});
-            auto buf = arr.mutable_unchecked<5>();
+            // Uses POD path — avoids TH2D construction.
+            auto hists = prop.GetProb_Hists_POD(Ebins, costhbins, p);
+            const ssize_t nE = static_cast<ssize_t>(Ebins.size()) - 1;
+            const ssize_t nC = static_cast<ssize_t>(costhbins.size()) - 1;
+            std::vector<ssize_t> shape = {2, 2, 2, nE, nC};
+            auto arr = py::array_t<double>(shape);
+            auto buf = arr.template mutable_unchecked<5>();
             for (int nu = 0; nu < 2; ++nu)
               for (int f = 0; f < 2; ++f)
                 for (int t = 0; t < 2; ++t)
-                  for (int e = 0; e < nE; ++e)
-                    for (int c = 0; c < nC; ++c)
-                      buf(nu, f, t, e, c) =
-                          hists[nu][f][t].GetBinContent(e + 1, c + 1);
+                  for (ssize_t c = 0; c < nC; ++c)
+                    for (ssize_t e = 0; e < nE; ++e)
+                      buf(nu, f, t, e, c) = hists[nu][f][t](static_cast<size_t>(c), static_cast<size_t>(e));
             return arr;
           },
           py::arg("Ebins"), py::arg("costhbins"), py::arg("params"),
@@ -389,26 +421,26 @@ get_prob_hists_3f(Ebins, costhbins, params) -> np.ndarray shape (2, 3, 3, nE, nC
           [](ParProb3ppOscillation &prop, const std::vector<double> &Ebins,
              const std::vector<double> &costhbins,
              const OscillationParameters &p) {
-            auto hists = prop.GetProb_Hists_3F(Ebins, costhbins, p);
-            const int nE = static_cast<int>(Ebins.size()) - 1;
-            const int nC = static_cast<int>(costhbins.size()) - 1;
-            auto arr = py::array_t<double>({2, 3, 3, nE, nC});
-            auto buf = arr.mutable_unchecked<5>();
+            auto hists = prop.GetProb_Hists_3F_POD(Ebins, costhbins, p);
+            const ssize_t nE = static_cast<ssize_t>(Ebins.size()) - 1;
+            const ssize_t nC = static_cast<ssize_t>(costhbins.size()) - 1;
+            std::vector<ssize_t> shape = {2, 3, 3, nE, nC};
+            auto arr = py::array_t<double>(shape);
+            auto buf = arr.template mutable_unchecked<5>();
             for (int nu = 0; nu < 2; ++nu)
               for (int f = 0; f < 3; ++f)
                 for (int t = 0; t < 3; ++t)
-                  for (int e = 0; e < nE; ++e)
-                    for (int c = 0; c < nC; ++c)
-                      buf(nu, f, t, e, c) =
-                          hists[nu][f][t].GetBinContent(e + 1, c + 1);
+                  for (ssize_t c = 0; c < nC; ++c)
+                    for (ssize_t e = 0; e < nE; ++e)
+                      buf(nu, f, t, e, c) = hists[nu][f][t](static_cast<size_t>(c), static_cast<size_t>(e));
             return arr;
           },
           py::arg("Ebins"), py::arg("costhbins"), py::arg("params"),
           "3-flavour probabilities, shape (2, 3, 3, nE, nCosth).");
 
   // ── BinnedHistograms helper struct ─────────────────────────────────────────
-  // Python-side constructor converts numpy arrays to TH2D/TH1D and stores them.
-  // Passed to BinnedInteraction's injectable constructor.
+  // Python-side constructor converts numpy arrays to POD directly (avoids
+  // numpy→TH2D→POD double conversion).  Also fills TH2D for backward compat.
   py::class_<BinnedHistograms>(m, "BinnedHistograms",
       "Container for pre-computed flux (TH2D) and cross-section (TH1D) "
       "histograms.  Construct from numpy arrays via the keyword-argument "
@@ -424,7 +456,20 @@ get_prob_hists_3f(Ebins, costhbins, params) -> np.ndarray shape (2, 3, 3, nE, nC
                        const std::vector<double> &Ebins,
                        const std::vector<double> &costhbins) {
              TH1::AddDirectory(false);
+             const size_t n_e = Ebins.size() - 1;
+             const size_t n_c = costhbins.size() - 1;
              BinnedHistograms h;
+             // Fill POD directly from numpy (fast path for computation).
+             h.pod_flux_numu    = array_to_pod_hist2d(flux_numu,    n_c, n_e);
+             h.pod_flux_numubar = array_to_pod_hist2d(flux_numubar, n_c, n_e);
+             h.pod_flux_nue     = array_to_pod_hist2d(flux_nue,     n_c, n_e);
+             h.pod_flux_nuebar  = array_to_pod_hist2d(flux_nuebar,  n_c, n_e);
+             h.pod_xsec_numu    = array_to_pod_hist1d(xsec_numu);
+             h.pod_xsec_numubar = array_to_pod_hist1d(xsec_numubar);
+             h.pod_xsec_nue     = array_to_pod_hist1d(xsec_nue);
+             h.pod_xsec_nuebar  = array_to_pod_hist1d(xsec_nuebar);
+             h.pod_valid = true;
+             // Also fill TH2D/TH1D for backward compat (I/O, plotting, etc.).
              h.flux_numu    = array_to_th2d(flux_numu,    Ebins, costhbins, "fn");
              h.flux_numubar = array_to_th2d(flux_numubar, Ebins, costhbins, "fnb");
              h.flux_nue     = array_to_th2d(flux_nue,     Ebins, costhbins, "fe");

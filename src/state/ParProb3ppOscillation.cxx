@@ -105,10 +105,26 @@ ParProb3ppOscillation::GetProb(int flavor, double E, double costheta,
   throw std::runtime_error("Not implemented");
 }
 
-[[nodiscard]] std::array<std::array<std::array<TH2D, 2>, 2>, 2>
-ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
-                                     const std::vector<double> &costhbin,
-                                     const OscillationParameters &p) {
+// Shared helper: populate a PodHist2D<double> from a CUDAProb3 ResultView.
+namespace {
+template <typename ResultView>
+PodHist2D<double> fill_pod_from_result(const ResultView &result,
+                                       cudaprob3::ProbType term,
+                                       size_t n_costh, size_t n_e) {
+  PodHist2D<double> pod(n_costh, n_e);
+#pragma omp parallel for collapse(2)
+  for (size_t costh_idx = 0; costh_idx < n_costh; ++costh_idx)
+    for (size_t e_idx = 0; e_idx < n_e; ++e_idx)
+      pod.data[costh_idx * n_e + e_idx] =
+          static_cast<double>(result.probability(costh_idx, e_idx, term));
+  return pod;
+}
+} // namespace
+
+[[nodiscard]] std::array<std::array<std::array<PodHist2D<double>, 2>, 2>, 2>
+ParProb3ppOscillation::GetProb_Hists_POD(const std::vector<double> &Ebin,
+                                         const std::vector<double> &costhbin,
+                                         const OscillationParameters &p) {
   re_calculate(p);
 
   auto result_nu = cudaprob3::ResultView<oscillaton_calc_precision>{
@@ -120,41 +136,26 @@ ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
       calculator_antineutrino_->nCosines(),
       calculator_antineutrino_->nEnergies()};
 
-  std::array<std::array<std::array<TH2D, 2>, 2>, 2> ret{};
+  const size_t n_e = Ebin.size() - 1;
+  const size_t n_c = costhbin.size() - 1;
   constexpr auto type_matrix = std::to_array(
       {std::to_array({cudaprob3::ProbType::e_e, cudaprob3::ProbType::e_m}),
        std::to_array({cudaprob3::ProbType::m_e, cudaprob3::ProbType::m_m})});
 
-  for (int i = 0; i < 2; ++i) {
-    auto &this_result = i == 0 ? result_nu : result_anu;
-    for (int j = 0; j < 2; ++j) {
-      for (int k = 0; k < 2; ++k) {
-        auto &this_prob = ret[i][j][k];
-        auto &this_term = type_matrix[j][k];
-        this_prob = TH2D("", "", Ebin.size() - 1, Ebin.data(),
-                         costhbin.size() - 1, costhbin.data());
-#pragma omp parallel for collapse(2)
-        for (size_t energy_bin_index = 0; energy_bin_index < Ebin.size() - 1;
-             ++energy_bin_index) {
-          for (size_t out_hist_costh_index = 0;
-               out_hist_costh_index < costhbin.size() - 1;
-               ++out_hist_costh_index) {
-            this_prob.SetBinContent(
-                energy_bin_index + 1, out_hist_costh_index + 1,
-                this_result.probability(out_hist_costh_index, energy_bin_index,
-                                        this_term));
-          }
-        }
-      }
-    }
+  std::array<std::array<std::array<PodHist2D<double>, 2>, 2>, 2> ret{};
+  for (int nu = 0; nu < 2; ++nu) {
+    auto &result = nu == 0 ? result_nu : result_anu;
+    for (int f = 0; f < 2; ++f)
+      for (int t = 0; t < 2; ++t)
+        ret[nu][f][t] = fill_pod_from_result(result, type_matrix[f][t], n_c, n_e);
   }
   return ret;
 }
 
-[[nodiscard]] std::array<std::array<std::array<TH2D, 3>, 3>, 2>
-ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
-                                        const std::vector<double> &costhbin,
-                                        const OscillationParameters &p) {
+[[nodiscard]] std::array<std::array<std::array<PodHist2D<double>, 3>, 3>, 2>
+ParProb3ppOscillation::GetProb_Hists_3F_POD(const std::vector<double> &Ebin,
+                                            const std::vector<double> &costhbin,
+                                            const OscillationParameters &p) {
   re_calculate(p);
 
   auto result_nu = cudaprob3::ResultView<oscillaton_calc_precision>{
@@ -166,7 +167,8 @@ ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
       calculator_antineutrino_->nCosines(),
       calculator_antineutrino_->nEnergies()};
 
-  std::array<std::array<std::array<TH2D, 3>, 3>, 2> ret{};
+  const size_t n_e = Ebin.size() - 1;
+  const size_t n_c = costhbin.size() - 1;
   constexpr auto type_matrix = std::to_array(
       {std::to_array({cudaprob3::ProbType::e_e, cudaprob3::ProbType::e_m,
                       cudaprob3::ProbType::e_t}),
@@ -175,28 +177,39 @@ ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
        std::to_array({cudaprob3::ProbType::t_e, cudaprob3::ProbType::t_m,
                       cudaprob3::ProbType::t_t})});
 
-  for (int i = 0; i < 2; ++i) {
-    auto &this_result = i == 0 ? result_nu : result_anu;
-    for (int j = 0; j < 3; ++j) {
-      for (int k = 0; k < 3; ++k) {
-        auto &this_prob = ret[i][j][k];
-        auto &this_term = type_matrix[j][k];
-        this_prob = TH2D("", "", Ebin.size() - 1, Ebin.data(),
-                         costhbin.size() - 1, costhbin.data());
-#pragma omp parallel for collapse(2)
-        for (size_t energy_bin_index = 0; energy_bin_index < Ebin.size() - 1;
-             ++energy_bin_index) {
-          for (size_t out_hist_costh_index = 0;
-               out_hist_costh_index < costhbin.size() - 1;
-               ++out_hist_costh_index) {
-            this_prob.SetBinContent(
-                energy_bin_index + 1, out_hist_costh_index + 1,
-                this_result.probability(out_hist_costh_index, energy_bin_index,
-                                        this_term));
-          }
-        }
-      }
-    }
+  std::array<std::array<std::array<PodHist2D<double>, 3>, 3>, 2> ret{};
+  for (int nu = 0; nu < 2; ++nu) {
+    auto &result = nu == 0 ? result_nu : result_anu;
+    for (int f = 0; f < 3; ++f)
+      for (int t = 0; t < 3; ++t)
+        ret[nu][f][t] = fill_pod_from_result(result, type_matrix[f][t], n_c, n_e);
   }
+  return ret;
+}
+
+[[nodiscard]] std::array<std::array<std::array<TH2D, 2>, 2>, 2>
+ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
+                                     const std::vector<double> &costhbin,
+                                     const OscillationParameters &p) {
+  // Delegate to POD implementation, converting to TH2D on the way back.
+  auto pod = GetProb_Hists_POD(Ebin, costhbin, p);
+  std::array<std::array<std::array<TH2D, 2>, 2>, 2> ret{};
+  for (int nu = 0; nu < 2; ++nu)
+    for (int f = 0; f < 2; ++f)
+      for (int t = 0; t < 2; ++t)
+        ret[nu][f][t] = pod[nu][f][t].to_th2d(Ebin, costhbin);
+  return ret;
+}
+
+[[nodiscard]] std::array<std::array<std::array<TH2D, 3>, 3>, 2>
+ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
+                                        const std::vector<double> &costhbin,
+                                        const OscillationParameters &p) {
+  auto pod = GetProb_Hists_3F_POD(Ebin, costhbin, p);
+  std::array<std::array<std::array<TH2D, 3>, 3>, 2> ret{};
+  for (int nu = 0; nu < 2; ++nu)
+    for (int f = 0; f < 3; ++f)
+      for (int t = 0; t < 3; ++t)
+        ret[nu][f][t] = pod[nu][f][t].to_th2d(Ebin, costhbin);
   return ret;
 }

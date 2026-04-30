@@ -21,6 +21,7 @@ void SimpleDataHist::LoadFrom(const char *filename) {
   hist_nue = *dynamic_cast<TH2D *>(file.Get("nue"));
   hist_numubar = *dynamic_cast<TH2D *>(file.Get("numubar"));
   hist_nuebar = *dynamic_cast<TH2D *>(file.Get("nuebar"));
+  pod_valid = false;
 }
 
 void SimpleDataHist::Round() {
@@ -36,4 +37,14 @@ void SimpleDataHist::Round() {
   round_hist_2D(hist_nue);
   round_hist_2D(hist_numubar);
   round_hist_2D(hist_nuebar);
+  pod_valid = false;
+}
+
+void SimpleDataHist::ensure_pod() const {
+  if (pod_valid) return;
+  data_numu    = PodHist2D<double>::from_th2d(hist_numu);
+  data_numubar = PodHist2D<double>::from_th2d(hist_numubar);
+  data_nue     = PodHist2D<double>::from_th2d(hist_nue);
+  data_nuebar  = PodHist2D<double>::from_th2d(hist_nuebar);
+  pod_valid = true;
 }

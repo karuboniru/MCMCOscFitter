@@ -48,6 +48,7 @@ target_link_libraries(
   BinnedInteractionInject
   ModelDataLLH
   state
+  SimpleDataHist
   ParProb3ppOscillation
 )
 
@@ -91,6 +92,7 @@ if (ENABLE_CUDA)
     ParProb3ppOscillation
     ModelDataLLH
     state
+    SimpleDataHist
     HondaFlux2D
     GENIE_XSEC
   )

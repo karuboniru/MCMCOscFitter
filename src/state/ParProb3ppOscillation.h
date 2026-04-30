@@ -40,6 +40,17 @@ public:
                    const std::vector<double> &costhbin,
                    const OscillationParameters &p) override;
 
+  // POD overrides — read directly from CUDAProb3 raw buffers, no TH2D.
+  [[nodiscard]] std::array<std::array<std::array<PodHist2D<double>, 2>, 2>, 2>
+  GetProb_Hists_POD(const std::vector<double> &Ebin,
+                    const std::vector<double> &costhbin,
+                    const OscillationParameters &p) override;
+
+  [[nodiscard]] std::array<std::array<std::array<PodHist2D<double>, 3>, 3>, 2>
+  GetProb_Hists_3F_POD(const std::vector<double> &Ebin,
+                       const std::vector<double> &costhbin,
+                       const OscillationParameters &p) override;
+
   void re_calculate(const OscillationParameters &p) override;
 
 #if defined(__CUDACC__)

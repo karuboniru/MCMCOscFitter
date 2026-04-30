@@ -30,6 +30,11 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
           to_center<oscillaton_calc_precision>(Ebins_),
           to_center<oscillaton_calc_precision>(costheta_bins_))},
       Ebins(std::move(Ebins_)), costheta_bins(std::move(costheta_bins_)),
+      E_rebin_factor(E_rebin_factor_), costh_rebin_factor(costh_rebin_factor_),
+      n_costh_fine(costheta_bins.size() - 1),
+      n_e_fine(Ebins.size() - 1),
+      n_costh_analysis(n_costh_fine / costh_rebin_factor_),
+      n_e_analysis(n_e_fine / E_rebin_factor_),
       flux_hist_numu(flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) *
                      scale_),
       flux_hist_numubar(flux_input.GetFlux_Hist(Ebins, costheta_bins, -14) *
@@ -45,7 +50,12 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
           Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}})),
       xsec_hist_nuebar(xsec_input.GetXsecHistMixture(
           Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}})),
-      E_rebin_factor(E_rebin_factor_), costh_rebin_factor(costh_rebin_factor_),
       log_ih_bias(std::log(IH_bias_)) {
+  Ebins_analysis.reserve(n_e_analysis + 1);
+  for (size_t i = 0; i <= n_e_analysis * E_rebin_factor; i += E_rebin_factor)
+    Ebins_analysis.push_back(Ebins[i]);
+  costheta_analysis.reserve(n_costh_analysis + 1);
+  for (size_t i = 0; i <= n_costh_analysis * costh_rebin_factor; i += costh_rebin_factor)
+    costheta_analysis.push_back(costheta_bins[i]);
   UpdatePrediction();
 }
