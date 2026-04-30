@@ -1,9 +1,9 @@
 #pragma once
 
 #include "ModelDataLLH.h"
-#include <memory>
-// #include "OscillationParameters.h"
 #include "SimpleDataHist.h"
+#include <memory>
+#include <random>
 
 
 class ParBinned;
@@ -24,8 +24,7 @@ public:
   ~ParBinnedInterface() override;
 
   void proposeStep() final;
-
-  // virtual double GetLogLikelihood() const override;
+  void proposeStep(std::mt19937 &rng);
   [[nodiscard]] double
   GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) const final;
 
@@ -55,6 +54,11 @@ public:
 
   void set_toggle(const pull_toggle &toggle);
   [[nodiscard]] const pull_toggle & get_toggle() const;
+
+  void set_proposal_distance(double d);
+  [[nodiscard]] double get_proposal_distance() const;
+
+  [[nodiscard]] double GetLogLikelihood(const pull_toggle &toggles) const;
 
 private:
   std::unique_ptr<ParBinned> pImpl;

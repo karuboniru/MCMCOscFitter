@@ -1,8 +1,8 @@
 #include "OscillationParameters.h"
 
-#include <TRandom.h>
 #include <cmath>
 #include <cstdlib>
+#include <random>
 
 [[gnu::const]]
 double log_llh_gaussian(double x1, double x2, double sigma) {
@@ -12,15 +12,22 @@ double log_llh_gaussian(double x1, double x2, double sigma) {
 [[gnu::const]]
 double log_llh_gaussian_cyd(double x1, double x2, double sigma) {
   auto diff = std::abs(x1 - x2);
-  // for delta cp we need to wrap around
   if (diff > M_PI) {
     diff = 2 * M_PI - diff;
   }
   return -0.5 * pow(diff / sigma, 2);
 }
 
+static std::mt19937 &thread_local_rng() {
+  thread_local std::mt19937 rng(std::random_device{}());
+  return rng;
+}
+
 void OscillationParameters::proposeStep() {
-  const bool flip = gRandom->Rndm() < 0.8;
+  auto &rng = thread_local_rng();
+  std::uniform_real_distribution<double> uniform_dist(0.0, 1.0);
+  std::normal_distribution<double> normal_dist(0.0, 1.0);
+  const bool flip = uniform_dist(rng) < 0.8;
   const double distance_factor = proposal_distance;
   is_NH = flip ^ is_NH;
   auto &current_DM2 = is_NH ? NH_DM2 : IH_DM2;
@@ -30,18 +37,18 @@ void OscillationParameters::proposeStep() {
   auto &current_T12 = is_NH ? NH_T12 : IH_T12;
   auto &current_DCP = is_NH ? NH_DCP : IH_DCP;
 
-  current_DCP = gRandom->Gaus(current_DCP, 0.1);
+  current_DCP += normal_dist(rng) * 0.1;
   if (current_DCP > M_PI) {
     current_DCP -= 2 * M_PI;
   } else if (current_DCP < -M_PI) {
     current_DCP += 2 * M_PI;
   }
 
-  current_DM2 = gRandom->Gaus(current_DM2, sigma_DM2 * distance_factor);
-  current_Dm2 = gRandom->Gaus(current_Dm2, sigma_dm2 * distance_factor);
-  current_T23 = gRandom->Gaus(current_T23, sigma_t23 * distance_factor);
-  current_T13 = gRandom->Gaus(current_T13, sigma_t13 * distance_factor);
-  current_T12 = gRandom->Gaus(current_T12, sigma_t12 * distance_factor);
+  current_DM2 += normal_dist(rng) * sigma_DM2 * distance_factor;
+  current_Dm2 += normal_dist(rng) * sigma_dm2 * distance_factor;
+  current_T23 += normal_dist(rng) * sigma_t23 * distance_factor;
+  current_T13 += normal_dist(rng) * sigma_t13 * distance_factor;
+  current_T12 += normal_dist(rng) * sigma_t12 * distance_factor;
 }
 
 void OscillationParameters::proposeStep(std::mt19937 &rng) {

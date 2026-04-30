@@ -1,0 +1,3 @@
+Non-Oscillated: numu=7013.751 numubar=2598.670 nue=3623.456 nuebar=1171.382
+Normal Hierarchy: numu=4821.124 numubar=1804.614 nue=3740.287 nuebar=1152.843
+Inverted Hierarchy: numu=4836.316 numubar=1792.963 nue=3687.296 nuebar=1170.733

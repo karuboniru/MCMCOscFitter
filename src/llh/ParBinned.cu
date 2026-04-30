@@ -8,8 +8,10 @@
 #include <TF3.h>
 #include <TH2.h>
 #include <cmath>
+#include <mutex>
 #include <optional>
 #include <ranges>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 
@@ -24,8 +26,8 @@
 #include "Prob3ppOscillation.h"
 #include "SimpleDataHist.h"
 #include "constants.h"
-#include "genie_xsec.h"
 #include "hondaflux2d.h"
+#include "genie_xsec.h"
 #include <format>
 #include <functional>
 
@@ -37,9 +39,9 @@
   {                                                                            \
     cudaError_t err;                                                           \
     if ((err = cudaGetLastError()) != cudaSuccess) {                           \
-      std::cout << "CUDA error: " << cudaGetErrorString(err) << " : "          \
-                << __FILE__ << ", line " << __LINE__ << std::endl;             \
-      exit(1);                                                                 \
+      throw std::runtime_error(                                                \
+          std::format("CUDA error: {} : {}, line {}",                          \
+                      cudaGetErrorString(err), __FILE__, __LINE__));           \
     }                                                                          \
   }
 
@@ -118,17 +120,56 @@ auto vec2span_1d(auto &vec) {
       vec.data().get(), vec.size());
 }
 
-// xsec and flux can be considered
-// as constant for the lifetime of the object
-// so we can use a global device input instance
+// Flux and cross-section input data, resident on GPU for the
+// lifetime of the process.  Initialised once; subsequent calls to
+// initialize() with different parameters throw.
 class global_device_input_instance {
 public:
-  static global_device_input_instance &
-  get_instance(const std::vector<double> &Ebins = {},
-               const std::vector<double> &costheta_bins = {},
-               double scale_ = 1.) {
-    static global_device_input_instance instance{Ebins, costheta_bins, scale_};
+  static global_device_input_instance &get_instance() {
+    static global_device_input_instance instance{};
     return instance;
+  }
+
+  void initialize(const std::vector<double> &Ebins,
+                  const std::vector<double> &costheta_bins, double scale_) {
+    std::call_once(init_flag_, [&] {
+      stored_Ebins_ = Ebins;
+      stored_costheta_bins_ = costheta_bins;
+      E_fine_bin_count = Ebins.size() - 1;
+      costh_fine_bin_count = costheta_bins.size() - 1;
+
+      flux_hist_numu = TH2D_to_hist(
+          flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) * scale_);
+      flux_hist_numubar = TH2D_to_hist(
+          flux_input.GetFlux_Hist(Ebins, costheta_bins, -14) * scale_);
+      flux_hist_nue = TH2D_to_hist(
+          flux_input.GetFlux_Hist(Ebins, costheta_bins, 12) * scale_);
+      flux_hist_nuebar = TH2D_to_hist(
+          flux_input.GetFlux_Hist(Ebins, costheta_bins, -12) * scale_);
+
+      xsec_hist_numu = TH1_to_hist(xsec_input.GetXsecHistMixture(
+          Ebins, 14, {{1000060120, 1.0}, {2212, H_to_C}}));
+      xsec_hist_numubar = TH1_to_hist(xsec_input.GetXsecHistMixture(
+          Ebins, -14, {{1000060120, 1.0}, {2212, H_to_C}}));
+      xsec_hist_nue = TH1_to_hist(xsec_input.GetXsecHistMixture(
+          Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}}));
+      xsec_hist_nuebar = TH1_to_hist(xsec_input.GetXsecHistMixture(
+          Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}}));
+      xsec_hist_nc_nu = TH1_to_hist(xsec_input.GetXsecHistMixture(
+          Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}}, false));
+      xsec_hist_nc_nu_bar = TH1_to_hist(xsec_input.GetXsecHistMixture(
+          Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}}, false));
+    });
+
+    if (Ebins != stored_Ebins_ || costheta_bins != stored_costheta_bins_) {
+      throw std::runtime_error(
+          "global_device_input_instance already initialized with different "
+          "parameters");
+    }
+  }
+
+  [[nodiscard]] bool is_initialized() const {
+    return E_fine_bin_count > 0;
   }
 
 private:
@@ -180,31 +221,10 @@ public:
   operator=(global_device_input_instance &&) = delete;
 
 private:
-  global_device_input_instance(const std::vector<double> &Ebins,
-                               const std::vector<double> &costheta_bins,
-                               double scale_ = 1.)
-      : flux_hist_numu(TH2D_to_hist(
-            flux_input.GetFlux_Hist(Ebins, costheta_bins, 14) * scale_)),
-        flux_hist_numubar(TH2D_to_hist(
-            flux_input.GetFlux_Hist(Ebins, costheta_bins, -14) * scale_)),
-        flux_hist_nue(TH2D_to_hist(
-            flux_input.GetFlux_Hist(Ebins, costheta_bins, 12) * scale_)),
-        flux_hist_nuebar(TH2D_to_hist(
-            flux_input.GetFlux_Hist(Ebins, costheta_bins, -12) * scale_)),
-        xsec_hist_numu(TH1_to_hist(xsec_input.GetXsecHistMixture(
-            Ebins, 14, {{1000060120, 1.0}, {2212, H_to_C}}))),
-        xsec_hist_numubar(TH1_to_hist(xsec_input.GetXsecHistMixture(
-            Ebins, -14, {{1000060120, 1.0}, {2212, H_to_C}}))),
-        xsec_hist_nue(TH1_to_hist(xsec_input.GetXsecHistMixture(
-            Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}}))),
-        xsec_hist_nuebar(TH1_to_hist(xsec_input.GetXsecHistMixture(
-            Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}}))),
-        xsec_hist_nc_nu(TH1_to_hist(xsec_input.GetXsecHistMixture(
-            Ebins, 12, {{1000060120, 1.0}, {2212, H_to_C}}, false))),
-        xsec_hist_nc_nu_bar(TH1_to_hist(xsec_input.GetXsecHistMixture(
-            Ebins, -12, {{1000060120, 1.0}, {2212, H_to_C}}, false))),
-        E_fine_bin_count(Ebins.size() - 1),
-        costh_fine_bin_count(costheta_bins.size() - 1) {}
+  global_device_input_instance() = default;
+
+  std::once_flag init_flag_;
+  std::vector<double> stored_Ebins_, stored_costheta_bins_;
 
   // index: [cosine, energy]
   thrust::device_vector<oscillaton_calc_precision> flux_hist_numu,
@@ -217,7 +237,7 @@ private:
   thrust::device_vector<oscillaton_calc_precision> xsec_hist_nc_nu,
       xsec_hist_nc_nu_bar;
 
-  size_t E_fine_bin_count, costh_fine_bin_count;
+  size_t E_fine_bin_count{}, costh_fine_bin_count{};
 };
 
 constexpr size_t warp_size = 32;
@@ -261,7 +281,8 @@ ParBinned::ParBinned(std::vector<double> Ebins_,
       Prediction_hist_nue(E_analysis_bin_count * costh_analysis_bin_count),
       Prediction_hist_nuebar(E_analysis_bin_count * costh_analysis_bin_count),
       log_ih_bias(std::log(IH_bias_)) {
-  global_device_input_instance::get_instance(Ebins, costheta_bins, scale_);
+  global_device_input_instance::get_instance().initialize(Ebins, costheta_bins,
+                                                          scale_);
   UpdatePrediction();
 }
 
@@ -302,10 +323,17 @@ void ParBinned::UpdatePrediction() {
                    vec2span_analysis(Prediction_hist_nue),
                    vec2span_analysis(Prediction_hist_nuebar), E_rebin_factor,
                    costh_rebin_factor);
+  cudaDeviceSynchronize();
+  CUERR
 }
 
 void ParBinned::proposeStep() {
   OscillationParameters::proposeStep();
+  UpdatePrediction();
+}
+
+void ParBinned::proposeStep(std::mt19937 &rng) {
+  OscillationParameters::proposeStep(rng);
   UpdatePrediction();
 }
 
@@ -389,15 +417,14 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
       vec2span_analysis(no_osc_hist_numubar),
       vec2span_analysis(no_osc_hist_nue), vec2span_analysis(no_osc_hist_nuebar),
       vec2span_analysis(nc), E_rebin_factor, costh_rebin_factor);
-  // CUERR
+  cudaDeviceSynchronize();
+  CUERR
 
   data.hist_numu = vec2hist_analysis(no_osc_hist_numu);
   data.hist_numubar = vec2hist_analysis(no_osc_hist_numubar);
   data.hist_nue = vec2hist_analysis(no_osc_hist_nue);
   data.hist_nuebar = vec2hist_analysis(no_osc_hist_nuebar);
   data.hist_nc = std::make_optional<TH2D>(vec2hist_analysis(nc));
-  // cudaDeviceSynchronize();
-  // CUERR
   return data;
 }
 
@@ -410,27 +437,8 @@ double ParBinned::GetLogLikelihood() const {
 }
 
 void ParBinned::SaveAs(const char *filename) const {
-  // auto file = TFile::Open(filename, "RECREATE");
-  // file->cd();
-
-  // file->Add(flux_hist_numu.Clone("flux_hist_numu"));
-  // file->Add(flux_hist_numubar.Clone("flux_hist_numubar"));
-  // file->Add(flux_hist_nue.Clone("flux_hist_nue"));
-  // file->Add(flux_hist_nuebar.Clone("flux_hist_nuebar"));
-
-  // file->Add(xsec_hist_numu.Clone("xsec_hist_numu"));
-  // file->Add(xsec_hist_numubar.Clone("xsec_hist_numubar"));
-  // file->Add(xsec_hist_nue.Clone("xsec_hist_nue"));
-  // file->Add(xsec_hist_nuebar.Clone("xsec_hist_nuebar"));
-
-  // file->Add(Prediction_hist_numu.Clone("Prediction_hist_numu"));
-  // file->Add(Prediction_hist_numubar.Clone("Prediction_hist_numubar"));
-  // file->Add(Prediction_hist_nue.Clone("Prediction_hist_nue"));
-  // file->Add(Prediction_hist_nuebar.Clone("Prediction_hist_nuebar"));
-
-  // file->Write();
-  // file->Close();
-  // delete file;
+  // Not implemented for GPU path yet.
+  (void)filename;
 }
 
 void ParBinned::flip_hierarchy() {

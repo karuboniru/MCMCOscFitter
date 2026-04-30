@@ -25,6 +25,7 @@ public:
   ~ParBinned() override = default;
 
   void proposeStep() final;
+  void proposeStep(std::mt19937 &rng);
 
   // virtual double GetLogLikelihood() const override;
   [[nodiscard]] double
@@ -33,15 +34,13 @@ public:
   [[nodiscard]] SimpleDataHist GenerateData() const;
   [[nodiscard]] SimpleDataHist GenerateData_NoOsc() const;
 
-  void Print() const {
-    // flux_hist_numu.Print();
-    // xsec_hist_numu.Print();
-  }
+  void Print() const {}
 
   void flip_hierarchy();
 
   void Save_prob_hist(const std::string &name);
 
+  using OscillationParameters::GetLogLikelihood;
   [[nodiscard]] double GetLogLikelihood() const final;
 
   void UpdatePrediction();

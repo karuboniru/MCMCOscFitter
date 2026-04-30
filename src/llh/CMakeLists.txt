@@ -72,7 +72,7 @@ target_link_libraries(
 )
 
 if (ENABLE_CUDA)
-  add_library(
+    add_library(
     ParBinned
     STATIC
     ParBinned.cu

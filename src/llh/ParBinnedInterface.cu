@@ -29,9 +29,16 @@ ParBinnedInterface::operator=(const ParBinnedInterface &other) {
 }
 
 void ParBinnedInterface::proposeStep() { pImpl->proposeStep(); }
+void ParBinnedInterface::proposeStep(std::mt19937 &rng) {
+  pImpl->proposeStep(rng);
+}
 
 [[nodiscard]] double ParBinnedInterface::GetLogLikelihood() const {
   return pImpl->GetLogLikelihood();
+}
+[[nodiscard]] double
+ParBinnedInterface::GetLogLikelihood(const pull_toggle &toggles) const {
+  return pImpl->GetLogLikelihood(toggles);
 }
 
 [[nodiscard]] double
@@ -75,4 +82,11 @@ void ParBinnedInterface::set_toggle(const pull_toggle &t) {
 }
 const pull_toggle &ParBinnedInterface::get_toggle() const {
   return pImpl->get_toggle();
+}
+
+void ParBinnedInterface::set_proposal_distance(double d) {
+  pImpl->set_proposal_distance(d);
+}
+double ParBinnedInterface::get_proposal_distance() const {
+  return pImpl->get_proposal_distance();
 }
