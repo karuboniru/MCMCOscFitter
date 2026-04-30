@@ -22,6 +22,6 @@ target_include_directories(
 
 set_target_properties(
   walker PROPERTIES
-  PUBLIC_HEADER "walker.h"
+  PUBLIC_HEADER "walker.h;MCMCWorker.h"
   EXPORT_NAME walker
 )

@@ -1,3 +1,4 @@
+#include "MCMCWorker.h"
 #include "ParBinnedInterface.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
@@ -25,11 +26,10 @@ int main(int argc, char **argv) {
                            FitConfig::ih_bias};
   SimpleDataHist data = bint.GenerateData();
 
+  walker::MCMCWorker<ParBinnedInterface> chain{bint, data};
+
   using vals =
       std::tuple<double, double, double, double, double, double, size_t>;
-
-  double cur_llh = bint.GetLogLikelihood()
-                 + bint.GetLogLikelihoodAgainstData(data);
 
   auto rawdf = ROOT::RDataFrame{1250000};
   ROOT::RDF::Experimental::AddProgressBar(rawdf);
@@ -38,27 +38,16 @@ int main(int argc, char **argv) {
   auto df =
       rawdf
           .Define("tuple",
-                  [&bint, &data, &count, &cur_llh]() -> vals {
+                  [&chain, &data, &count]() -> vals {
                     for (size_t i = 0; i < 5; i++) {
-                      auto proposed = bint;
-                      proposed.proposeStep();
-
-                      double nxt_llh =
-                          proposed.GetLogLikelihood() +
-                          proposed.GetLogLikelihoodAgainstData(data);
-                      double log_ratio = nxt_llh - cur_llh;
-
-                      if (log_ratio > 0 ||
-                          gRandom->Rndm() < std::exp(log_ratio)) {
-                        bint = std::move(proposed);
-                        cur_llh = nxt_llh;
-                      }
+                      chain.step(data);
                     }
                     count++;
                     return std::make_tuple(
-                        bint.GetDM32sq(), bint.GetDM21sq(),
-                        bint.GetT12(), bint.GetT13(), bint.GetT23(),
-                        bint.GetDeltaCP(), count);
+                        chain.state().GetDM32sq(), chain.state().GetDM21sq(),
+                        chain.state().GetT12(),    chain.state().GetT13(),
+                        chain.state().GetT23(),    chain.state().GetDeltaCP(),
+                        count);
                   })
           .Define("DM2", [](const vals &t) { return std::get<0>(t); },
                   {"tuple"})

@@ -1,4 +1,5 @@
 #include "BinnedInteraction.h"
+#include "MCMCWorker.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "constants.h"
@@ -35,15 +36,12 @@ int main(int argc, char **argv) {
       std::tuple<double, double, double, double, double, double, size_t>;
   const auto nth = ROOT::GetThreadPoolSize() == 0 ? 1 : ROOT::GetThreadPoolSize();
 
-  std::vector<BinnedInteraction> model_pool{};
-  std::vector<double>            llh_cache{};
-  model_pool.reserve(nth);
-  llh_cache.reserve(nth);
+  using MCMCChain = walker::MCMCWorker<BinnedInteraction>;
+  std::vector<MCMCChain> chain_pool{};
+  chain_pool.reserve(nth);
   for (size_t i = 0; i < nth; i++) {
-    model_pool.emplace_back(bint);
-    model_pool.back().proposeStep();
-    llh_cache.push_back(model_pool.back().GetLogLikelihood()
-                       + model_pool.back().GetLogLikelihoodAgainstData(cdata));
+    chain_pool.emplace_back(bint, cdata);
+    chain_pool.back().step(cdata);  // warm-up step to diversify starting states
   }
 
   auto rawdf = ROOT::RDataFrame{135000};
@@ -52,28 +50,17 @@ int main(int argc, char **argv) {
   auto df =
       rawdf
           .Define("tuple",
-                  [&model_pool, &llh_cache, &cdata, &count](unsigned int id) -> vals {
-                    auto &current = model_pool[id];
-                    double &cur_llh = llh_cache[id];
+                  [&chain_pool, &cdata, &count](unsigned int id) -> vals {
+                    auto &chain = chain_pool[id];
                     TimeCount timer{"3 step"};
                     for (size_t i = 0; i < 3; i++) {
-                      auto proposed = current;
-                      proposed.proposeStep();
-
-                      double nxt_llh = proposed.GetLogLikelihood()
-                                     + proposed.GetLogLikelihoodAgainstData(cdata);
-
-                      if (nxt_llh > cur_llh ||
-                          gRandom->Rndm() < std::exp(nxt_llh - cur_llh)) {
-                        current = std::move(proposed);
-                        cur_llh = nxt_llh;
-                      }
+                      chain.step(cdata);
                     }
                     count++;
                     return std::make_tuple(
-                        current.GetDM32sq(), current.GetDM21sq(),
-                        current.GetT12(),    current.GetT13(),
-                        current.GetT23(),    current.GetDeltaCP(),
+                        chain.state().GetDM32sq(), chain.state().GetDM21sq(),
+                        chain.state().GetT12(),    chain.state().GetT13(),
+                        chain.state().GetT23(),    chain.state().GetDeltaCP(),
                         count.load());
                   },
                   {"rdfslot_"})

@@ -1,9 +1,9 @@
 #include "BargerPropagator.h"
+#include "MCMCWorker.h"
 #include "ModelDataLLH.h"
 #include "SimpleInteraction.h"
 #include "genie_xsec.h"
 #include "hondaflux.h"
-#include "walker.h"
 
 #include <ROOT/RDF/InterfaceUtils.hxx>
 #include <ROOT/RDF/RInterface.hxx>
@@ -47,22 +47,18 @@ int main() {
         {"E", "costheta", "phi", "flavor"});
   }
   std::cerr << "dataset size: " << dataset.size() << std::endl;
-  ModelAndData comp(model, dataset);
+  using Comp = ModelAndData<SimpleInteraction, SimpleDataSet>;
+  Comp comp(model, dataset);
+  walker::MCMCWorker<Comp> chain{comp};
   
 
   ROOT::RDataFrame{10000}
       .Define("tuple",
-              [&]() {
+              [&chain]() {
                 TimeCount time_count("iteration");
-                auto comp_new = comp;
-                comp_new.proposeStep();
-                if (MCMCAcceptState(comp, comp_new)) {
-                  comp = comp_new;
-                }
-                // std::cerr << "DM2: " << comp.GetModel().GetDM32sq()
-                //           << " T23: " << comp.GetModel().GetT23() << std::endl;
-                return std::make_tuple(comp.GetModel().GetDM32sq(),
-                                       comp.GetModel().GetT23());
+                chain.step();
+                return std::make_tuple(chain.state().GetModel().GetDM32sq(),
+                                       chain.state().GetModel().GetT23());
               },
               {})
       .Define("DM2",
