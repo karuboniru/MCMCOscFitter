@@ -99,6 +99,20 @@ void ParProb3ppOscillation::re_calculate(const OscillationParameters &p) {
   }
 }
 
+// ── Raw probability access (host memory, valid after re_calculate) ──────
+const oscillaton_calc_precision *ParProb3ppOscillation::raw_prob_neutrino() const {
+  return calculator_neutrino_->rawResults().data();
+}
+const oscillaton_calc_precision *ParProb3ppOscillation::raw_prob_antineutrino() const {
+  return calculator_antineutrino_->rawResults().data();
+}
+size_t ParProb3ppOscillation::raw_n_cosines() const {
+  return static_cast<size_t>(calculator_neutrino_->nCosines());
+}
+size_t ParProb3ppOscillation::raw_n_energies() const {
+  return static_cast<size_t>(calculator_neutrino_->nEnergies());
+}
+
 std::array<std::array<double, 3>, 3>
 ParProb3ppOscillation::GetProb(int flavor, double E, double costheta,
                                const OscillationParameters &p) const {

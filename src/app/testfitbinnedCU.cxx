@@ -28,6 +28,9 @@ int main(int argc, char **argv) {
   using vals =
       std::tuple<double, double, double, double, double, double, size_t>;
 
+  double cur_llh = bint.GetLogLikelihood()
+                 + bint.GetLogLikelihoodAgainstData(data);
+
   auto rawdf = ROOT::RDataFrame{1250000};
   ROOT::RDF::Experimental::AddProgressBar(rawdf);
   size_t count = 0;
@@ -35,14 +38,11 @@ int main(int argc, char **argv) {
   auto df =
       rawdf
           .Define("tuple",
-                  [&bint, &data, &count]() -> vals {
+                  [&bint, &data, &count, &cur_llh]() -> vals {
                     for (size_t i = 0; i < 5; i++) {
                       auto proposed = bint;
                       proposed.proposeStep();
 
-                      double cur_llh =
-                          bint.GetLogLikelihood() +
-                          bint.GetLogLikelihoodAgainstData(data);
                       double nxt_llh =
                           proposed.GetLogLikelihood() +
                           proposed.GetLogLikelihoodAgainstData(data);
@@ -50,7 +50,8 @@ int main(int argc, char **argv) {
 
                       if (log_ratio > 0 ||
                           gRandom->Rndm() < std::exp(log_ratio)) {
-                        bint = proposed;
+                        bint = std::move(proposed);
+                        cur_llh = nxt_llh;
                       }
                     }
                     count++;

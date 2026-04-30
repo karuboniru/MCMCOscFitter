@@ -1,11 +1,9 @@
 #include "BinnedInteraction.h"
-#include "ModelDataLLH.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
 #include "constants.h"
 #include "fit_config.h"
 #include "timer.hpp"
-#include "walker.h"
 
 #include <ROOT/RDF/InterfaceUtils.hxx>
 #include <ROOT/RDF/RInterface.hxx>
@@ -33,38 +31,50 @@ int main(int argc, char **argv) {
   auto cdata = bint.GenerateData();
   //   cdata.Round();
 
-  using combined_type = ModelAndData<BinnedInteraction, SimpleDataHist>;
   using vals =
       std::tuple<double, double, double, double, double, double, size_t>;
-  std::vector<combined_type> state_pool{};
-  auto nth = ROOT::GetThreadPoolSize() == 0 ? 1 : ROOT::GetThreadPoolSize();
+  const auto nth = ROOT::GetThreadPoolSize() == 0 ? 1 : ROOT::GetThreadPoolSize();
+
+  std::vector<BinnedInteraction> model_pool{};
+  std::vector<double>            llh_cache{};
+  model_pool.reserve(nth);
+  llh_cache.reserve(nth);
   for (size_t i = 0; i < nth; i++) {
-    state_pool.emplace_back(bint, cdata).proposeStep();
+    model_pool.emplace_back(bint);
+    model_pool.back().proposeStep();
+    llh_cache.push_back(model_pool.back().GetLogLikelihood()
+                       + model_pool.back().GetLogLikelihoodAgainstData(cdata));
   }
+
   auto rawdf = ROOT::RDataFrame{135000};
   ROOT::RDF::Experimental::AddProgressBar(rawdf);
   std::atomic<size_t> count{};
   auto df =
       rawdf
           .Define("tuple",
-                  [&state_pool, &count](unsigned int id) -> vals {
-                    auto &current_state = state_pool[id];
+                  [&model_pool, &llh_cache, &cdata, &count](unsigned int id) -> vals {
+                    auto &current = model_pool[id];
+                    double &cur_llh = llh_cache[id];
                     TimeCount timer{"3 step"};
                     for (size_t i = 0; i < 3; i++) {
-                      auto new_state = current_state;
-                      new_state.proposeStep();
-                      if (MCMCAcceptState(current_state, new_state)) {
-                        current_state = new_state;
+                      auto proposed = current;
+                      proposed.proposeStep();
+
+                      double nxt_llh = proposed.GetLogLikelihood()
+                                     + proposed.GetLogLikelihoodAgainstData(cdata);
+
+                      if (nxt_llh > cur_llh ||
+                          gRandom->Rndm() < std::exp(nxt_llh - cur_llh)) {
+                        current = std::move(proposed);
+                        cur_llh = nxt_llh;
                       }
                     }
                     count++;
                     return std::make_tuple(
-                        current_state.GetModel().GetDM32sq(),
-                        current_state.GetModel().GetDM21sq(),
-                        current_state.GetModel().GetT12(),
-                        current_state.GetModel().GetT13(),
-                        current_state.GetModel().GetT23(),
-                        current_state.GetModel().GetDeltaCP(), count.load());
+                        current.GetDM32sq(), current.GetDM21sq(),
+                        current.GetT12(),    current.GetT13(),
+                        current.GetT23(),    current.GetDeltaCP(),
+                        count.load());
                   },
                   {"rdfslot_"})
           .Define("DM2", [](const vals &t) { return std::get<0>(t); },

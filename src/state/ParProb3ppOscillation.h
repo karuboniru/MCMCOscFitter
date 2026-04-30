@@ -40,6 +40,13 @@ public:
 
   void re_calculate(const OscillationParameters &p) override;
 
+  // ── Raw probability access (host pointer after re_calculate) ──────────
+  [[nodiscard]] bool                            has_raw_results() const override { return true; }
+  [[nodiscard]] const oscillaton_calc_precision *raw_prob_neutrino()    const override;
+  [[nodiscard]] const oscillaton_calc_precision *raw_prob_antineutrino() const override;
+  [[nodiscard]] size_t                          raw_n_cosines()         const override;
+  [[nodiscard]] size_t                          raw_n_energies()        const override;
+
 #if defined(__CUDACC__)
   // Result span uses oscillaton_calc_precision, matching the full pipeline precision.
   using oscillaton_span_t = cuda::std::mdspan<

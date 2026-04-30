@@ -54,8 +54,7 @@ BinnedInteraction::BinnedInteraction(std::vector<double> Ebins_,
 
 void BinnedInteraction::UpdatePrediction() {
 
-  // POD probability histograms (no TH2D intermediates).
-  auto podP = propagator->GetProb_Hists_POD(imm_->Ebins, imm_->costheta_bins, *this);
+  propagator->re_calculate(*this);
 
   // Size prediction arrays to analysis binning.
   pred_pod_numu    = PodHist2D<double>(imm_->n_costh_analysis, imm_->n_e_analysis);
@@ -63,38 +62,96 @@ void BinnedInteraction::UpdatePrediction() {
   pred_pod_nue     = PodHist2D<double>(imm_->n_costh_analysis, imm_->n_e_analysis);
   pred_pod_nuebar  = PodHist2D<double>(imm_->n_costh_analysis, imm_->n_e_analysis);
 
-  // Compute oscillated prediction: loop over fine bins, rebin to analysis.
-  // Layout: podP[nu][from][to](costh, E)  — same as TH2D version.
   const auto nCA = imm_->n_costh_analysis, nEA = imm_->n_e_analysis;
   const auto cRF = imm_->costh_rebin_factor, eRF = imm_->E_rebin_factor;
+
+  // Raw-access fast path: read oscillation probabilities directly from the
+  // calculator's result buffer (pinned host memory), eliminating the 8 ×
+  // PodHist2D<double> temporary allocation (~6.4 MB at fine binning).
+  if (propagator->has_raw_results()) {
+    const auto *raw_nu  = propagator->raw_prob_neutrino();
+    const auto *raw_anu = propagator->raw_prob_antineutrino();
+    const size_t nC = propagator->raw_n_cosines();
+    const size_t nE = propagator->raw_n_energies();
+
+    // CUDAProb3 layout: [ProbType * nC * nE + cos * nE + e]
+    // ProbType: e_e=0, e_m=1, m_e=3, m_m=4
+    const size_t off_ee = 0 * nC * nE, off_em = 1 * nC * nE;
+    const size_t off_me = 3 * nC * nE, off_mm = 4 * nC * nE;
+
 #pragma omp parallel for collapse(2)
-  for (size_t cA = 0; cA < nCA; ++cA) {
-    for (size_t eA = 0; eA < nEA; ++eA) {
-      double sum_numu = 0, sum_numubar = 0, sum_nue = 0, sum_nuebar = 0;
+    for (size_t cA = 0; cA < nCA; ++cA) {
+      for (size_t eA = 0; eA < nEA; ++eA) {
+        double sum_numu = 0, sum_numubar = 0, sum_nue = 0, sum_nuebar = 0;
 
-      const size_t c_start = cA * cRF;
-      const size_t c_end   = c_start + cRF;
-      const size_t e_start = eA * eRF;
-      const size_t e_end   = e_start + eRF;
+        const size_t c_start = cA * cRF;
+        const size_t c_end   = c_start + cRF;
+        const size_t e_start = eA * eRF;
+        const size_t e_end   = e_start + eRF;
 
-      for (size_t c = c_start; c < c_end; ++c) {
-        for (size_t e = e_start; e < e_end; ++e) {
-          const auto fn = imm_->flux_nue(c, e);
-          const auto fm = imm_->flux_numu(c, e);
-          const auto fnb = imm_->flux_nuebar(c, e);
-          const auto fmb = imm_->flux_numubar(c, e);
+        for (size_t c = c_start; c < c_end; ++c) {
+          for (size_t e = e_start; e < e_end; ++e) {
+            const auto fn = imm_->flux_nue(c, e);
+            const auto fm = imm_->flux_numu(c, e);
+            const auto fnb = imm_->flux_nuebar(c, e);
+            const auto fmb = imm_->flux_numubar(c, e);
 
-          sum_numu    += (podP[0][0][1](c, e) * fn + podP[0][1][1](c, e) * fm) * imm_->xsec_numu[e];
-          sum_nue     += (podP[0][0][0](c, e) * fn + podP[0][1][0](c, e) * fm) * imm_->xsec_nue[e];
-          sum_numubar += (podP[1][0][1](c, e) * fnb + podP[1][1][1](c, e) * fmb) * imm_->xsec_numubar[e];
-          sum_nuebar  += (podP[1][0][0](c, e) * fnb + podP[1][1][0](c, e) * fmb) * imm_->xsec_nuebar[e];
+            const size_t idx = c * nE + e;
+
+            // Neutrino: P(nue→numu)=e_m, P(numu→numu)=m_m, P(nue→nue)=e_e, P(numu→nue)=m_e
+            const auto pem = raw_nu[off_em + idx], pmm = raw_nu[off_mm + idx];
+            const auto pee = raw_nu[off_ee + idx], pme = raw_nu[off_me + idx];
+
+            // Antineutrino
+            const auto pa_em = raw_anu[off_em + idx], pa_mm = raw_anu[off_mm + idx];
+            const auto pa_ee = raw_anu[off_ee + idx], pa_me = raw_anu[off_me + idx];
+
+            sum_numu    += (pem * fn   + pmm * fm)   * imm_->xsec_numu[e];
+            sum_nue     += (pee * fn   + pme * fm)   * imm_->xsec_nue[e];
+            sum_numubar += (pa_em * fnb + pa_mm * fmb) * imm_->xsec_numubar[e];
+            sum_nuebar  += (pa_ee * fnb + pa_me * fmb) * imm_->xsec_nuebar[e];
+          }
         }
-      }
 
-      pred_pod_numu(cA, eA)    = sum_numu;
-      pred_pod_numubar(cA, eA) = sum_numubar;
-      pred_pod_nue(cA, eA)     = sum_nue;
-      pred_pod_nuebar(cA, eA)  = sum_nuebar;
+        pred_pod_numu(cA, eA)    = sum_numu;
+        pred_pod_numubar(cA, eA) = sum_numubar;
+        pred_pod_nue(cA, eA)     = sum_nue;
+        pred_pod_nuebar(cA, eA)  = sum_nuebar;
+      }
+    }
+  } else {
+    // Fallback for propagators that don't provide raw results (e.g. test mocks).
+    auto podP = propagator->GetProb_Hists_POD(imm_->Ebins, imm_->costheta_bins, *this);
+
+#pragma omp parallel for collapse(2)
+    for (size_t cA = 0; cA < nCA; ++cA) {
+      for (size_t eA = 0; eA < nEA; ++eA) {
+        double sum_numu = 0, sum_numubar = 0, sum_nue = 0, sum_nuebar = 0;
+
+        const size_t c_start = cA * cRF;
+        const size_t c_end   = c_start + cRF;
+        const size_t e_start = eA * eRF;
+        const size_t e_end   = e_start + eRF;
+
+        for (size_t c = c_start; c < c_end; ++c) {
+          for (size_t e = e_start; e < e_end; ++e) {
+            const auto fn = imm_->flux_nue(c, e);
+            const auto fm = imm_->flux_numu(c, e);
+            const auto fnb = imm_->flux_nuebar(c, e);
+            const auto fmb = imm_->flux_numubar(c, e);
+
+            sum_numu    += (podP[0][0][1](c, e) * fn + podP[0][1][1](c, e) * fm) * imm_->xsec_numu[e];
+            sum_nue     += (podP[0][0][0](c, e) * fn + podP[0][1][0](c, e) * fm) * imm_->xsec_nue[e];
+            sum_numubar += (podP[1][0][1](c, e) * fnb + podP[1][1][1](c, e) * fmb) * imm_->xsec_numubar[e];
+            sum_nuebar  += (podP[1][0][0](c, e) * fnb + podP[1][1][0](c, e) * fmb) * imm_->xsec_nuebar[e];
+          }
+        }
+
+        pred_pod_numu(cA, eA)    = sum_numu;
+        pred_pod_numubar(cA, eA) = sum_numubar;
+        pred_pod_nue(cA, eA)     = sum_nue;
+        pred_pod_nuebar(cA, eA)  = sum_nuebar;
+      }
     }
   }
 }
