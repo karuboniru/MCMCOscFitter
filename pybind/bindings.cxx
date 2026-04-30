@@ -69,16 +69,6 @@ static TH2D array_to_th2d(
   return h;
 }
 
-static py::array_t<double> th2d_to_array(const TH2D &h) {
-  const int nx = h.GetNbinsX(), ny = h.GetNbinsY();
-  auto result = py::array_t<double>({nx, ny});
-  auto buf = result.mutable_unchecked<2>();
-  for (int x = 0; x < nx; ++x)
-    for (int y = 0; y < ny; ++y)
-      buf(x, y) = h.GetBinContent(x + 1, y + 1);
-  return result;
-}
-
 static TH1D array_to_th1d(
     py::array_t<double, py::array::c_style | py::array::forcecast> arr,
     const std::vector<double> &Ebins, const char *name = "h1") {
@@ -96,71 +86,63 @@ static TH1D array_to_th1d(
 class PyPropagator : public IHistogramPropagator {
 public:
   void re_calculate(const OscillationParameters &) override {
-    // Default no-op: Python custom propagators compute on demand in get_prob_hists.
     py::gil_scoped_acquire gil;
     py::function fn = py::get_override(this, "re_calculate");
     if (fn) fn();
   }
 
-  // Python signature:
-  //   get_prob_hists(Ebins, costhbins, params) -> np.ndarray shape (2,2,2,nE,nCosth)
-  //   axis 0: nu/antinu   axis 1: from (nue=0, numu=1)   axis 2: to
-  std::array<std::array<std::array<TH2D, 2>, 2>, 2>
-  GetProb_Hists(const std::vector<double> &Ebins,
-                const std::vector<double> &costhbins,
-                const OscillationParameters &p) override {
+  // Python: get_prob_hists(Ebins, costhbins, params) -> np.ndarray (2,2,2,nE,nCosth)
+  std::array<std::array<std::array<PodHist2D<double>, 2>, 2>, 2>
+  GetProb_Hists_POD(const std::vector<double> &Ebins,
+                    const std::vector<double> &costhbins,
+                    const OscillationParameters &p) override {
     py::gil_scoped_acquire gil;
     py::function fn = py::get_override(this, "get_prob_hists");
     if (!fn)
-      throw std::runtime_error(
-          "PyPropagator: get_prob_hists() not implemented");
+      throw std::runtime_error("PyPropagator: get_prob_hists() not implemented");
 
     auto raw = fn(Ebins, costhbins, py::cast(p, py::return_value_policy::reference))
-                   .cast<py::array_t<double,
-                                     py::array::c_style | py::array::forcecast>>();
-    auto buf = raw.unchecked<5>(); // (2, 2, 2, nE, nCosth)
-    const int nE = static_cast<int>(Ebins.size()) - 1;
-    const int nC = static_cast<int>(costhbins.size()) - 1;
-    std::array<std::array<std::array<TH2D, 2>, 2>, 2> ret;
+                   .cast<py::array_t<double, py::array::c_style | py::array::forcecast>>();
+    auto buf = raw.unchecked<5>();
+    const size_t nE = Ebins.size() - 1;
+    const size_t nC = costhbins.size() - 1;
+    std::array<std::array<std::array<PodHist2D<double>, 2>, 2>, 2> ret;
     for (int nu = 0; nu < 2; ++nu)
       for (int f = 0; f < 2; ++f)
         for (int t = 0; t < 2; ++t) {
-          TH2D &h = ret[nu][f][t];
-          h = TH2D("", "", nE, Ebins.data(), nC, costhbins.data());
-          for (int e = 0; e < nE; ++e)
-            for (int c = 0; c < nC; ++c)
-              h.SetBinContent(e + 1, c + 1, buf(nu, f, t, e, c));
+          auto &pod = ret[nu][f][t];
+          pod = PodHist2D<double>(nC, nE);
+          for (size_t c = 0; c < nC; ++c)
+            for (size_t e = 0; e < nE; ++e)
+              pod(c, e) = buf(nu, f, t, static_cast<ssize_t>(e), static_cast<ssize_t>(c));
         }
     return ret;
   }
 
-  // Python signature:
-  //   get_prob_hists_3f(Ebins, costhbins, params) -> np.ndarray shape (2,3,3,nE,nCosth)
-  std::array<std::array<std::array<TH2D, 3>, 3>, 2>
-  GetProb_Hists_3F(const std::vector<double> &Ebins,
-                   const std::vector<double> &costhbins,
-                   const OscillationParameters &p) override {
+  // Python: get_prob_hists_3f(Ebins, costhbins, params) -> np.ndarray (2,3,3,nE,nCosth)
+  std::array<std::array<std::array<PodHist2D<double>, 3>, 3>, 2>
+  GetProb_Hists_3F_POD(const std::vector<double> &Ebins,
+                       const std::vector<double> &costhbins,
+                       const OscillationParameters &p) override {
     py::gil_scoped_acquire gil;
     py::function fn = py::get_override(this, "get_prob_hists_3f");
     if (!fn)
-      throw std::runtime_error(
-          "PyPropagator: get_prob_hists_3f() not implemented");
+      throw std::runtime_error("PyPropagator: get_prob_hists_3f() not implemented");
 
     auto raw = fn(Ebins, costhbins, py::cast(p, py::return_value_policy::reference))
-                   .cast<py::array_t<double,
-                                     py::array::c_style | py::array::forcecast>>();
-    auto buf = raw.unchecked<5>(); // (2, 3, 3, nE, nCosth)
-    const int nE = static_cast<int>(Ebins.size()) - 1;
-    const int nC = static_cast<int>(costhbins.size()) - 1;
-    std::array<std::array<std::array<TH2D, 3>, 3>, 2> ret;
+                   .cast<py::array_t<double, py::array::c_style | py::array::forcecast>>();
+    auto buf = raw.unchecked<5>();
+    const size_t nE = Ebins.size() - 1;
+    const size_t nC = costhbins.size() - 1;
+    std::array<std::array<std::array<PodHist2D<double>, 3>, 3>, 2> ret;
     for (int nu = 0; nu < 2; ++nu)
       for (int f = 0; f < 3; ++f)
         for (int t = 0; t < 3; ++t) {
-          TH2D &h = ret[nu][f][t];
-          h = TH2D("", "", nE, Ebins.data(), nC, costhbins.data());
-          for (int e = 0; e < nE; ++e)
-            for (int c = 0; c < nC; ++c)
-              h.SetBinContent(e + 1, c + 1, buf(nu, f, t, e, c));
+          auto &pod = ret[nu][f][t];
+          pod = PodHist2D<double>(nC, nE);
+          for (size_t c = 0; c < nC; ++c)
+            for (size_t e = 0; e < nE; ++e)
+              pod(c, e) = buf(nu, f, t, static_cast<ssize_t>(e), static_cast<ssize_t>(c));
         }
     return ret;
   }
@@ -493,53 +475,43 @@ get_prob_hists_3f(Ebins, costhbins, params) -> np.ndarray shape (2, 3, 3, nE, nC
       .def(py::init<>())
       .def_property(
           "numu",
-          [](const SimpleDataHist &d) { return th2d_to_array(d.hist_numu); },
+          [](const SimpleDataHist &d) { return pod_hist2d_to_array(d.data_numu); },
           [](SimpleDataHist &d,
              py::array_t<double, py::array::c_style | py::array::forcecast> a) {
-            const int nx = d.hist_numu.GetNbinsX();
-            const int ny = d.hist_numu.GetNbinsY();
             auto buf = a.unchecked<2>();
-            for (int x = 0; x < nx; ++x)
-              for (int y = 0; y < ny; ++y)
-                d.hist_numu.SetBinContent(x + 1, y + 1, buf(x, y));
+            for (size_t c = 0; c < d.data_numu.n_costh; ++c)
+              for (size_t e = 0; e < d.data_numu.n_e; ++e)
+                d.data_numu(c, e) = buf(static_cast<ssize_t>(e), static_cast<ssize_t>(c));
           })
       .def_property(
           "numubar",
-          [](const SimpleDataHist &d) {
-            return th2d_to_array(d.hist_numubar);
-          },
+          [](const SimpleDataHist &d) { return pod_hist2d_to_array(d.data_numubar); },
           [](SimpleDataHist &d,
              py::array_t<double, py::array::c_style | py::array::forcecast> a) {
-            const int nx = d.hist_numubar.GetNbinsX();
-            const int ny = d.hist_numubar.GetNbinsY();
             auto buf = a.unchecked<2>();
-            for (int x = 0; x < nx; ++x)
-              for (int y = 0; y < ny; ++y)
-                d.hist_numubar.SetBinContent(x + 1, y + 1, buf(x, y));
+            for (size_t c = 0; c < d.data_numubar.n_costh; ++c)
+              for (size_t e = 0; e < d.data_numubar.n_e; ++e)
+                d.data_numubar(c, e) = buf(static_cast<ssize_t>(e), static_cast<ssize_t>(c));
           })
       .def_property(
           "nue",
-          [](const SimpleDataHist &d) { return th2d_to_array(d.hist_nue); },
+          [](const SimpleDataHist &d) { return pod_hist2d_to_array(d.data_nue); },
           [](SimpleDataHist &d,
              py::array_t<double, py::array::c_style | py::array::forcecast> a) {
-            const int nx = d.hist_nue.GetNbinsX();
-            const int ny = d.hist_nue.GetNbinsY();
             auto buf = a.unchecked<2>();
-            for (int x = 0; x < nx; ++x)
-              for (int y = 0; y < ny; ++y)
-                d.hist_nue.SetBinContent(x + 1, y + 1, buf(x, y));
+            for (size_t c = 0; c < d.data_nue.n_costh; ++c)
+              for (size_t e = 0; e < d.data_nue.n_e; ++e)
+                d.data_nue(c, e) = buf(static_cast<ssize_t>(e), static_cast<ssize_t>(c));
           })
       .def_property(
           "nuebar",
-          [](const SimpleDataHist &d) { return th2d_to_array(d.hist_nuebar); },
+          [](const SimpleDataHist &d) { return pod_hist2d_to_array(d.data_nuebar); },
           [](SimpleDataHist &d,
              py::array_t<double, py::array::c_style | py::array::forcecast> a) {
-            const int nx = d.hist_nuebar.GetNbinsX();
-            const int ny = d.hist_nuebar.GetNbinsY();
             auto buf = a.unchecked<2>();
-            for (int x = 0; x < nx; ++x)
-              for (int y = 0; y < ny; ++y)
-                d.hist_nuebar.SetBinContent(x + 1, y + 1, buf(x, y));
+            for (size_t c = 0; c < d.data_nuebar.n_costh; ++c)
+              for (size_t e = 0; e < d.data_nuebar.n_e; ++e)
+                d.data_nuebar(c, e) = buf(static_cast<ssize_t>(e), static_cast<ssize_t>(c));
           })
       .def("save", [](const SimpleDataHist &d, const std::string &f) {
         d.SaveAs(f.c_str());

@@ -354,21 +354,22 @@ double ParBinned::GetLogLikelihoodAgainstData(const SimpleDataHist &dataset) con
   auto pred_nue     = dev_pred_to_pod(Prediction_hist_nue,     costh_analysis_bin_count, E_analysis_bin_count);
   auto pred_nuebar  = dev_pred_to_pod(Prediction_hist_nuebar,  costh_analysis_bin_count, E_analysis_bin_count);
 
-  // Use POD cache from SimpleDataHist (lazy first sync, then zero-conversion).
-  auto chi2_numu    = pod_chi2(dataset.pod_numu(),    pred_numu);
-  auto chi2_numubar = pod_chi2(dataset.pod_numubar(), pred_numubar);
-  auto chi2_nue     = pod_chi2(dataset.pod_nue(),     pred_nue);
-  auto chi2_nuebar  = pod_chi2(dataset.pod_nuebar(),  pred_nuebar);
+  auto chi2_numu    = pod_chi2(dataset.data_numu,    pred_numu);
+  auto chi2_numubar = pod_chi2(dataset.data_numubar, pred_numubar);
+  auto chi2_nue     = pod_chi2(dataset.data_nue,     pred_nue);
+  auto chi2_nuebar  = pod_chi2(dataset.data_nuebar,  pred_nuebar);
 
   return -0.5 * (chi2_numu + chi2_numubar + chi2_nue + chi2_nuebar);
 }
 
 SimpleDataHist ParBinned::GenerateData() const {
   SimpleDataHist data;
-  data.hist_numu    = dev_pred_to_pod(Prediction_hist_numu,    costh_analysis_bin_count, E_analysis_bin_count).to_th2d(Ebins_analysis, costheta_analysis);
-  data.hist_numubar = dev_pred_to_pod(Prediction_hist_numubar, costh_analysis_bin_count, E_analysis_bin_count).to_th2d(Ebins_analysis, costheta_analysis);
-  data.hist_nue     = dev_pred_to_pod(Prediction_hist_nue,     costh_analysis_bin_count, E_analysis_bin_count).to_th2d(Ebins_analysis, costheta_analysis);
-  data.hist_nuebar  = dev_pred_to_pod(Prediction_hist_nuebar,  costh_analysis_bin_count, E_analysis_bin_count).to_th2d(Ebins_analysis, costheta_analysis);
+  data.data_numu    = dev_pred_to_pod(Prediction_hist_numu,    costh_analysis_bin_count, E_analysis_bin_count);
+  data.data_numubar = dev_pred_to_pod(Prediction_hist_numubar, costh_analysis_bin_count, E_analysis_bin_count);
+  data.data_nue     = dev_pred_to_pod(Prediction_hist_nue,     costh_analysis_bin_count, E_analysis_bin_count);
+  data.data_nuebar  = dev_pred_to_pod(Prediction_hist_nuebar,  costh_analysis_bin_count, E_analysis_bin_count);
+  data.Ebins         = Ebins_analysis;
+  data.costheta_bins = costheta_analysis;
   return data;
 }
 
@@ -406,16 +407,13 @@ SimpleDataHist ParBinned::GenerateData_NoOsc() const {
   cudaDeviceSynchronize();
   CUERR
 
-  auto to_th2d = [&](const auto &dev_vec) {
-    return dev_pred_to_pod(dev_vec, costh_analysis_bin_count,
-                           E_analysis_bin_count)
-        .to_th2d(Ebins_analysis, costheta_analysis);
-  };
-  data.hist_numu    = to_th2d(no_osc_hist_numu);
-  data.hist_numubar = to_th2d(no_osc_hist_numubar);
-  data.hist_nue     = to_th2d(no_osc_hist_nue);
-  data.hist_nuebar  = to_th2d(no_osc_hist_nuebar);
-  data.hist_nc      = std::make_optional<TH2D>(to_th2d(nc));
+  data.data_numu    = dev_pred_to_pod(no_osc_hist_numu,    costh_analysis_bin_count, E_analysis_bin_count);
+  data.data_numubar = dev_pred_to_pod(no_osc_hist_numubar, costh_analysis_bin_count, E_analysis_bin_count);
+  data.data_nue     = dev_pred_to_pod(no_osc_hist_nue,     costh_analysis_bin_count, E_analysis_bin_count);
+  data.data_nuebar  = dev_pred_to_pod(no_osc_hist_nuebar,  costh_analysis_bin_count, E_analysis_bin_count);
+  data.data_nc      = dev_pred_to_pod(nc, costh_analysis_bin_count, E_analysis_bin_count);
+  data.Ebins         = Ebins_analysis;
+  data.costheta_bins = costheta_analysis;
   return data;
 }
 
@@ -438,26 +436,21 @@ void ParBinned::flip_hierarchy() {
 }
 
 void ParBinned::Save_prob_hist(const std::string &name) {
-  // if constexpr (std::is_same_v<ParProb3ppOscillation, propgator_type>) {
   auto file = TFile::Open(name.c_str(), "RECREATE");
   file->cd();
-  auto prob_hist = propagator->GetProb_Hists_3F(Ebins, costheta_bins, *this);
+  auto pod = propagator->GetProb_Hists_3F_POD(Ebins, costheta_bins, *this);
   auto id_2_name = std::to_array({"nue", "numu", "nutau"});
-  // prob_hist: [0 neutrino, 1 antineutrino][from: 0-nue, 1-mu][to: 0-e,
-  // 1-mu]
   for (int i = 0; i < 2; ++i) {
     for (int j = 0; j < 3; ++j) {
       for (int k = 0; k < 3; ++k) {
-        prob_hist[i][j][k].SetName(
-            std::format("{}_{}_{}", i == 0 ? "neutrino" : "antineutrino",
-                        id_2_name[j], id_2_name[k])
-                .c_str());
-        prob_hist[i][j][k].Write();
+        auto h = pod[i][j][k].to_th2d(Ebins, costheta_bins);
+        h.SetName(std::format("{}_{}_{}", i == 0 ? "neutrino" : "antineutrino",
+                              id_2_name[j], id_2_name[k])
+                      .c_str());
+        h.Write();
       }
     }
   }
-  // file->Write();
   file->Close();
   delete file;
-  // }
 }

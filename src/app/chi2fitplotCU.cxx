@@ -62,10 +62,20 @@ private:
 namespace {
 SimpleDataHist operator/(const SimpleDataHist &lhs, const SimpleDataHist &rhs) {
   SimpleDataHist ret;
-  ret.hist_numu = lhs.hist_numu / rhs.hist_numu;
-  ret.hist_numubar = lhs.hist_numubar / rhs.hist_numubar;
-  ret.hist_nue = lhs.hist_nue / rhs.hist_nue;
-  ret.hist_nuebar = lhs.hist_nuebar / rhs.hist_nuebar;
+  ret.Ebins = lhs.Ebins;
+  ret.costheta_bins = lhs.costheta_bins;
+
+  auto divide_pod = [](const auto &a, const auto &b) {
+    PodHist2D<double> result(a.n_costh, a.n_e);
+    for (size_t i = 0; i < a.size(); ++i)
+      result.data[i] = a.data[i] / b.data[i];
+    return result;
+  };
+
+  ret.data_numu    = divide_pod(lhs.data_numu,    rhs.data_numu);
+  ret.data_numubar = divide_pod(lhs.data_numubar, rhs.data_numubar);
+  ret.data_nue     = divide_pod(lhs.data_nue,     rhs.data_nue);
+  ret.data_nuebar  = divide_pod(lhs.data_nuebar,  rhs.data_nuebar);
   return ret;
 }
 
@@ -73,20 +83,16 @@ double chi2_possion(double bin_data, double bin_pred) {
   return ((bin_pred - bin_data) + bin_data * log(bin_data / bin_pred)) * 2;
 }
 
-TH2D get_chi2_hist(const TH2D &data, const TH2D &pred) {
-  TH2D ret = data;
-  ret.Clear();
-
-  for (int i = 1; i <= data.GetNbinsX(); ++i) {
-    for (int j = 1; j <= data.GetNbinsY(); ++j) {
-      auto data_val = data.GetBinContent(i, j);
-      auto pred_val = pred.GetBinContent(i, j);
-      if (data_val != 0) {
-        ret.SetBinContent(i, j, chi2_possion(data_val, pred_val));
-      } else {
-        ret.SetBinContent(i, j, pred_val);
-      }
-    }
+PodHist2D<double> get_chi2_hist(const PodHist2D<double> &data,
+                                const PodHist2D<double> &pred) {
+  PodHist2D<double> ret(data.n_costh, data.n_e);
+  for (size_t i = 0; i < data.size(); ++i) {
+    const double d = data.data[i];
+    const double p = pred.data[i];
+    if (d != 0)
+      ret.data[i] = chi2_possion(d, p);
+    else
+      ret.data[i] = p;
   }
   return ret;
 }
@@ -94,10 +100,12 @@ TH2D get_chi2_hist(const TH2D &data, const TH2D &pred) {
 SimpleDataHist get_chi2_data(const SimpleDataHist &data,
                              const SimpleDataHist &pred) {
   SimpleDataHist ret;
-  ret.hist_numu = get_chi2_hist(data.hist_numu, pred.hist_numu);
-  ret.hist_numubar = get_chi2_hist(data.hist_numubar, pred.hist_numubar);
-  ret.hist_nue = get_chi2_hist(data.hist_nue, pred.hist_nue);
-  ret.hist_nuebar = get_chi2_hist(data.hist_nuebar, pred.hist_nuebar);
+  ret.Ebins = data.Ebins;
+  ret.costheta_bins = data.costheta_bins;
+  ret.data_numu    = get_chi2_hist(data.data_numu,    pred.data_numu);
+  ret.data_numubar = get_chi2_hist(data.data_numubar, pred.data_numubar);
+  ret.data_nue     = get_chi2_hist(data.data_nue,     pred.data_nue);
+  ret.data_nuebar  = get_chi2_hist(data.data_nuebar,  pred.data_nuebar);
   return ret;
 }
 
@@ -113,12 +121,12 @@ void plot_data(T &&data, const std::string &filename, double min = 0.,
     return hh.GetBinContent(hh.GetMinimumBin());
   };
   auto max_val =
-      std::max({get_real_max(data.hist_numu), get_real_max(data.hist_numubar),
-                get_real_max(data.hist_nue), get_real_max(data.hist_nuebar)});
+      std::max({get_real_max(data.hist_numu()), get_real_max(data.hist_numubar()),
+                get_real_max(data.hist_nue()), get_real_max(data.hist_nuebar())});
   max = max == 0 ? max_val : max;
   auto min_val =
-      std::min({get_real_min(data.hist_numu), get_real_min(data.hist_numubar),
-                get_real_min(data.hist_nue), get_real_min(data.hist_nuebar)});
+      std::min({get_real_min(data.hist_numu()), get_real_min(data.hist_numubar()),
+                get_real_min(data.hist_nue()), get_real_min(data.hist_nuebar())});
   min = min == 0 ? min_val : min;
   auto reset_style = [&](TH1 &hist, const std::string &title) {
     gPad->SetBottomMargin(gPad->GetBottomMargin() * 1.5);
@@ -142,17 +150,21 @@ void plot_data(T &&data, const std::string &filename, double min = 0.,
   c1.SetLogx();
   c1.Divide(2, 2);
   c1.cd(1)->SetLogx();
-  reset_style(data.hist_numu, "#nu_{#mu}");
-  data.hist_numu.Draw("COLZ TEXT");
+  auto h_numu = data.hist_numu();
+  reset_style(h_numu, "#nu_{#mu}");
+  h_numu.Draw("COLZ TEXT");
   c1.cd(2)->SetLogx();
-  reset_style(data.hist_numubar, "#bar{#nu}_{#mu}");
-  data.hist_numubar.Draw("COLZ TEXT");
+  auto h_numubar = data.hist_numubar();
+  reset_style(h_numubar, "#bar{#nu}_{#mu}");
+  h_numubar.Draw("COLZ TEXT");
   c1.cd(3)->SetLogx();
-  reset_style(data.hist_nue, "#nu_{e}");
-  data.hist_nue.Draw("COLZ TEXT");
+  auto h_nue = data.hist_nue();
+  reset_style(h_nue, "#nu_{e}");
+  h_nue.Draw("COLZ TEXT");
   c1.cd(4)->SetLogx();
-  reset_style(data.hist_nuebar, "#bar{#nu}_{e}");
-  data.hist_nuebar.Draw("COLZ TEXT");
+  auto h_nuebar = data.hist_nuebar();
+  reset_style(h_nuebar, "#bar{#nu}_{e}");
+  h_nuebar.Draw("COLZ TEXT");
   c1.SaveAs(filename.c_str());
 }
 

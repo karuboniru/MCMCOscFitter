@@ -28,19 +28,6 @@ public:
   GetProb(int flavor, double E, double costheta,
           const OscillationParameters &p) const;
 
-  ///> [0-neutrino, 1-antineutrino][from: 0-nue, 1-nuebar][to: 0-nue, 1-nuebar]
-  [[nodiscard]] std::array<std::array<std::array<TH2D, 2>, 2>, 2>
-  GetProb_Hists(const std::vector<double> &Ebin,
-                const std::vector<double> &costhbin,
-                const OscillationParameters &p) override;
-
-  ///> [0-neutrino, 1-antineutrino][from: 0-nue, 1-numu, 2-nutau][to: 0-nue, 1-numu, 2-nutau]
-  [[nodiscard]] std::array<std::array<std::array<TH2D, 3>, 3>, 2>
-  GetProb_Hists_3F(const std::vector<double> &Ebin,
-                   const std::vector<double> &costhbin,
-                   const OscillationParameters &p) override;
-
-  // POD overrides — read directly from CUDAProb3 raw buffers, no TH2D.
   [[nodiscard]] std::array<std::array<std::array<PodHist2D<double>, 2>, 2>, 2>
   GetProb_Hists_POD(const std::vector<double> &Ebin,
                     const std::vector<double> &costhbin,

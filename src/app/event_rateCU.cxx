@@ -43,15 +43,15 @@ int main(int argc, char **argv) {
   bint.SaveAs("flux_xsec.root");
   auto cdata_noOsc = bint.GenerateData_NoOsc();
 
-  auto numu = cdata.hist_numu.Integral();
-  auto numu_bar = cdata.hist_numubar.Integral();
-  auto nue = cdata.hist_nue.Integral();
-  auto nue_bar = cdata.hist_nuebar.Integral();
+  auto numu = cdata.total_numu();
+  auto numu_bar = cdata.total_numubar();
+  auto nue = cdata.total_nue();
+  auto nue_bar = cdata.total_nuebar();
 
-  auto no_osc_numu = cdata_noOsc.hist_numu.Integral();
-  auto no_osc_numu_bar = cdata_noOsc.hist_numubar.Integral();
-  auto no_osc_nue = cdata_noOsc.hist_nue.Integral();
-  auto no_osc_nue_bar = cdata_noOsc.hist_nuebar.Integral();
+  auto no_osc_numu = cdata_noOsc.total_numu();
+  auto no_osc_numu_bar = cdata_noOsc.total_numubar();
+  auto no_osc_nue = cdata_noOsc.total_nue();
+  auto no_osc_nue_bar = cdata_noOsc.total_nuebar();
 
   report("Non-Oscillated Event Rates",
          {no_osc_numu, no_osc_numu_bar, no_osc_nue, no_osc_nue_bar},
@@ -66,10 +66,10 @@ int main(int argc, char **argv) {
   bint.flip_hierarchy();
   auto cdata_IH = bint.GenerateData();
 
-  auto numu_IH = cdata_IH.hist_numu.Integral();
-  auto numu_bar_IH = cdata_IH.hist_numubar.Integral();
-  auto nue_IH = cdata_IH.hist_nue.Integral();
-  auto nue_bar_IH = cdata_IH.hist_nuebar.Integral();
+  auto numu_IH = cdata_IH.total_numu();
+  auto numu_bar_IH = cdata_IH.total_numubar();
+  auto nue_IH = cdata_IH.total_nue();
+  auto nue_bar_IH = cdata_IH.total_nuebar();
 
   cdata_IH.SaveAs("Event_rate_IH.root");
 

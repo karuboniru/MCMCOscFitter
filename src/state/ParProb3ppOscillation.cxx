@@ -187,29 +187,4 @@ ParProb3ppOscillation::GetProb_Hists_3F_POD(const std::vector<double> &Ebin,
   return ret;
 }
 
-[[nodiscard]] std::array<std::array<std::array<TH2D, 2>, 2>, 2>
-ParProb3ppOscillation::GetProb_Hists(const std::vector<double> &Ebin,
-                                     const std::vector<double> &costhbin,
-                                     const OscillationParameters &p) {
-  // Delegate to POD implementation, converting to TH2D on the way back.
-  auto pod = GetProb_Hists_POD(Ebin, costhbin, p);
-  std::array<std::array<std::array<TH2D, 2>, 2>, 2> ret{};
-  for (int nu = 0; nu < 2; ++nu)
-    for (int f = 0; f < 2; ++f)
-      for (int t = 0; t < 2; ++t)
-        ret[nu][f][t] = pod[nu][f][t].to_th2d(Ebin, costhbin);
-  return ret;
-}
 
-[[nodiscard]] std::array<std::array<std::array<TH2D, 3>, 3>, 2>
-ParProb3ppOscillation::GetProb_Hists_3F(const std::vector<double> &Ebin,
-                                        const std::vector<double> &costhbin,
-                                        const OscillationParameters &p) {
-  auto pod = GetProb_Hists_3F_POD(Ebin, costhbin, p);
-  std::array<std::array<std::array<TH2D, 3>, 3>, 2> ret{};
-  for (int nu = 0; nu < 2; ++nu)
-    for (int f = 0; f < 3; ++f)
-      for (int t = 0; t < 3; ++t)
-        ret[nu][f][t] = pod[nu][f][t].to_th2d(Ebin, costhbin);
-  return ret;
-}

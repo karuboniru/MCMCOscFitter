@@ -20,58 +20,50 @@ using Catch::Matchers::WithinAbs;
 //   etc.
 class IdentityPropagator : public IHistogramPropagator {
 public:
-  void re_calculate(const OscillationParameters &) override {
-    // Identity propagator — probabilities are constant, no pre-calculation needed.
-  }
+  void re_calculate(const OscillationParameters &) override {}
 
-  std::array<std::array<std::array<TH2D, 2>, 2>, 2>
-  GetProb_Hists(const std::vector<double> &Ebins,
-                const std::vector<double> &costhbins,
-                const OscillationParameters &) override {
-    // Build TH2D with the same binning as the inputs.
-    const int ne = int(Ebins.size()) - 1;
-    const int nc = int(costhbins.size()) - 1;
-
-    auto make = [&](double diag_value, const char *name) {
-      TH2D h(name, "", ne, Ebins.data(), nc, costhbins.data());
-      for (int x = 1; x <= ne; ++x)
-        for (int y = 1; y <= nc; ++y)
-          h.SetBinContent(x, y, diag_value);
-      return h;
+  std::array<std::array<std::array<PodHist2D<double>, 2>, 2>, 2>
+  GetProb_Hists_POD(const std::vector<double> &Ebins,
+                    const std::vector<double> &costhbins,
+                    const OscillationParameters &) override {
+    const size_t ne = Ebins.size() - 1;
+    const size_t nc = costhbins.size() - 1;
+    auto make = [&](double v) {
+      PodHist2D<double> pod(nc, ne);
+      for (size_t c = 0; c < nc; ++c)
+        for (size_t e = 0; e < ne; ++e)
+          pod(c, e) = v;
+      return pod;
     };
-
     // Identity: P(nue->nue)=1, P(nue->numu)=0, P(numu->nue)=0, P(numu->numu)=1
-    // Layout: [nu/antinu][from: 0-nue, 1-numu][to: 0-nue, 1-numu]
-    std::array<std::array<std::array<TH2D, 2>, 2>, 2> result;
+    std::array<std::array<std::array<PodHist2D<double>, 2>, 2>, 2> result;
     for (int nu = 0; nu < 2; ++nu) {
-      result[nu][0][0] = make(1.0, "ee");   // nue->nue
-      result[nu][0][1] = make(0.0, "em");   // nue->numu
-      result[nu][1][0] = make(0.0, "me");   // numu->nue
-      result[nu][1][1] = make(1.0, "mm");   // numu->numu
+      result[nu][0][0] = make(1.0);  // nue->nue
+      result[nu][0][1] = make(0.0);  // nue->numu
+      result[nu][1][0] = make(0.0);  // numu->nue
+      result[nu][1][1] = make(1.0);  // numu->numu
     }
     return result;
   }
 
-  std::array<std::array<std::array<TH2D, 3>, 3>, 2>
-  GetProb_Hists_3F(const std::vector<double> &Ebins,
-                   const std::vector<double> &costhbins,
-                   const OscillationParameters &) override {
-    const int ne = int(Ebins.size()) - 1;
-    const int nc = int(costhbins.size()) - 1;
-
-    auto make = [&](double v, const char *name) {
-      TH2D h(name, "", ne, Ebins.data(), nc, costhbins.data());
-      for (int x = 1; x <= ne; ++x)
-        for (int y = 1; y <= nc; ++y)
-          h.SetBinContent(x, y, v);
-      return h;
+  std::array<std::array<std::array<PodHist2D<double>, 3>, 3>, 2>
+  GetProb_Hists_3F_POD(const std::vector<double> &Ebins,
+                       const std::vector<double> &costhbins,
+                       const OscillationParameters &) override {
+    const size_t ne = Ebins.size() - 1;
+    const size_t nc = costhbins.size() - 1;
+    auto make = [&](double v) {
+      PodHist2D<double> pod(nc, ne);
+      for (size_t c = 0; c < nc; ++c)
+        for (size_t e = 0; e < ne; ++e)
+          pod(c, e) = v;
+      return pod;
     };
-
-    std::array<std::array<std::array<TH2D, 3>, 3>, 2> result;
+    std::array<std::array<std::array<PodHist2D<double>, 3>, 3>, 2> result;
     for (int nu = 0; nu < 2; ++nu)
       for (int f = 0; f < 3; ++f)
         for (int t = 0; t < 3; ++t)
-          result[nu][f][t] = make(f == t ? 1.0 : 0.0, "id");
+          result[nu][f][t] = make(f == t ? 1.0 : 0.0);
     return result;
   }
 };
@@ -129,10 +121,10 @@ TEST_CASE("BinnedInteraction with identity propagator", "[BinnedInteraction]") {
   SECTION("GenerateData prediction matches flux*xsec with identity oscillation") {
     auto data = bint.GenerateData();
     // Every bin in every histogram should be flux * xsec = 6.
-    for (int x = 1; x <= data.hist_numu.GetNbinsX(); ++x)
-      for (int y = 1; y <= data.hist_numu.GetNbinsY(); ++y) {
-        REQUIRE_THAT(data.hist_numu.GetBinContent(x, y), WithinAbs(6.0, 1e-9));
-        REQUIRE_THAT(data.hist_nue.GetBinContent(x, y), WithinAbs(6.0, 1e-9));
+    for (int x = 1; x <= static_cast<int>(data.data_numu.n_e); ++x)
+      for (int y = 1; y <= static_cast<int>(data.data_numu.n_costh); ++y) {
+        REQUIRE_THAT(data.hist_numu().GetBinContent(x, y), WithinAbs(6.0, 1e-9));
+        REQUIRE_THAT(data.hist_nue().GetBinContent(x, y), WithinAbs(6.0, 1e-9));
       }
   }
 
@@ -146,7 +138,7 @@ TEST_CASE("BinnedInteraction with identity propagator", "[BinnedInteraction]") {
   SECTION("GetLogLikelihoodAgainstData is negative when data != prediction") {
     auto data = bint.GenerateData();
     // Perturb one bin — likelihood should drop below 0.
-    data.hist_numu.SetBinContent(1, 1, 8.0); // data > pred
+    data.data_numu(0, 0) = 8.0; // data > pred
     double llh = bint.GetLogLikelihoodAgainstData(data);
     REQUIRE(llh < 0.0);
   }
@@ -165,7 +157,7 @@ TEST_CASE("BinnedInteraction with identity propagator", "[BinnedInteraction]") {
     REQUIRE((dm2_before > 0) != (dm2_after > 0));
     // Prediction is still valid (no crash, data can be generated).
     auto data = bint.GenerateData();
-    REQUIRE(data.hist_numu.GetNbinsX() > 0);
+    REQUIRE(data.data_numu.n_e > 0);
   }
 }
 

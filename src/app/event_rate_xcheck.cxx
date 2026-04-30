@@ -1,9 +1,9 @@
 #include "ParBinnedInterface.h"
 #include "SimpleDataHist.h"
 #include "binning_tool.hpp"
-#include "chi2.h"
 #include "constants.h"
 #include "fit_config.h"
+#include "pod_hist.hpp"
 #include "timer.hpp"
 
 #include <TMath.h>
@@ -11,6 +11,7 @@
 #include <array>
 #include <cmath>
 #include <map>
+#include <numeric>
 #include <print>
 #include <ranges>
 #include <string>
@@ -18,10 +19,10 @@
 
 double chi2_data(const SimpleDataHist &data, const SimpleDataHist &pred) {
   double chi2{};
-  chi2 += TH2D_chi2(data.hist_numu, pred.hist_numu);
-  chi2 += TH2D_chi2(data.hist_numubar, pred.hist_numubar);
-  chi2 += TH2D_chi2(data.hist_nue, pred.hist_nue);
-  chi2 += TH2D_chi2(data.hist_nuebar, pred.hist_nuebar);
+  chi2 += pod_chi2(data.data_numu, pred.data_numu);
+  chi2 += pod_chi2(data.data_numubar, pred.data_numubar);
+  chi2 += pod_chi2(data.data_nue, pred.data_nue);
+  chi2 += pod_chi2(data.data_nuebar, pred.data_nuebar);
   return chi2;
 }
 
@@ -29,8 +30,10 @@ SimpleDataHist rebin_new_method(SimpleDataHist &from,
                                 std::vector<double> ebin_edges,
                                 std::vector<double> costh_bin_edges) {
   SimpleDataHist ret{};
+  ret.Ebins = ebin_edges;
+  ret.costheta_bins = costh_bin_edges;
 
-  auto TH2D_rebin_new = [&](TH2D &from_hist) {
+  auto TH2D_rebin_new = [&](const TH2D &from_hist) {
     TH2D new_hist(from_hist.GetName(), from_hist.GetName(),
                   ebin_edges.size() - 1, ebin_edges.data(),
                   costh_bin_edges.size() - 1, costh_bin_edges.data());
@@ -84,10 +87,10 @@ SimpleDataHist rebin_new_method(SimpleDataHist &from,
     }
     return new_hist;
   };
-  ret.hist_numu = TH2D_rebin_new(from.hist_numu);
-  ret.hist_nue = TH2D_rebin_new(from.hist_nue);
-  ret.hist_numubar = TH2D_rebin_new(from.hist_numubar);
-  ret.hist_nuebar = TH2D_rebin_new(from.hist_nuebar);
+  ret.data_numu    = PodHist2D<double>::from_th2d(TH2D_rebin_new(from.hist_numu()));
+  ret.data_nue     = PodHist2D<double>::from_th2d(TH2D_rebin_new(from.hist_nue()));
+  ret.data_numubar = PodHist2D<double>::from_th2d(TH2D_rebin_new(from.hist_numubar()));
+  ret.data_nuebar  = PodHist2D<double>::from_th2d(TH2D_rebin_new(from.hist_nuebar()));
   return ret;
 }
 
@@ -114,8 +117,11 @@ int main(int argc, char **argv) {
   auto cdata_NH_rebinned = rebin_new_method(cdata, e_bin_wing, costh_bin_wing);
   cdata_NH_rebinned.SaveAs("Event_rate_NH.root");
   auto cdata_noOsc = bint.GenerateData_NoOsc();
-  std::println("nc event count: {:.3f}",
-               cdata_noOsc.hist_nc->GetSumOfWeights());
+  if (cdata_noOsc.data_nc.has_value()) {
+    std::println("nc event count: {:.3f}",
+                 std::accumulate(cdata_noOsc.data_nc->data.begin(),
+                                 cdata_noOsc.data_nc->data.end(), 0.0));
+  }
   auto cdata_noOsc_rebinned =
       rebin_new_method(cdata_noOsc, e_bin_wing, costh_bin_wing);
   cdata_noOsc_rebinned.SaveAs("No_Osc.root");

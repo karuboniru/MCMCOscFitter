@@ -93,8 +93,8 @@ private:
   mutable PodHist2D<oscillaton_calc_precision> flux_pod_numu, flux_pod_numubar, flux_pod_nue, flux_pod_nuebar;
   mutable PodHist1D xsec_pod_numu, xsec_pod_numubar, xsec_pod_nue, xsec_pod_nuebar;
 
-  // ── Prediction (POD primary, TH2D for backward compat) ────────────────
-  PodHist2D<oscillaton_calc_precision> pred_pod_numu, pred_pod_numubar, pred_pod_nue, pred_pod_nuebar;
+  // ── Prediction (POD double for chi2 precision, TH2D for backward compat)
+  PodHist2D<double> pred_pod_numu, pred_pod_numubar, pred_pod_nue, pred_pod_nuebar;
 
   TH2D Prediction_hist_numu, Prediction_hist_numubar, Prediction_hist_nue,
       Prediction_hist_nuebar;
