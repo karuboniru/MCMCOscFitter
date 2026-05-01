@@ -79,6 +79,18 @@ target_link_libraries(chi2fit
 
 install (TARGETS chi2fit DESTINATION bin)
 
+add_executable(testptbinned testptbinned.cxx)
+
+target_link_libraries(testptbinned 
+  SimpleDataHist
+  BinnedInteraction
+  walker
+  ROOT::ROOTDataFrame
+)
+
+
+install (TARGETS testptbinned DESTINATION bin)
+
 if (ENABLE_CUDA)
 add_executable(event_rateCU event_rateCU.cxx)
 

@@ -12,6 +12,7 @@
 #include "binning_tool.hpp"
 #include "pod_hist.hpp"
 #include "constants.h"
+#include "temperature_ladder.h"
 #include "walker.h"
 
 #include <TH1.h>
@@ -556,35 +557,80 @@ BinnedInteraction CMake target for that path.
         return BinnedInteraction(self);
       });
 
+  // ── TemperatureLadder ───────────────────────────────────────────────────────
+
+  py::class_<mcmc::TemperatureLadder>(m, "TemperatureLadder")
+      .def(py::init<std::vector<double>>(), py::arg("temperatures"),
+           "Construct from explicit temperature list "
+           "(first must be 1.0, strictly increasing).")
+      .def_static("geometric", &mcmc::TemperatureLadder::geometric,
+                  py::arg("n"), py::arg("T_min") = 1.0, py::arg("T_max") = 100.0,
+                  "Geometric spacing: T_k = T_min * (T_max/T_min)^(k/(n-1)).")
+      .def("__len__", &mcmc::TemperatureLadder::size)
+      .def("__getitem__",
+           [](const mcmc::TemperatureLadder &l, size_t i) { return l[i]; })
+      .def("beta", &mcmc::TemperatureLadder::beta, py::arg("i"),
+           "Inverse temperature β = 1/T for chain i.")
+      .def_property_readonly("cold", &mcmc::TemperatureLadder::cold)
+      .def_property_readonly("hottest", &mcmc::TemperatureLadder::hottest)
+      .def_property_readonly("values", &mcmc::TemperatureLadder::values);
+
+  m.def("geometric_ladder", &mcmc::geometric_ladder,
+        py::arg("n"), py::arg("T_min") = 1.0, py::arg("T_max") = 100.0,
+        "Free-function: TemperatureLadder::geometric.");
+
   // ── MCMC acceptance ────────────────────────────────────────────────────────
+
   m.def(
       "mcmc_accept",
       [](const BinnedInteraction &current, const BinnedInteraction &nxt,
-         const SimpleDataHist &data) {
+         const SimpleDataHist &data, double temperature) {
         double cur_llh = current.GetLogLikelihood() +
                          current.GetLogLikelihoodAgainstData(data);
         double nxt_llh =
             nxt.GetLogLikelihood() + nxt.GetLogLikelihoodAgainstData(data);
         double log_ratio = nxt_llh - cur_llh;
-        if (log_ratio > 0)
+        if (log_ratio > 0.0)
           return true;
-        return gRandom->Rndm() < std::exp(log_ratio);
+        return gRandom->Rndm() < std::exp(log_ratio / temperature);
       },
       py::arg("current"), py::arg("proposed"), py::arg("data"),
-      R"doc(Metropolis-Hastings acceptance test.
+      py::arg("temperature") = 1.0,
+      R"doc(Metropolis-Hastings acceptance with optional temperature.
 
-Computes total log-likelihood = model.log_likelihood() +
-model.log_likelihood_against_data(data) for both states and accepts the
-proposed state with probability min(1, exp(llh_proposed - llh_current)).
+P_accept = min(1, exp((llh_proposed - llh_current) / temperature))
+
+At temperature=1 (default) this is standard Metropolis-Hastings.
+At temperature=∞, all proposals are accepted (random walk).
+Higher temperatures facilitate exploration for parallel tempering.
 )doc");
 
   // Generic version operating on any StateI (e.g. OscillationParameters alone).
   m.def("mcmc_accept_state",
-        [](const StateI &current, const StateI &proposed) {
-          return MCMCAcceptState(current, proposed);
+        [](const StateI &current, const StateI &proposed, double temperature) {
+          return MCMCAcceptState(current, proposed, temperature);
         },
         py::arg("current"), py::arg("proposed"),
-        "Generic Metropolis acceptance using StateI::GetLogLikelihood() only.");
+        py::arg("temperature") = 1.0,
+        "Generic Metropolis acceptance with temperature support.");
+
+  // Parallel-tempering swap acceptance.
+  m.def("mcmc_accept_swap",
+        [](double llh_a, double llh_b, double T_a, double T_b) {
+          double log_alpha = (llh_a - llh_b) * (1.0 / T_a - 1.0 / T_b);
+          if (log_alpha > 0.0)
+            return true;
+          return gRandom->Rndm() < std::exp(log_alpha);
+        },
+        py::arg("llh_a"), py::arg("llh_b"), py::arg("T_a"), py::arg("T_b"),
+        R"doc(Parallel-tempering swap acceptance.
+
+Computes swap probability between two chains at temperatures T_a, T_b:
+
+  P_swap = min(1, exp((llh_a - llh_b) * (1/T_a - 1/T_b)))
+
+Returns true if the swap should be accepted.
+)doc");
 
   // ── Random seed ────────────────────────────────────────────────────────────
   m.def("set_seed", [](unsigned int seed) { gRandom->SetSeed(seed); },

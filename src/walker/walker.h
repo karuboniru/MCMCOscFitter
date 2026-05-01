@@ -28,8 +28,21 @@ bool MCMCAcceptState(const State &current, const State &next,
   return dist(rng) < std::exp(log_ratio);
 }
 
+/// Temperature-aware overload — divides log-ratio by temperature.
+template <mcmc_concepts::MCMCState State>
+bool MCMCAcceptState(const State &current, const State &next,
+                     double temperature) {
+  double current_logweight = current.GetLogLikelihood();
+  double next_logweight = next.GetLogLikelihood();
+  double log_ratio = next_logweight - current_logweight;
+  if (log_ratio > 0) return true;
+  return gRandom->Rndm() < std::exp(log_ratio / temperature);
+}
+
 // Non-template overloads — kept for backward compatibility with code that
 // passes StateI& (primarily pybind11 runtime polymorphism).
 bool MCMCAcceptState(const StateI &current, const StateI &next);
 bool MCMCAcceptState(const StateI &current, const StateI &next,
                      std::mt19937 &rng);
+bool MCMCAcceptState(const StateI &current, const StateI &next,
+                     double temperature);

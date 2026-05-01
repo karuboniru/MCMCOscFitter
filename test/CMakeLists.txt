@@ -27,6 +27,7 @@ add_executable(test_physics
   test_walker.cxx
   test_osc_params.cxx
   test_chi2.cxx
+  test_parallel_tempering.cxx
 )
 target_link_libraries(test_physics PRIVATE
   Catch2::Catch2WithMain

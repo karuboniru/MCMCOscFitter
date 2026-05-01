@@ -14,7 +14,8 @@ class MCMCWorker {
 public:
   std::unique_ptr<State> current;
   std::unique_ptr<State> pending;
-  double                  current_llh{};
+  double current_llh{};
+  double temperature_ = 1.0;
 
   // ── Construction ──────────────────────────────────────────────────
 
@@ -23,19 +24,21 @@ public:
       : current(std::make_unique<State>()),
         pending(std::make_unique<State>()) {}
 
-  /// For ModelAndData-style: GetLogLikelihood() already includes data LLH.
-  explicit MCMCWorker(const State &initial)
+  /// ModelAndData-style: GetLogLikelihood() already includes data LLH.
+  explicit MCMCWorker(const State &initial, double temperature = 1.0)
       : current(std::make_unique<State>(initial)),
         pending(std::make_unique<State>(initial)),
-        current_llh(initial.GetLogLikelihood()) {}
+        current_llh(initial.GetLogLikelihood()),
+        temperature_(temperature) {}
 
-  /// For binned-style: prior + data LLH.
+  /// Binned-style: prior + data LLH.
   template <typename Data>
-  MCMCWorker(const State &initial, const Data &data)
+  MCMCWorker(const State &initial, const Data &data, double temperature = 1.0)
       : current(std::make_unique<State>(initial)),
         pending(std::make_unique<State>(initial)),
         current_llh(initial.GetLogLikelihood()
-                  + initial.GetLogLikelihoodAgainstData(data)) {}
+                  + initial.GetLogLikelihoodAgainstData(data)),
+        temperature_(temperature) {}
 
   MCMCWorker(const MCMCWorker &)            = delete;
   MCMCWorker &operator=(const MCMCWorker &) = delete;
@@ -44,14 +47,12 @@ public:
 
   // ── Step without data (ModelAndData pattern) ──────────────────────
 
-  /// Uses gRandom.
   bool step() {
     *pending = *current;
     pending->proposeStep();
     return accept_(pending->GetLogLikelihood());
   }
 
-  /// Custom uniform RNG (callable returning double in [0,1)).
   template <typename UniformRNG>
   bool step_with(UniformRNG &&urand) {
     *pending = *current;
@@ -62,7 +63,6 @@ public:
 
   // ── Step with external data (binned pattern) ──────────────────────
 
-  /// Uses gRandom.
   template <typename Data>
   bool step(const Data &data) {
     *pending = *current;
@@ -71,7 +71,6 @@ public:
                  + pending->GetLogLikelihoodAgainstData(data));
   }
 
-  /// Custom uniform RNG (callable returning double in [0,1)).
   template <typename Data, typename UniformRNG>
   bool step_with(const Data &data, UniformRNG &&urand) {
     *pending = *current;
@@ -93,12 +92,26 @@ public:
   [[nodiscard]] State       & state() noexcept { return *current; }
   [[nodiscard]] const State & state() const noexcept { return *current; }
 
+  [[nodiscard]] double temperature() const { return temperature_; }
+  void set_temperature(double T) { temperature_ = T; }
+
+  [[nodiscard]] double get_current_llh() const { return current_llh; }
+
+  [[nodiscard]] double acceptance_rate() const {
+    return step_count_ > 0
+               ? static_cast<double>(accept_count_) /
+                     static_cast<double>(step_count_)
+               : 0.0;
+  }
+
 private:
   bool accept_(double nxt_llh) {
+    step_count_++;
     if (nxt_llh > current_llh ||
-        gRandom->Rndm() < std::exp(nxt_llh - current_llh)) {
+        gRandom->Rndm() < std::exp((nxt_llh - current_llh) / temperature_)) {
       current.swap(pending);
       current_llh = nxt_llh;
+      accept_count_++;
       return true;
     }
     return false;
@@ -106,14 +119,19 @@ private:
 
   template <typename UniformRNG>
   bool accept_(double nxt_llh, UniformRNG &&urand) {
+    step_count_++;
     if (nxt_llh > current_llh ||
-        urand() < std::exp(nxt_llh - current_llh)) {
+        urand() < std::exp((nxt_llh - current_llh) / temperature_)) {
       current.swap(pending);
       current_llh = nxt_llh;
+      accept_count_++;
       return true;
     }
     return false;
   }
+
+  size_t step_count_ = 0;
+  size_t accept_count_ = 0;
 };
 
 } // namespace walker
