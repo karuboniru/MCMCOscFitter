@@ -18,6 +18,7 @@ jax_barger/
 │   └── event_rate.py     # Event-rate folding: P × flux × xsec
 ├── validate.py           # Forward validation against C++ ParProb3ppOscillation
 ├── compare_fit.py        # JAX vs C++ fitting comparison (Nelder-Mead, L-BFGS-B)
+├── compare_fit_fine.py   # Fine-binning + rebinning hierarchy discrimination test
 ├── pyproject.toml        # uv package config
 └── README.md
 ```
@@ -124,7 +125,40 @@ L-BFGS-B) equally. The production chi2fit avoids it via 12 random starts.
 | JAX L-BFGS-B | z-space | far | 5062 | 48 | 7.5s | — |
 | C++ NM | sin²θ | far | 1650 | 882 | 1.0s | 882 |
 
-### 6. GPU Performance
+### 6. Fine Binning + Rebinning — Critical for Physics
+
+**Direct evaluation at analysis-bin centers produces biased χ² values.**
+Oscillation probabilities vary on energy scales much finer than the
+analysis bin width (~2.7 GeV/bin for 10 E-bins across [0.1, 20] GeV).
+A single center-point value does not represent the bin-averaged
+oscillation probability. This is especially severe for hierarchy
+discrimination, where the wrong hierarchy's center-point values
+coincidentally differ more from truth than the bin-averaged ones.
+
+**Comparison: NH data vs IH prediction (pure Poisson χ², no pull terms):**
+
+| Method | Points | Poisson χ² | Note |
+|--------|--------|------------|------|
+| Direct 10×12 centers | 120 | **893.6** | ~37× overestimate |
+| 200E×120cosθ + rebin 20×10 | 24,000 | **24.1** | Physically correct |
+
+The fine-binning approach matches the C++ production workflow (400E×480cosθ
+→ rebin 40×40 → 10×12 analysis in `chi2fit`/`chi2fitCU`).
+
+**Hierarchy discrimination (200×120 fine + rebin, 6-year exposure, z-space L-BFGS-B):**
+
+| Hypothesis | Best χ² | Δχ² | Significance |
+|------------|---------|-----|-------------|
+| NH (correct) | 0.00 | — | — |
+| IH (wrong) | 23.97 | 24.0 | ~4.9 σ |
+
+All multi-start runs converge to the same IH minimum (χ² ≈ 23.97),
+indicating a well-defined global structure. The NH fit converges to
+χ² = 0 in 12 L-BFGS-B evaluations (~17s on GPU).
+
+See `compare_fit_fine.py` for the implementation.
+
+### 7. GPU Performance
 
 Per-evaluation timing on RTX 3060 (10 E × 12 cosθ grid):
 
@@ -146,6 +180,7 @@ analytical gradients and end-to-end differentiability.
 ## See Also
 
 - `validate.py` — forward validation script
-- `compare_fit.py` — fitting comparison script
+- `compare_fit.py` — fitting comparison script (optimization algorithms)
+- `compare_fit_fine.py` — fine-binning hierarchy discrimination test
 - `pybind/data_export.cxx` — Honda flux / GENIE xsec / PREM data export
 - `external/CUDAProb3/` — reference CUDA implementation
