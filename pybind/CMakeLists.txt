@@ -6,7 +6,7 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(pybind11)
 
-pybind11_add_module(mcmcoscfitter bindings.cxx)
+pybind11_add_module(mcmcoscfitter bindings.cxx data_export.cxx)
 
 target_link_libraries(mcmcoscfitter PRIVATE
   BinnedInteractionInject   # injectable ctor + all methods, no physics globals
@@ -14,6 +14,8 @@ target_link_libraries(mcmcoscfitter PRIVATE
   OscillationParameters
   SimpleDataHist
   walker
+  HondaFlux2D               # for load_honda_flux_2d() in data_export.cxx
+  GENIE_XSEC                # for load_genie_xsec() in data_export.cxx
   ROOT::Core
   ROOT::Hist
 )

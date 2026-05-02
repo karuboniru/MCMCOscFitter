@@ -23,6 +23,9 @@
 
 namespace py = pybind11;
 
+// ─── Forward declaration of data export helpers (defined in data_export.cxx) ─
+void init_data_export(py::module_ &m);
+
 // ─── numpy ↔ POD helpers (Phase 6: direct, no TH2D intermediate) ────────────
 
 static PodHist2D<oscillaton_calc_precision>
@@ -635,4 +638,7 @@ Returns true if the swap should be accepted.
   // ── Random seed ────────────────────────────────────────────────────────────
   m.def("set_seed", [](unsigned int seed) { gRandom->SetSeed(seed); },
         py::arg("seed"), "Set the ROOT random seed used by propose_step and mcmc_accept.");
+
+  // ── Data export helpers (defined in data_export.cxx) ───────────────────────
+  init_data_export(m);
 }
