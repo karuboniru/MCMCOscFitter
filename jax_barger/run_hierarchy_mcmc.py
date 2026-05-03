@@ -1,6 +1,9 @@
 """Bayesian hierarchy comparison: NH vs IH fit to NH Asimov data.
 
-  1. Generate NH Asimov data on fine grid (200E × 120cosθ) → rebin to 10×12.
+  **Requires --fine grid for physical results.**  --fast overestimates χ² ≈ 37×
+  and produces biased Bayes factor.  --fast is for algorithm debug only.
+
+  1. Generate NH Asimov data (fine grid 200E×120cosθ → rebin → 10×12).
   2. For each hierarchy hypothesis (NH, IH):
      a. Find MAP via L-BFGS-B with analytical gradients.
      b. Compute Laplace log-evidence at the MAP.

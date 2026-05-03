@@ -177,6 +177,27 @@ analytical gradients and end-to-end differentiability.
 - `scipy` (for fitting/optimization)
 - `mcmcoscfitter` (C++ pybind module, for data export and validation)
 
+### 8. HMC Sampler
+
+See `mcmc.py` and `run_mcmc.py`.  Adaptive Hamiltonian Monte Carlo with
+prior-based mass matrix and dual-averaging step-size tuning.  Supports:
+
+```bash
+# Debug only — fast 10×12 bin centres (χ² biased ~37×, NON-PHYSICAL)
+python run_mcmc.py --fast --warmup 100 --samples 100 --leapfrog 10
+
+# Production — fine 200×120 + rebin (physically correct)
+python run_mcmc.py --fine  --warmup 100 --samples 100 --leapfrog 10
+
+# Hierarchy comparison (Bayes factor via Laplace evidence)
+python run_hierarchy_mcmc.py --fine  --warmup 200 --samples 500 --chains 4
+```
+
+**Important**: The `--fast` mode evaluates oscillation probabilities only at
+bin-centres.  This is acceptable for debugging the MCMC algorithm but produces
+physically misleading χ² values (~37× overestimate) and biased posteriors.
+Always use `--fine` for results intended for physics interpretation.
+
 ## See Also
 
 - `validate.py` — forward validation script

@@ -1,19 +1,20 @@
 """Run gradient-accelerated HMC sampling for neutrino oscillation parameters.
 
-Physics context: Nh Asimov data, 6-parameter θ-space sampling with Gaussian
+Physics context: NH Asimov data, 6-parameter θ-space sampling with Gaussian
 pull priors from PDG.  Two grid modes:
 
-  --fast   10 E × 12 cosθ direct evaluation (bin centers, no rebinning)
-           Fast (≈2-3 ms/eval GPU), for quick tests and tuning.
-  --fine   200 E × 120 cosθ fine grid → rebin to 10×12 analysis bins
-           Physically correct, ≈50-100 ms/eval GPU, for production.
+  --fast   10 E × 12 cosθ direct evaluation at bin centers, no rebinning.
+           **NON-PHYSICAL — DEBUG ONLY.**  Oscillation probabilities vary on
+           sub-bin scales; a single centre-point value per bin overestimates
+           χ² ≈ 37× and gives biased posterior shapes.  Use ONLY for quick
+           testing of algorithm correctness (≈2-3 ms/eval GPU).
 
-Usage:
-    cd /var/home/yan/codes/MCMCOscFitter/jax_barger
-    PYTHONPATH=../build/pybind:.. .venv/bin/python run_mcmc.py --fast --warmup 200 --samples 500 --chains 2
-    PYTHONPATH=../build/pybind:.. .venv/bin/python run_mcmc.py --fast --fp32  # float32 mode
+  --fine   200 E × 120 cosθ fine grid → rebin 20×10 → 10×12 analysis bins.
+           Physically correct — captures bin-averaged oscillation probabilities.
+           Use for any production or physics result (≈50-100 ms/eval GPU).
 
 Environment:
+    JAX_BARGER_FLOAT32=1   Use float32 (2× less VRAM, ~2-3× faster on GPU)
     JAX_BARGER_FLOAT32=1   Use float32 (2× less VRAM, ~2-3× faster on GPU)
 """
 
