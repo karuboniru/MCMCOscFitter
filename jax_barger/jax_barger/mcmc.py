@@ -23,7 +23,7 @@ import math
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax_barger.config import DTYPE, DTYPE_NP
+from jax_barger.config import DTYPE, DTYPE_NP, VRAM_SAFE
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -67,11 +67,13 @@ def build_neg_log_posterior(E_grid, cos_grid, dist_path, rhoe_path,
     from jax_barger.barger import oscillation_prob_layer
     from jax_barger.event_rate import event_rate, poisson_chi2, rebin_2d
 
-    # Pre-build vmap-over-(E, cosθ) oscillator with checkpoint to avoid
-    # storing per-point intermediates during reverse-mode differentiation.
-    _osc_ckpt = jax.checkpoint(oscillation_prob_layer)
+    # Pre-build vmap-over-(E, cosθ) oscillator.
+    # jax.checkpoint avoids storing per-point intermediates during reverse-mode
+    # AD — essential on consumer GPUs (12 GB VRAM), can be disabled on clusters
+    # with >24 GB VRAM via JAX_BARGER_NO_VRAM_WORKAROUND=1.
+    _osc = jax.checkpoint(oscillation_prob_layer) if VRAM_SAFE else oscillation_prob_layer
     _vm = jax.vmap(
-        jax.vmap(_osc_ckpt,
+        jax.vmap(_osc,
                  in_axes=(0, None, None, None, None, None, None, None)),
         in_axes=(None, 0, 0, None, None, None, None, None))
 
@@ -450,16 +452,19 @@ class HMCSampler:
             acc_np = np.array(accepted, dtype=DTYPE_NP)
             chains_list.append(chain_np)
 
-            # Quick summary using batched eval to avoid GPU OOM
+            # Quick summary — use batched eval on consumer GPUs to avoid OOM
             _nlp_jit = jax.jit(self.neg_log_prob_raw)
             acc_rate = float(acc_np.mean())
-            # Batched meanU in slices of 100 to stay within VRAM
-            batch = 100
-            us = []
-            for b in range(0, n_samples, batch):
-                sl = chain_np[b:b + batch]
-                us.append(float(jax.vmap(_nlp_jit)(jnp.array(sl)).mean()))
-            mean_u = float(np.mean(us))
+            if VRAM_SAFE:
+                # Batched meanU in slices of 100 to stay within VRAM
+                batch = 100
+                us = []
+                for b in range(0, n_samples, batch):
+                    sl = chain_np[b:b + batch]
+                    us.append(float(jax.vmap(_nlp_jit)(jnp.array(sl)).mean()))
+                mean_u = float(np.mean(us))
+            else:
+                mean_u = float(jax.vmap(_nlp_jit)(jnp.array(chain_np)).mean())
             print(f"  chain {c + 1}/{n_chains}: {n_samples} samples, "
                   f"accept={acc_rate:.3f}  "
                   f"meanU={mean_u:.1f}")

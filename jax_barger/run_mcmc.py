@@ -20,10 +20,13 @@ Environment:
 
 import sys, os, time, argparse
 
-# ── Handle --fp32 before any JAX imports ──
+# ── Handle --fp32 and --no-vram-workaround before any JAX imports ──
 if '--fp32' in sys.argv:
     os.environ['JAX_BARGER_FLOAT32'] = '1'
     sys.argv.remove('--fp32')
+if '--no-vram-workaround' in sys.argv:
+    os.environ['JAX_BARGER_NO_VRAM_WORKAROUND'] = '1'
+    sys.argv.remove('--no-vram-workaround')
 
 import numpy as np
 import jax, jax.numpy as jnp
@@ -56,6 +59,8 @@ parser.add_argument('--adapt-mass', action='store_true',
                     help='Enable sample-based mass matrix adaptation (experimental)')
 parser.add_argument('--fp32', action='store_true',
                     help='Use float32 precision (2x less VRAM, ~2-3x faster on GPU)')
+parser.add_argument('--no-vram-workaround', action='store_true',
+                    help='Disable VRAM-conserving workarounds (for >24GB GPUs)')
 args = parser.parse_args()
 
 
