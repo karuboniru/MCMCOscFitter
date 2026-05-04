@@ -8,18 +8,22 @@ Replicates the CUDAProb3 physics with automatic differentiation support.
 
 ```
 jax_barger/
-├── jax_barger/           # Python package
+├── jax_barger/              # Python package
 │   ├── __init__.py
-│   ├── config.py         # Physical constants (G_F, Earth radius, ...)
-│   ├── pmns.py           # PMNS matrix builder + mass differences
-│   ├── earth.py          # PREM density model + path geometry
-│   ├── matter.py         # Matter-effect cubic eigenvalue solver
-│   ├── barger.py         # Core propagation engine (vectorized over E, cosθ)
-│   └── event_rate.py     # Event-rate folding: P × flux × xsec
-├── validate.py           # Forward validation against C++ ParProb3ppOscillation
-├── compare_fit.py        # JAX vs C++ fitting comparison (Nelder-Mead, L-BFGS-B)
-├── compare_fit_fine.py   # Fine-binning + rebinning hierarchy discrimination test
-├── pyproject.toml        # uv package config
+│   ├── config.py            # Physical constants + DTYPE precision control
+│   ├── pmns.py              # PMNS matrix builder + mass differences
+│   ├── earth.py             # PREM density model + path geometry
+│   ├── matter.py            # Matter-effect cubic eigenvalue solver
+│   ├── barger.py            # Core propagation engine (vectorized over E, cosθ)
+│   ├── event_rate.py        # Event-rate folding: P × flux × xsec
+│   └── mcmc.py              # HMC sampler + Laplace evidence + MAP finder
+├── validate.py              # Forward validation against C++ ParProb3ppOscillation
+├── compare_fit.py           # JAX vs C++ fitting comparison (L-BFGS-B, NM, MIGRAD)
+├── compare_fit_fine.py      # Fine-binning + rebinning hierarchy discrimination
+├── run_mcmc.py              # Single-model HMC driver (--fast/--fine, --fp32)
+├── run_hierarchy_mcmc.py    # NH vs IH Bayes factor via HMC + Laplace
+├── plot_corner.py           # Corner-plot generator (png/pdf/eps, with metadata)
+├── pyproject.toml           # uv package config
 └── README.md
 ```
 
@@ -27,9 +31,20 @@ jax_barger/
 
 ```bash
 cd jax_barger
-uv venv && uv pip install "jax[cuda12]" numpy scipy
-# Run validation (requires built pybind module: mcmcoscfitter)
+
+# Forward validation (requires built pybind module: mcmcoscfitter)
 PYTHONPATH=../build/pybind:.. .venv/bin/python validate.py
+
+# Fast HMC test (algorithm debug, non-physical χ²)
+PYTHONPATH=../build/pybind:.. .venv/bin/python run_mcmc.py --fast --warmup 100 --samples 100
+
+# Production HMC (fine grid, physically correct)
+JAX_BARGER_FLOAT32=1 PYTHONPATH=../build/pybind:.. .venv/bin/python \
+    run_mcmc.py --fine --warmup 200 --samples 2000
+
+# NH vs IH hierarchy comparison (Bayes factor)
+JAX_BARGER_FLOAT32=1 PYTHONPATH=../build/pybind:.. .venv/bin/python \
+    run_hierarchy_mcmc.py --fine --warmup 200 --samples 2000 --chains 1
 ```
 
 ```python
@@ -175,33 +190,107 @@ analytical gradients and end-to-end differentiability.
 - `jax[cuda12]` (GPU acceleration)
 - `numpy`
 - `scipy` (for fitting/optimization)
+- `matplotlib` (for corner plots)
 - `mcmcoscfitter` (C++ pybind module, for data export and validation)
 
-### 8. HMC Sampler
+## 8. HMC Sampler
 
-See `mcmc.py` and `run_mcmc.py`.  Adaptive Hamiltonian Monte Carlo with
-prior-based mass matrix and dual-averaging step-size tuning.  Supports:
+Adaptive Hamiltonian Monte Carlo in θ-space with prior-based mass matrix and
+dual-averaging step-size tuning (`mcmc.py`).  Key features:
+
+- **θ-space sampling** avoids the `∂θ/∂(sin²θ) → ∞` gradient singularity.
+- **Prior-based mass matrix** `M_ii = 1/σ²_θ` correctly handles the 11-decade
+  range of posterior eigenvalues without sample-based (noisy) adaptation.
+- **Multi-chain jax.lax.scan** production sampling with JIT-compiled chains.
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `HMCSampler` | `mcmc.py` | Warmup + multi-chain production sampling |
+| `build_neg_log_posterior` | `mcmc.py` | Construct θ-space neg-log-posterior with pull priors |
+| `find_map` | `mcmc.py` | L-BFGS-B MAP search with analytical gradients |
+| `laplace_log_evidence` | `mcmc.py` | Finite-difference Laplace evidence estimator |
+| `run_mcmc.py` | — | Single-model HMC driver (`--fast`/`--fine`) |
+| `run_hierarchy_mcmc.py` | — | NH vs IH comparison with Bayesian evidence |
+
+### Performance (fine grid, RTX 3060, fp32)
+
+| Phase | Time | Notes |
+|-------|------|-------|
+| JIT compile | ~12 s | One-time XLA compilation |
+| func + grad eval | 73 ms | GPU, 200E×120cosθ |
+| HMC proposal (10 leapfrog) | ~1.5 s | 20 grad + 2 func evals |
+| Warmup 200 steps | ~44 min | Step-size adaptation |
+| Sampling 2000 samples | ~50 min | jax.lax.scan, JIT compiled |
+
+### Hierarchy Bayes Factor Results
+
+NH Asimov data, fine grid (200E×120cosθ → 10×12), full PDG pull priors:
+
+| Method | 2 ln BF | BF | Evidence |
+|--------|---------|-----|----------|
+| Laplace (fp64, prior mean) | 24.02 | 1.64×10⁵ | Decisive |
+| Laplace (fp32, prior mean) | 22.63 | 8.20×10⁴ | Decisive |
+| Laplace (fp32, posterior mean) | 26.64 | 6.11×10⁵ | Decisive |
+
+| Pull configuration | 2 ln BF (fine) | BF |
+|---|---|---|
+| Full (6 pulls) | 24.02 | 1.64×10⁵ |
+| Dm2 + θ₁₃ + θ₁₂ only | 18.17 | 8.83×10³ |
+
+The Hessian determinant correction is < 5% of the Δ-χ² term.  The Bayes factor
+remains decisive even when only the three most tightly constrained parameters
+carry prior information.
+
+## 9. Float32 Precision
+
+Set `JAX_BARGER_FLOAT32=1` environment variable (or `--fp32` CLI flag) before
+importing to enable fp32 throughout the entire computation chain.  This:
+
+- **Halves GPU VRAM usage** — essential for fine-grid (200×120) on consumer GPUs
+- **Speeds up evaluation ~2–3×** on RTX 3060 (73 ms/eval fp32 vs ~200 ms fp64)
+- **Matches C++ CUDAProb3 internal precision** (CUDAProb3 uses float32)
 
 ```bash
-# Debug only — fast 10×12 bin centres (χ² biased ~37×, NON-PHYSICAL)
-python run_mcmc.py --fast --warmup 100 --samples 100 --leapfrog 10
+# fp32 production run
+JAX_BARGER_FLOAT32=1 python run_mcmc.py --fine --warmup 200 --samples 2000
 
-# Production — fine 200×120 + rebin (physically correct)
-python run_mcmc.py --fine  --warmup 100 --samples 100 --leapfrog 10
-
-# Hierarchy comparison (Bayes factor via Laplace evidence)
-python run_hierarchy_mcmc.py --fine  --warmup 200 --samples 500 --chains 4
+# fp64 (default, backward compatible)
+python run_mcmc.py --fast ...
 ```
 
-**Important**: The `--fast` mode evaluates oscillation probabilities only at
-bin-centres.  This is acceptable for debugging the MCMC algorithm but produces
-physically misleading χ² values (~37× overestimate) and biased posteriors.
-Always use `--fine` for results intended for physics interpretation.
+The config module exports `DTYPE` and `DTYPE_NP` so all downstream code uses
+the current precision consistently:
+
+```python
+from jax_barger.config import DTYPE, DTYPE_NP
+# DTYPE is jnp.float32 or jnp.float64 depending on JAX_BARGER_FLOAT32
+```
+
+## 10. Corner Plot
+
+`plot_corner.py` generates publication-ready pair plots from MCMC chain files:
+
+```bash
+python plot_corner.py \
+  --nh hmc_chains_nh_fine2k.npz --ih hmc_chains_ih_fine2k.npz \
+  --basename posterior_corner \
+  --pull "full: DM2 Dm2 s2θ23 s2θ13 δCP s2θ12" \
+  --grid "fine 200E×120cosθ → 10×12" \
+  --precision fp32
+```
+
+Outputs `posterior_corner.{png,pdf,eps}`.  The upper-right corner carries a
+metadata panel listing active pull terms, grid configuration, and a caveat
+about observational errors.
 
 ## See Also
 
-- `validate.py` — forward validation script
-- `compare_fit.py` — fitting comparison script (optimization algorithms)
-- `compare_fit_fine.py` — fine-binning hierarchy discrimination test
+- `validate.py` — forward validation against C++ Prob3++ oscillation probabilities
+- `compare_fit.py` — optimization comparison (JAX L-BFGS-B vs C++ Nelder-Mead)
+- `compare_fit_fine.py` — fine-binning + rebinning hierarchy discrimination
+- `run_mcmc.py` — single-model HMC driver
+- `run_hierarchy_mcmc.py` — NH vs IH Bayesian model comparison
+- `plot_corner.py` — posterior corner-plot generator
+- `mcmc.py` — core HMC sampler, Laplace evidence, MAP finder
 - `pybind/data_export.cxx` — Honda flux / GENIE xsec / PREM data export
 - `external/CUDAProb3/` — reference CUDA implementation
