@@ -24,7 +24,7 @@ in (E, cosθ).
 MCMCOscFitter/
 ├── src/                        # C++ source
 │   ├── app/                    # Executables (chi2fit, event_rate, MCMC, ...)
-│   ├── common/                 # Shared utilities (binning, constants, pod_hist)
+│   ├── common/                 # Shared utilities (binning, constants, pod_hist, physics_input, fit_config, interpolation, myhist, timer, tools)
 │   ├── concepts/               # C++20 concept constraints (mcmc_concepts.h)
 │   ├── data/                   # SimpleDataHist / SimpleDataPoint (binned / point-like data)
 │   ├── llh/                    # Likelihood models
@@ -45,8 +45,10 @@ MCMCOscFitter/
 ├── external/                   # Git submodules
 │   ├── CUDAProb3/              # GPU Barger propagator (header + CUDA kernels)
 │   ├── Prob3plusplus/          # CPU Barger propagator (C)
+│   ├── hondaflux/              # Honda atmospheric flux (1D interpolation)
 │   ├── hondaflux2d/            # Honda atmospheric neutrino flux (2D interpolation)
-│   └── xsec_genie_tune/        # GENIE neutrino cross-sections (ROOT splines)
+│   ├── xsec_genie_tune/        # GENIE neutrino cross-sections (ROOT splines)
+│   └── toyfit_tools/           # Toy MC fitting utilities and neutrino state
 │
 ├── pybind/                     # Python bindings (pybind11)
 │   ├── bindings.cxx            # Core API: ParProb3ppOscillation, BinnedInteraction, MCMC
@@ -59,10 +61,16 @@ MCMCOscFitter/
 │   │   ├── earth.py            # PREM model + Earth path geometry
 │   │   ├── matter.py           # Matter-effect cubic eigenvalue solver
 │   │   ├── barger.py           # Core propagation (vmapped over E, cosθ)
-│   │   └── event_rate.py       # Flux × prob × xsec folding + Poisson χ²
+│   │   ├── event_rate.py       # Flux × prob × xsec folding + Poisson χ²
+│   │   └── mcmc.py             # HMC sampler + Laplace evidence + MAP finder
 │   ├── validate.py             # Forward validation against C++ ParProb3ppOscillation
 │   ├── compare_fit.py          # JAX vs C++ fitting comparison (optimisation algorithms)
-│   └── compare_fit_fine.py     # Fine-binning + rebinning hierarchy test
+│   ├── compare_fit_fine.py     # Fine-binning + rebinning hierarchy test
+│   ├── run_mcmc.py             # Single-model HMC driver (--fast/--fine, --fp32)
+│   ├── run_hierarchy_mcmc.py   # NH vs IH Bayes factor via HMC + Laplace
+│   ├── plot_corner.py          # Corner-plot generator (png/pdf/eps, with metadata)
+│   ├── pyproject.toml          # uv package config
+│   └── uv.lock
 │
 ├── data/                       # Physics input files
 │   ├── honda-2d.solmin.txt     # Honda atmospheric flux (solar minimum)
@@ -80,8 +88,8 @@ MCMCOscFitter/
 │   ├── test_walker.cxx         # MCMC walker
 │   └── test_parallel_tempering.cxx  # Parallel tempering
 │
-├── cross_check/                # Standalone cross-checks
-├── baselines/                  # Reference output for regression testing
+├── cross_check/                # Standalone cross-checks (event rate, probability, ROOT-to-hist)
+├── baselines/                  # Reference output for regression testing (golden files + check.sh)
 ├── CMakeLists.txt              # Top-level build
 ├── CLAUDE.md                   # Build / test / architecture reference (for AI tools)
 └── BASELINE_VERIFICATION.md    # Regression-test workflow
@@ -183,9 +191,19 @@ Key findings documented in `jax_barger/README.md`:
 cmake -B build -G Ninja -DENABLE_CUDA=OFF
 cmake --build build/
 
-# CUDA build (requires nvcc on PATH)
+# CUDA build — 6 presets defined in CMakeUserPresets.json
 export PATH="/usr/local/cuda/bin:$PATH"
-cmake --preset default
+
+# General-purpose CUDA builds
+cmake --preset default              # nvcc + clang++ host compiler
+cmake --preset cuda-gcc             # nvcc + gcc/g++ host compiler
+cmake --preset cuda-llvm            # clang++ as CUDA compiler
+
+# Verification builds (required for baseline regression tests)
+cmake --preset cuda-gcc15-clang     # nvcc (g++-15 host) + clang++ compile driver
+cmake --preset cuda-gcc15-clang-fp32  # above + OSCILLATION_FP=float
+cmake --preset cuda-gcc15-clang-fp64  # above + OSCILLATION_FP=double
+
 cmake --build build/
 
 # Run tests
@@ -197,8 +215,8 @@ PYTHONPATH=build/pybind python -c "import mcmcoscfitter as mof; print(mof.scale_
 
 # JAX fitting
 cd jax_barger
-uv venv && uv pip install "jax[cuda12]" numpy scipy
-PYTHONPATH=../build/pybind:.. .venv/bin/python validate.py
+uv sync
+PYTHONPATH=../build/pybind:.. uv run python validate.py
 ```
 
 ## Data Files

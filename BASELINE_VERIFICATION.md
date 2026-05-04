@@ -49,7 +49,7 @@ export PATH="/usr/local/cuda/bin:$PATH"
 cmake --preset cuda-gcc15-clang-fp32
 cmake --build build/ -j$(nproc) 2>&1 | tail -5
 
-# Gate 2 — Unit tests (all 22 must pass)
+# Gate 2 — Unit tests (all 32 must pass)
 ctest --test-dir build/ --output-on-failure -j$(nproc) 2>&1 | tail -10
 
 # Gate 3 — Physics baselines

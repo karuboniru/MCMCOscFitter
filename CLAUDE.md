@@ -8,9 +8,12 @@ All builds use CMake with Ninja and output to `build/`. Three presets are define
 
 ```bash
 # Configure (choose one preset)
-cmake --preset default       # CUDA with clang++ host compiler
-cmake --preset cuda-gcc      # CUDA with gcc/g++ host compiler
-cmake --preset cuda-llvm     # CUDA with clang++ as CUDA compiler
+cmake --preset default              # CUDA with clang++ host compiler
+cmake --preset cuda-gcc             # CUDA with gcc/g++ host compiler
+cmake --preset cuda-llvm            # CUDA with clang++ as CUDA compiler
+cmake --preset cuda-gcc15-clang     # CUDA with nvcc (g++-15 host) + clang++ compile driver
+cmake --preset cuda-gcc15-clang-fp32  # above + OSCILLATION_FP=float (baseline verification)
+cmake --preset cuda-gcc15-clang-fp64  # above + OSCILLATION_FP=double
 
 # Build all targets
 cmake --build build/
@@ -34,12 +37,16 @@ After building, binaries are in `build/`. Key executables:
 | `testsample` | Sample events from oscillation model |
 | `testfit` | MCMC on unbinned data |
 | `testfitbinned` | MCMC on binned histograms (CPU) |
+| `testptbinned` | Parallel tempering on binned histograms (CPU) |
 | `chi2fit` | χ² minimization (CPU, ROOT Minuit2) |
+| `chi2fittestCU` | CUDA χ² fit baseline verification |
+| `chi2fitCU` | GPU-accelerated χ² minimization |
+| `chi2fitplotCU` | GPU-accelerated χ² fit with plots |
 | `event_rate` | Calculate NC/CC event rates (CPU) |
 | `event_rateCU` | GPU-accelerated event rates |
-| `testfitbinnedCU` | GPU-accelerated MCMC fitting |
-| `chi2fitCU` | GPU-accelerated χ² minimization |
 | `event_rate_xcheck` | Cross-check event rate calculation |
+| `testfitbinnedCU` | GPU-accelerated MCMC fitting |
+| `plotter` | ROOT RDataFrame plotting utility |
 
 Executables rely on data files at the repo root (`data/` directory). The `DATA_PATH` macro is defined at compile time as the repo root.
 
@@ -157,9 +164,11 @@ walker                         ← Metropolis-Hastings MCMC sampler
 - **Eigen3** — linear algebra
 - **OpenMP** — CPU parallelism (required even for CUDA builds via CUDAProb3)
 - **Prob3plusplus** (`external/`) — PMNS oscillation calculations through Earth
-- **CUDAProb3** (`external/`) — header-only GPU/OpenMP oscillation propagation
+- **CUDAProb3** (`external/`) — GPU-accelerated Barger oscillation propagation (static library + CUDA kernels)
+- **hondaflux** (`external/`) — Honda atmospheric neutrino flux (1D interpolation)
 - **hondaflux / hondaflux2d** (`external/`) — Honda atmospheric neutrino flux models
 - **xsec_genie_tune** (`external/`) — GENIE neutrino cross-section spline interface
+- **toyfit_tools** (`external/`) — Toy MC fitting utilities and neutrino state
 
 All external libraries are git submodules under `external/`.
 
