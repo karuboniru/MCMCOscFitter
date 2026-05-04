@@ -67,9 +67,11 @@ def build_neg_log_posterior(E_grid, cos_grid, dist_path, rhoe_path,
     from jax_barger.barger import oscillation_prob_layer
     from jax_barger.event_rate import event_rate, poisson_chi2, rebin_2d
 
-    # Pre-build vmap-over-(E, cosθ) oscillator
+    # Pre-build vmap-over-(E, cosθ) oscillator with checkpoint to avoid
+    # storing per-point intermediates during reverse-mode differentiation.
+    _osc_ckpt = jax.checkpoint(oscillation_prob_layer)
     _vm = jax.vmap(
-        jax.vmap(oscillation_prob_layer,
+        jax.vmap(_osc_ckpt,
                  in_axes=(0, None, None, None, None, None, None, None)),
         in_axes=(None, 0, 0, None, None, None, None, None))
 
@@ -409,9 +411,11 @@ class HMCSampler:
         if self.z_current is None:
             raise RuntimeError("Call warmup() before sample().")
 
-        # Capture raw functions + fixed quantities in closure scope
-        _nlp = self.neg_log_prob_raw
-        _grd = self.grad_fn_raw
+        # Pre-JIT neg_log_prob and its gradient so that the scan body sees
+        # them as single XLA call primitives rather than expanding the full
+        # 24000-point vmap'd forward model into the HLO graph.
+        _nlp = jax.jit(self.neg_log_prob_raw)
+        _grd = jax.jit(self.grad_fn_raw)
         _M = jnp.array(self.M, dtype=DTYPE)
         _M_inv = jnp.array(self.M_inv, dtype=DTYPE)
         _eps = float(self.eps)
