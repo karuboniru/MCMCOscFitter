@@ -1,3 +1,6 @@
 .venv/
 __pycache__/
 *.npz
+posterior_corner.png
+posterior_corner.pdf
+posterior_corner.eps
