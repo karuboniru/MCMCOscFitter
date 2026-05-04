@@ -446,11 +446,16 @@ class HMCSampler:
             acc_np = np.array(accepted, dtype=DTYPE_NP)
             chains_list.append(chain_np)
 
-            # Quick summary using local JIT'd eval
+            # Quick summary using batched eval to avoid GPU OOM
             _nlp_jit = jax.jit(self.neg_log_prob_raw)
-            _nlp_vmap = jax.vmap(_nlp_jit)
             acc_rate = float(acc_np.mean())
-            mean_u = float(_nlp_vmap(jnp.array(chain_np)).mean())
+            # Batched meanU in slices of 100 to stay within VRAM
+            batch = 100
+            us = []
+            for b in range(0, n_samples, batch):
+                sl = chain_np[b:b + batch]
+                us.append(float(jax.vmap(_nlp_jit)(jnp.array(sl)).mean()))
+            mean_u = float(np.mean(us))
             print(f"  chain {c + 1}/{n_chains}: {n_samples} samples, "
                   f"accept={acc_rate:.3f}  "
                   f"meanU={mean_u:.1f}")
