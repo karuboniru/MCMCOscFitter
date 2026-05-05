@@ -33,6 +33,9 @@ import jax
 import numpy as np
 
 # ── Float precision ──
+# NOTE: importing this module sets ``jax_enable_x64 = True`` globally,
+# affecting all subsequent JAX operations in the process.  Set
+# ``JAX_BARGER_FLOAT32=1`` before import if float32 is desired instead.
 
 _FLOAT32 = os.environ.get('JAX_BARGER_FLOAT32', '').strip().lower() in (
     '1', 'true', 'yes', 'on')

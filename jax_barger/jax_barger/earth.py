@@ -7,6 +7,7 @@ Implements the same path-length logic as the CUDAProb3 GPU kernel:
 All layer data is padded to MAX_LAYERS for uniform JAX vmap/JIT tracing.
 """
 
+import jax.lax
 import jax.numpy as jnp
 from jax_barger.config import R_earth, h_prod
 
@@ -73,6 +74,13 @@ def precompute_path_data(cos_grid, prem_radii, prem_density, prem_Ye):
 
     Returns arrays of shape (nCos, MAX_LAYERS) that can be vmapped over.
 
+    .. note::
+
+       This function uses Python control flow that depends on the number of
+       Earth layers crossed per cosθ value.  Call it with **concrete** (non-
+       traced) ``cos_grid`` before any JIT compilation.  For JIT-safe use, pass
+       the precomputed ``dist`` / ``rhoe`` directly to the oscillation engine.
+
     Args:
         cos_grid:     (nCos,) float64, cosine(zenith) values
         prem_radii:   (5,) float64, PREM radii [km], descending
@@ -101,22 +109,42 @@ def precompute_path_data(cos_grid, prem_radii, prem_density, prem_Ye):
         atm_dist = jnp.where(cos_theta >= 0, path_len, path_len - earth_len)
         dist = dist.at[ic, 0].set(atm_dist)
 
-        # Ingoing Earth layers (1 to ml)
-        for lyr in range(1, ml + 1):
-            i = lyr - 1   # PREM shell index
-            cross_this = 2.0 * jnp.sqrt(jnp.maximum(0.0, prem_radii[i]**2 - RE**2 * sin2))
-            cross_next = 2.0 * jnp.sqrt(jnp.maximum(0.0, prem_radii[i + 1]**2 - RE**2 * sin2))
-            d = jnp.where(i < ml - 1, 0.5 * (cross_this - cross_next), cross_this)
-            # Ingoing: store at position lyr
-            dist = dist.at[ic, lyr].set(d)
-            rhoe_arr = rhoe_arr.at[ic, lyr].set(rho_e[jnp.minimum(i, rho_e.shape[0] - 1)])
+        # ── Ingoing Earth layers (lyr = 1 … ml) ──
+        # Use fori_loop with constant upper bound so the function remains
+        # traceable under jit / vmap.  Layers beyond ml are no-ops.
 
-        # Outgoing Earth layers: mirrored from ingoing, but in REVERSE order.
-        # Physically: on the way out, the neutrino crosses the innermost shell
-        # first, then progressively outer shells.
-        # Store outgoing layer at index ml+lyr with the value from ingoing layer ml-lyr.
-        for lyr in range(1, ml):
-            dist = dist.at[ic, ml + lyr].set(dist[ic, ml - lyr])
-            rhoe_arr = rhoe_arr.at[ic, ml + lyr].set(rhoe_arr[ic, ml - lyr])
+        def _ingoing_body(lyr, state):
+            d, r = state
+            i = lyr - 1
+            i_safe = jnp.minimum(i, prem_radii.shape[0] - 1)
+            i_next_safe = jnp.minimum(i + 1, prem_radii.shape[0] - 1)
+            cross_this = 2.0 * jnp.sqrt(jnp.maximum(0.0, prem_radii[i_safe]**2 - RE**2 * sin2))
+            cross_next = 2.0 * jnp.sqrt(jnp.maximum(0.0, prem_radii[i_next_safe]**2 - RE**2 * sin2))
+            d_val = jnp.where(i < ml - 1, 0.5 * (cross_this - cross_next), cross_this)
+            r_val = rho_e[jnp.minimum(i_safe, rho_e.shape[0] - 1)]
+
+            active = lyr <= ml
+            d = jnp.where(active, d.at[ic, lyr].set(d_val), d)
+            r = jnp.where(active, r.at[ic, lyr].set(r_val), r)
+            return d, r
+
+        dist, rhoe_arr = jax.lax.fori_loop(1, MAX_LAYERS + 1, _ingoing_body,
+                                           (dist, rhoe_arr))
+
+        # ── Outgoing Earth layers (lyr = 1 … ml-1) ──
+        # Mirrored from ingoing but in REVERSE order: store at ml+lyr from ml-lyr.
+
+        def _outgoing_body(lyr, state):
+            d, r = state
+            active = lyr < ml
+            # Clip indices to guard against OOB when inactive
+            src = jnp.clip(ml - lyr, 0, MAX_LAYERS - 1)
+            dst = jnp.clip(ml + lyr, 0, MAX_LAYERS - 1)
+            d = jnp.where(active, d.at[ic, dst].set(d[ic, src]), d)
+            r = jnp.where(active, r.at[ic, dst].set(r[ic, src]), r)
+            return d, r
+
+        dist, rhoe_arr = jax.lax.fori_loop(1, MAX_LAYERS, _outgoing_body,
+                                           (dist, rhoe_arr))
 
     return dist, rhoe_arr

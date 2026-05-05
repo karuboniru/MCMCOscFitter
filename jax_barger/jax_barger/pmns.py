@@ -35,25 +35,19 @@ def build_pmns(theta12, theta13, theta23, deltacp):
     s23 = jnp.sin(theta23); c23 = jnp.cos(theta23)
     sd  = jnp.sin(deltacp); cd  = jnp.cos(deltacp)
 
-    U_re = jnp.zeros((3, 3))
-    U_im = jnp.zeros((3, 3))
+    s13cd = s13 * cd
+    s13sd = s13 * sd
 
-    U_re = U_re.at[0, 0].set( c12 * c13)
-    U_re = U_re.at[0, 1].set( s12 * c13)
-    U_re = U_re.at[0, 2].set( s13 * cd)
-    U_im = U_im.at[0, 2].set(-s13 * sd)
-
-    U_re = U_re.at[1, 0].set(-s12 * c23 - c12 * s23 * s13 * cd)
-    U_im = U_im.at[1, 0].set(-c12 * s23 * s13 * sd)
-    U_re = U_re.at[1, 1].set( c12 * c23 - s12 * s23 * s13 * cd)
-    U_im = U_im.at[1, 1].set(-s12 * s23 * s13 * sd)
-    U_re = U_re.at[1, 2].set( s23 * c13)
-
-    U_re = U_re.at[2, 0].set( s12 * s23 - c12 * c23 * s13 * cd)
-    U_im = U_im.at[2, 0].set(-c12 * c23 * s13 * sd)
-    U_re = U_re.at[2, 1].set(-c12 * s23 - s12 * c23 * s13 * cd)
-    U_im = U_im.at[2, 1].set(-s12 * c23 * s13 * sd)
-    U_re = U_re.at[2, 2].set( c23 * c13)
+    U_re = jnp.array([
+        [c12 * c13,                            s12 * c13,                   s13cd               ],
+        [-s12 * c23 - c12 * s23 * s13cd,        c12 * c23 - s12 * s23 * s13cd,  s23 * c13        ],
+        [ s12 * s23 - c12 * c23 * s13cd,       -c12 * s23 - s12 * c23 * s13cd,  c23 * c13        ],
+    ])
+    U_im = jnp.array([
+        [0.0,    0.0,                    -s13sd              ],
+        [-c12 * s23 * s13sd,  -s12 * s23 * s13sd,  0.0     ],
+        [-c12 * c23 * s13sd,  -s12 * c23 * s13sd,  0.0     ],
+    ])
 
     return U_re, U_im
 
@@ -121,7 +115,7 @@ def compute_mass_order(dm):
         base * jnp.cos(th0 + 2.0 * pi / 3.0) + shift,
     ])
 
-    order = jnp.zeros(3, dtype=jnp.int32)
+    order = jnp.zeros(3, dtype=jnp.int64)
     for i in range(3):
         best = jnp.argmin(jnp.abs(dm[i, 0] - mMatV))
         order = order.at[i].set(best)
