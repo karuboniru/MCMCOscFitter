@@ -260,7 +260,7 @@ int main(int argc, char **agrv) {
     }
     return minimal_chi2;
   };
-  do_fit_and_plot(4e-3);
+  do_fit_and_plot(-4e-3);
   // for (int i = 0; i < 6; ++i) {
   //   pull_toggle one_off = all_on;
   //   one_off[i] = false;
