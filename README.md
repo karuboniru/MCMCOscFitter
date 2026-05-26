@@ -12,7 +12,7 @@ The project provides three complementary fitting pipelines:
 |----------|---------|-----------|-----------|
 | `chi2fit` / `chi2fitCU` | CUDA + Minuit2 | MIGRAD (quasi-Newton) | C++ executable |
 | `testfitbinned` / `testfitbinnedCU` | CUDA + ROOT | Metropolis-Hastings MCMC | C++ executable |
-| `jax_barger/` | JAX (GPU) | L-BFGS-B, Nelder-Mead | Python |
+| `jax_barger/` | JAX (GPU) | L-BFGS-B, HMC, NumPyro NUTS | Python |
 
 All three share the same physics core: Barger et al. matter oscillation
 through Earth using the PREM density model evaluated over 2D histograms
@@ -62,12 +62,17 @@ MCMCOscFitter/
 │   │   ├── matter.py           # Matter-effect cubic eigenvalue solver
 │   │   ├── barger.py           # Core propagation (vmapped over E, cosθ)
 │   │   ├── event_rate.py       # Flux × prob × xsec folding + Poisson χ²
-│   │   └── mcmc.py             # HMC sampler + Laplace evidence + MAP finder
+│   │   ├── mcmc.py             # HMC sampler + Laplace evidence + MAP finder
+│   │   └── pymc_model.py       # Unified fitting API + NumPyro NUTS (z-space)
+│   ├── check_pymc_env.py       # Verify PyMC + NumPyro + JAX environment
+│   ├── run_pymc.py             # Unified Bayesian + frequentist driver (--sampler hmc/numpyro)
+│   ├── run_hierarchy_pymc.py   # NH vs IH via ArviZ model comparison
+│   ├── test_pymc_model.py      # Cross-check: logp, gradient, MAP, NUTS vs HMC
 │   ├── validate.py             # Forward validation against C++ ParProb3ppOscillation
 │   ├── compare_fit.py          # JAX vs C++ fitting comparison (optimisation algorithms)
 │   ├── compare_fit_fine.py     # Fine-binning + rebinning hierarchy test
-│   ├── run_mcmc.py             # Single-model HMC driver (--fast/--fine, --fp32)
-│   ├── run_hierarchy_mcmc.py   # NH vs IH Bayes factor via HMC + Laplace
+│   ├── run_mcmc.py             # (Legacy) Single-model HMC driver (--fast/--fine, --fp32)
+│   ├── run_hierarchy_mcmc.py   # (Legacy) NH vs IH Bayes factor via HMC + Laplace
 │   ├── plot_corner.py          # Corner-plot generator (png/pdf/eps, with metadata)
 │   ├── pyproject.toml          # uv package config
 │   └── uv.lock
@@ -132,10 +137,11 @@ MCMCOscFitter/
           └────────┬─────────┘    └──────────┬───────────┘
                    │                          │
                    ▼                          ▼
-          ┌──────────────────┐    ┌──────────────────────┐
-          │ Minuit2 MIGRAD   │    │ L-BFGS-B / Nelder-Mead│
-          │ or MCMC walker   │    │ (scipy.optimize)       │
-          └──────────────────┘    └──────────────────────┘
+           ┌──────────────────┐    ┌──────────────────────┐
+           │ Minuit2 MIGRAD   │    │ L-BFGS-B / HMC /     │
+           │ or MCMC walker   │    │ NumPyro NUTS          │
+           └──────────────────┘    │ (scipy + jax_barger)  │
+                                   └──────────────────────┘
 ```
 
 ## Key Components
@@ -182,7 +188,16 @@ Key findings documented in `jax_barger/README.md`:
 - `sin²θ` parameterisation causes `∂θ/∂(sin²θ) → ∞` at maximal mixing → use **θ directly** for fitting
 - Raw-parameter Hessian condition number ~7×10¹⁰ → **z-space rescaling** drops it to ~10³
 - Fine binning + rebinning is **required** for correct physics: direct center-point evaluation overestimates hierarchy discrimination by ~37×
-- From 1σ starts, z-space L-BFGS-B converges to χ²=0 in ~12 evaluations
+
+**Unified fitting workflow** (`run_pymc.py`): starts from JAX physics, runs MAP via L-BFGS-B (frequentist), then MCMC sampling via HMCSampler (fast, well-tuned) or NumPyro NUTS (adaptive trajectory, exact posterior via z-space rescaling), with ArviZ diagnostics and netCDF output.
+
+**Quick usage:**
+```bash
+cd jax_barger
+PYTHONPATH=../build/pybind:.. .venv/bin/python run_pymc.py --fast --skip-hmc       # MAP only
+PYTHONPATH=../build/pybind:.. .venv/bin/python run_pymc.py --fast --sampler hmc     # HMC
+PYTHONPATH=../build/pybind:.. .venv/bin/python run_pymc.py --fast --sampler numpyro # NumPyro NUTS
+```
 
 ## Build & Run
 
@@ -213,10 +228,12 @@ ctest --test-dir build/
 cmake --build build/ --target mcmcoscfitter
 PYTHONPATH=build/pybind python -c "import mcmcoscfitter as mof; print(mof.scale_factor_6y)"
 
-# JAX fitting
+# JAX fitting (requires pybind module + uv environment)
 cd jax_barger
 uv sync
-PYTHONPATH=../build/pybind:.. uv run python validate.py
+PYTHONPATH=../build/pybind:.. .venv/bin/python check_pymc_env.py
+PYTHONPATH=../build/pybind:.. .venv/bin/python run_pymc.py --fast --skip-hmc
+PYTHONPATH=../build/pybind:.. .venv/bin/python validate.py
 ```
 
 ## Data Files

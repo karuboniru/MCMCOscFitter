@@ -3,7 +3,7 @@ name = "jax-barger"
 version = "0.1.0"
 description = "JAX-based Barger neutrino oscillation propagator with differentiable event rates"
 requires-python = ">=3.10"
-dependencies = ["jax[cuda12]", "numpy"]
+dependencies = ["jax[cuda12]", "numpy", "pymc>=5.10", "numpyro>=0.14", "arviz>=0.18", "nutpie>=0.13"]
 
 [build-system]
 requires = ["hatchling"]

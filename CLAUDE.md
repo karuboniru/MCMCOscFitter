@@ -102,9 +102,87 @@ and `get_prob_hists_3f(...)  -> np.ndarray (2,3,3,nE,nCosth)`.
 files. The production `BinnedInteraction(Ebins, costhbins, scale, ...)` constructor
 (which reads Honda flux + GENIE xsec) is only available from C++ executables.
 
-## Testing
+## JAX Fitting (`jax_barger/`)
+
+The `jax_barger/` directory provides a differentiable neutrino oscillation fitter
+with unified Bayesian + frequentist analysis. See `jax_barger/README.md` for details.
+
+### Quick Usage
+
+```bash
+cd jax_barger
+
+# Environment check
+PYTHONPATH=../build/pybind:.. .venv/bin/python check_pymc_env.py
+
+# MAP only (fast)
+PYTHONPATH=../build/pybind:.. .venv/bin/python run_pymc.py --fast --skip-hmc
+
+# HMC sampling (HMCSampler, well-tuned, default)
+PYTHONPATH=../build/pybind:.. .venv/bin/python \
+    run_pymc.py --fast --sampler hmc --samples 500 --warmup 200 --chains 2
+
+# NumPyro NUTS (z-space rescaled, exact posterior)
+PYTHONPATH=../build/pybind:.. .venv/bin/python \
+    run_pymc.py --fast --sampler numpyro --samples 200 --warmup 100 --chains 2
+
+# Compare both samplers
+PYTHONPATH=../build/pybind:.. .venv/bin/python \
+    run_pymc.py --fast --sampler both --samples 100 --warmup 50 --chains 2
+
+# Hierarchy comparison
+PYTHONPATH=../build/pybind:.. .venv/bin/python \
+    run_hierarchy_pymc.py --fast --sampler hmc --samples 500 --warmup 200
+```
+
+### Key Python API
+
+```python
+from jax_barger.pymc_model import build_jax_log_prob, fit_map, fit_numpyro_nuts_exact
+
+# Build JAX negative log-posterior (Poisson χ² + sin²θ pull priors)
+nllp = build_jax_log_prob(E_grid, cos_grid, dist_path, rhoe_path,
+                           flux, xsec, data, prior_mean, prior_sigma,
+                           E_rebin, C_rebin)
+
+# Frequentist: MAP via L-BFGS-B with JAX analytical gradients
+theta_map, result = fit_map(nllp, theta_init, bounds=bounds)
+
+# Bayesian: NumPyro NUTS with z-space rescaling (exact posterior)
+idata = fit_numpyro_nuts_exact(nllp, prior_mean, prior_sigma,
+                                n_draws=2000, n_warmup=800, n_chains=4)
+```
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `run_pymc.py` | Unified fit driver (MAP → MCMC → ArviZ summary) |
+| `run_hierarchy_pymc.py` | NH vs IH comparison with ArviZ diagnostics |
+| `pymc_model.py` | `build_jax_log_prob`, `fit_map`, `fit_numpyro_nuts_exact` |
+| `test_pymc_model.py` | Numerical cross-check: logp, gradient, MAP, NUTS vs HMC |
+| `check_pymc_env.py` | Verify PyMC + NumPyro + JAX environment |
+| `validate.py` | Forward validation against C++ ParProb3ppOscillation |
+| `compare_fit.py` | JAX vs C++ fitting comparison |
+| `compare_fit_fine.py` | Fine-binning + rebinning hierarchy discrimination |
+| `run_mcmc.py` | (Legacy) Single-model HMC driver |
+| `run_hierarchy_mcmc.py` | (Legacy) NH vs IH Bayes factor via HMC + Laplace |
+
+### z-space rescaling (NumPyro NUTS)
+
+Parameters span 3.8×10⁵ in posterior width (Δm²₂₁: 1.8×10⁻⁶, δCP: 0.69).
+NumPyro NUTS operates in dimensionless z-space via:
+
+    θⱼ = centerⱼ + zⱼ · scaleⱼ
+
+where `scaleⱼ = σ_sin²θ / sin(2θ₀)` for mixing angles (delta-method Jacobian).
+The affine transformation preserves the exact posterior (constant Jacobian cancels).
 
 Catch2 v3 is fetched automatically via CMake FetchContent. Tests are registered with CTest.
+
+## Testing
+
+C++ tests:
 
 ```bash
 # Build all test executables
@@ -171,6 +249,19 @@ walker                         ← Metropolis-Hastings MCMC sampler
 - **toyfit_tools** (`external/`) — Toy MC fitting utilities and neutrino state
 
 All external libraries are git submodules under `external/`.
+
+### Python-Side Dependencies (`jax_barger/`)
+
+Managed by `uv` in `jax_barger/pyproject.toml`:
+- **JAX** (`jax[cuda12]`) — GPU-accelerated autodiff
+- **NumPyro** — NUTS sampler with JAX backend
+- **PyMC** — probabilistic programming framework
+- **ArviZ** — Bayesian diagnostics and I/O
+- **Nutpie** — Rust NUTS sampler (optional)
+- **SciPy** — L-BFGS-B optimization
+- **mcmcoscfitter** — C++ pybind module for data I/O
+
+Build the pybind module first, then `uv sync` in `jax_barger/`.
 
 ### Data Files
 

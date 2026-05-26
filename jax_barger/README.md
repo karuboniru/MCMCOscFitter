@@ -16,12 +16,17 @@ jax_barger/
 │   ├── matter.py            # Matter-effect cubic eigenvalue solver
 │   ├── barger.py            # Core propagation engine (vectorized over E, cosθ)
 │   ├── event_rate.py        # Event-rate folding: P × flux × xsec
-│   └── mcmc.py              # HMC sampler + Laplace evidence + MAP finder
+│   ├── mcmc.py              # HMC sampler + Laplace evidence + MAP finder
+│   └── pymc_model.py        # Unified JAX fitting API + NumPyro NUTS
+├── check_pymc_env.py        # Verify PyMC + NumPyro + JAX environment
+├── run_pymc.py              # Unified Bayesian + frequentist driver (HMCSampler or NumPyro)
+├── run_hierarchy_pymc.py    # NH vs IH via PyMC/ArviZ model comparison
+├── test_pymc_model.py       # Numerical cross-check: logp, gradient, MAP, NUTS vs HMC
 ├── validate.py              # Forward validation against C++ ParProb3ppOscillation
 ├── compare_fit.py           # JAX vs C++ fitting comparison (L-BFGS-B, NM, MIGRAD)
 ├── compare_fit_fine.py      # Fine-binning + rebinning hierarchy discrimination
-├── run_mcmc.py              # Single-model HMC driver (--fast/--fine, --fp32)
-├── run_hierarchy_mcmc.py    # NH vs IH Bayes factor via HMC + Laplace
+├── run_mcmc.py              # (Legacy) Single-model HMC driver (--fast/--fine, --fp32)
+├── run_hierarchy_mcmc.py    # (Legacy) NH vs IH Bayes factor via HMC + Laplace
 ├── plot_corner.py           # Corner-plot generator (png/pdf/eps, with metadata)
 ├── pyproject.toml           # uv package config
 └── README.md
@@ -32,19 +37,42 @@ jax_barger/
 ```bash
 cd jax_barger
 
+# Environment check (one-time)
+PYTHONPATH=../build/pybind:.. .venv/bin/python check_pymc_env.py
+
 # Forward validation (requires built pybind module: mcmcoscfitter)
 PYTHONPATH=../build/pybind:.. .venv/bin/python validate.py
 
-# Fast HMC test (algorithm debug, non-physical χ²)
-PYTHONPATH=../build/pybind:.. .venv/bin/python run_mcmc.py --fast --warmup 100 --samples 100
+# ── Unified fit (recommended entry point) ──
 
-# Production HMC (fine grid, physically correct)
-JAX_BARGER_FLOAT32=1 PYTHONPATH=../build/pybind:.. .venv/bin/python \
-    run_mcmc.py --fine --warmup 200 --samples 2000
+# Fast MAP estimate only (algorithm debug, ~8s)
+PYTHONPATH=../build/pybind:.. .venv/bin/python run_pymc.py --fast --skip-hmc
 
-# NH vs IH hierarchy comparison (Bayes factor)
+# Production HMC (fast grid, HMCSampler — default)
+PYTHONPATH=../build/pybind:.. .venv/bin/python \
+    run_pymc.py --fast --sampler hmc --samples 2000 --warmup 800 --chains 4
+
+# Production HMC (fine grid)
 JAX_BARGER_FLOAT32=1 PYTHONPATH=../build/pybind:.. .venv/bin/python \
-    run_hierarchy_mcmc.py --fine --warmup 200 --samples 2000 --chains 1
+    run_pymc.py --fine --sampler hmc --samples 2000 --warmup 800 --chains 4
+
+# NumPyro NUTS (z-space rescaled, exact posterior)
+PYTHONPATH=../build/pybind:.. .venv/bin/python \
+    run_pymc.py --fast --sampler numpyro --samples 500 --warmup 200 --chains 2
+
+# Compare both samplers side-by-side
+PYTHONPATH=../build/pybind:.. .venv/bin/python \
+    run_pymc.py --fast --sampler both --samples 200 --warmup 100 --chains 2
+
+# ── Hierarchy comparison ──
+
+# NH vs IH with HMCSampler (default)
+PYTHONPATH=../build/pybind:.. .venv/bin/python \
+    run_hierarchy_pymc.py --fine --sampler hmc --samples 2000 --warmup 800 --chains 4
+
+# NH vs IH with NumPyro NUTS
+PYTHONPATH=../build/pybind:.. .venv/bin/python \
+    run_hierarchy_pymc.py --fast --sampler numpyro --samples 500 --warmup 200 --chains 2
 ```
 
 ```python
@@ -191,9 +219,51 @@ analytical gradients and end-to-end differentiability.
 - `numpy`
 - `scipy` (for fitting/optimization)
 - `matplotlib` (for corner plots)
+- `pymc>=5.10`, `numpyro>=0.14`, `arviz>=1.0`, `nutpie>=0.13` (unified fit workflow)
 - `mcmcoscfitter` (C++ pybind module, for data export and validation)
 
-## 8. HMC Sampler
+## 8. Unified JAX + ArviZ Workflow (`pymc_model.py`, `run_pymc.py`)
+
+The unified fitting interface provides **Bayesian and frequentist analysis** in
+a single API:
+
+| Function | Module | Purpose |
+|----------|--------|---------|
+| `build_jax_log_prob(...)` | `pymc_model.py` | Build JAX negative log-posterior (Poisson χ² + pull priors) |
+| `fit_map(nllp_fn, theta_init)` | `pymc_model.py` | MAP estimation via L-BFGS-B with JAX analytical gradients |
+| `fit_numpyro_nuts_exact(...)` | `pymc_model.py` | NumPyro NUTS with z-space rescaling (exact posterior) |
+| `run_pymc.py` | — | Unified driver: MAP → MCMC → ArviZ summary |
+| `run_hierarchy_pymc.py` | — | NH vs IH comparison with ArviZ diagnostics |
+
+### z-space rescaling for NumPyro NUTS
+
+The six oscillation parameters span **3.8×10⁵** in posterior width (Δm²₂₁: 1.8×10⁻⁶,
+δCP: 0.69).  NumPyro NUTS operates in dimensionless z-space via an affine lift:
+
+```
+θⱼ = centerⱼ + zⱼ · scaleⱼ
+```
+
+where `scaleⱼ` is the prior width mapped to θ-space using the same
+`dθ/d(sin²θ) = 1/sin(2θ)` Jacobian as the HMCSampler mass matrix.
+The transformation is affine → constant Jacobian cancels → **exact posterior**.
+
+### Sampler comparison
+
+| Property | HMCSampler (default) | NumPyro NUTS |
+|----------|---------------------|-------------|
+| Algorithm | Fixed-length HMC with leapfrog | NUTS with adaptive trajectory |
+| Mass matrix | Prior-based diagonal `M_ii = 1/σ²` | Dense 6×6 adapted during warmup |
+| Step size | Dual averaging | Dual averaging |
+| Gradients per proposal | 2 (leapfrog half-steps) | 5–10 (tree building) |
+| Per-sample speed (fast grid) | ~0.4 s | ~0.6–1.0 s |
+| Warmup convergence | ~5–10 evals | ~50–80 evals |
+| Tuning parameters | `n_leapfrog`, `eps_0` | `target_accept` (No U-turn) |
+
+HMCSampler is **faster** for well-conditioned posteriors.  NumPyro NUTS is
+preferred when the posterior has strong non-elliptical correlations.
+
+## 9. HMC Sampler (Legacy)
 
 Adaptive Hamiltonian Monte Carlo in θ-space with prior-based mass matrix and
 dual-averaging step-size tuning (`mcmc.py`).  Key features:
@@ -241,7 +311,7 @@ The Hessian determinant correction is < 5% of the Δ-χ² term.  The Bayes facto
 remains decisive even when only the three most tightly constrained parameters
 carry prior information.
 
-## 9. Float32 Precision
+## 10. Float32 Precision
 
 Set `JAX_BARGER_FLOAT32=1` environment variable (or `--fp32` CLI flag) before
 importing to enable fp32 throughout the entire computation chain.  This:
@@ -252,10 +322,10 @@ importing to enable fp32 throughout the entire computation chain.  This:
 
 ```bash
 # fp32 production run
-JAX_BARGER_FLOAT32=1 python run_mcmc.py --fine --warmup 200 --samples 2000
+JAX_BARGER_FLOAT32=1 python run_pymc.py --fine --sampler hmc --samples 2000 --warmup 800
 
 # fp64 (default, backward compatible)
-python run_mcmc.py --fast ...
+python run_pymc.py --fast ...
 ```
 
 The config module exports `DTYPE` and `DTYPE_NP` so all downstream code uses
@@ -266,7 +336,7 @@ from jax_barger.config import DTYPE, DTYPE_NP
 # DTYPE is jnp.float32 or jnp.float64 depending on JAX_BARGER_FLOAT32
 ```
 
-## 10. Corner Plot
+## 11. Corner Plot
 
 `plot_corner.py` generates publication-ready pair plots from MCMC chain files:
 
@@ -285,11 +355,16 @@ about observational errors.
 
 ## See Also
 
+- `run_pymc.py` — unified fit driver (HMCSampler, NumPyro NUTS, or both)
+- `run_hierarchy_pymc.py` — NH vs IH comparison with ArviZ diagnostics
+- `pymc_model.py` — `build_jax_log_prob`, `fit_map`, `fit_numpyro_nuts_exact`
+- `test_pymc_model.py` — numerical cross-check: logp, gradient, MAP, NUTS vs HMC
+- `check_pymc_env.py` — verify PyMC + NumPyro + JAX environment
 - `validate.py` — forward validation against C++ Prob3++ oscillation probabilities
 - `compare_fit.py` — optimization comparison (JAX L-BFGS-B vs C++ Nelder-Mead)
 - `compare_fit_fine.py` — fine-binning + rebinning hierarchy discrimination
-- `run_mcmc.py` — single-model HMC driver
-- `run_hierarchy_mcmc.py` — NH vs IH Bayesian model comparison
+- `run_mcmc.py` — (legacy) single-model HMC driver
+- `run_hierarchy_mcmc.py` — (legacy) NH vs IH Bayesian model comparison
 - `plot_corner.py` — posterior corner-plot generator
 - `mcmc.py` — core HMC sampler, Laplace evidence, MAP finder
 - `pybind/data_export.cxx` — Honda flux / GENIE xsec / PREM data export

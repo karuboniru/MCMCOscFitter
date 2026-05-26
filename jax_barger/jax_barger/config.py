@@ -23,9 +23,9 @@ On professional GPUs (A100 80GB, H100 80GB) these restrict throughput.
 Disable by setting ``JAX_BARGER_NO_VRAM_WORKAROUND=1`` before import.
 
 Examples::
-    $ python run_mcmc.py --fast ...                         # fp64, workarounds ON
-    $ JAX_BARGER_FLOAT32=1 python run_mcmc.py --fast ...    # fp32, workarounds ON
-    $ JAX_BARGER_NO_VRAM_WORKAROUND=1 python run_mcmc.py --fp32 --fast ...  # no workarounds
+    $ python run_pymc.py --fast ...                         # fp64, workarounds ON
+    $ JAX_BARGER_FLOAT32=1 python run_pymc.py --fast ...    # fp32, workarounds ON
+    $ JAX_BARGER_NO_VRAM_WORKAROUND=1 python run_pymc.py --fp32 --fast ...  # no workarounds
 """
 
 import os

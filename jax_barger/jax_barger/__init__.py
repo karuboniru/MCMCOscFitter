@@ -6,6 +6,7 @@ Key API:
     from jax_barger.earth import default_prem
     from jax_barger.config import R_earth, h_prod, tworttwoGf, LoEfac, MAX_LAYERS
     from jax_barger.mcmc import HMCSampler, find_map, laplace_log_evidence
+    from jax_barger.pymc_model import build_jax_log_prob, fit_map, fit_numpyro_nuts_exact
 """
 
 from jax_barger.barger import (
@@ -24,4 +25,7 @@ __all__ = [
     "rebin_2d",
     "default_prem",
     "electron_density",
+    "build_jax_log_prob",
+    "fit_map",
+    "fit_numpyro_nuts_exact",
 ]
