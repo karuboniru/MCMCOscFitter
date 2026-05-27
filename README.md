@@ -74,6 +74,7 @@ MCMCOscFitter/
 │   ├── run_mcmc.py             # (Legacy) Single-model HMC driver (--fast/--fine, --fp32)
 │   ├── run_hierarchy_mcmc.py   # (Legacy) NH vs IH Bayes factor via HMC + Laplace
 │   ├── plot_corner.py          # Corner-plot generator (png/pdf/eps, with metadata)
+│   ├── plot_arviz.py           # ArviZ diagnostic plots (trace, pair, forest, rank, ridge)
 │   ├── pyproject.toml          # uv package config
 │   └── uv.lock
 │

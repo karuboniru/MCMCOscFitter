@@ -165,6 +165,8 @@ idata = fit_numpyro_nuts_exact(nllp, prior_mean, prior_sigma,
 | `validate.py` | Forward validation against C++ ParProb3ppOscillation |
 | `compare_fit.py` | JAX vs C++ fitting comparison |
 | `compare_fit_fine.py` | Fine-binning + rebinning hierarchy discrimination |
+| `plot_arviz.py` | ArviZ diagnostic plots (trace, pair, forest, rank, ridge) |
+| `plot_corner.py` | Legacy corner-plot generator |
 | `run_mcmc.py` | (Legacy) Single-model HMC driver |
 | `run_hierarchy_mcmc.py` | (Legacy) NH vs IH Bayes factor via HMC + Laplace |
 

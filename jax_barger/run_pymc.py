@@ -56,6 +56,7 @@ parser.add_argument('--target-accept', type=float, default=0.651, help='Target a
 parser.add_argument('--fp32', action='store_true', help='Use float32 precision')
 parser.add_argument('--no-vram-workaround', action='store_true', help='Disable VRAM workarounds')
 parser.add_argument('--skip-hmc', action='store_true', help='Skip MCMC, do MAP only')
+parser.add_argument('--plots', action='store_true', help='Generate ArviZ diagnostic plots')
 args = parser.parse_args()
 
 
@@ -236,6 +237,36 @@ for i, name in enumerate(pnames):
 outpath = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'pymc_fit.nc')
 idata.to_netcdf(outpath)
 print(f"\nSaved to {outpath}")
+
+# Generate ArviZ diagnostic plots
+if args.plots:
+    import arviz_plots as azp
+    azp.style.use('arviz-variat')
+    plot_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'plots')
+    os.makedirs(plot_dir, exist_ok=True)
+    print(f"\n{'='*72}")
+    print("Generating ArviZ diagnostic plots")
+    print(f"{'='*72}")
+    for plot_name, plot_func in [
+        ('trace', azp.plot_trace),
+        ('posterior', azp.plot_dist),
+        ('pair', azp.plot_pair),
+        ('rank', azp.plot_rank),
+    ]:
+        try:
+            pc = plot_func(idata, var_names=pnames, group='posterior')
+            fpath = os.path.join(plot_dir, f'{plot_name}.png')
+            pc.savefig(fpath)
+            print(f"  {plot_name:>10} -> {fpath}")
+        except Exception as e:
+            print(f"  {plot_name:>10} -> SKIPPED ({e})")
+    try:
+        pc = azp.plot_forest(idata, var_names=pnames, group='posterior', combined=True)
+        fpath = os.path.join(plot_dir, 'forest.png')
+        pc.savefig(fpath)
+        print(f"      forest -> {fpath}")
+    except Exception as e:
+        print(f"      forest -> SKIPPED ({e})")
 print(f"\n{'='*72}")
 print("Done. Unified Bayesian + frequentist fit complete.")
 print(f"{'='*72}")
